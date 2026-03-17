@@ -65,8 +65,24 @@ Every bio MUST include the following when available:
 - **Outdated negative narratives**: A player's rough patch is OK to mention in passing
   as part of a comeback arc, but don't dwell on failures.
 
-**Tone**: Light pro-wrestling energy is welcome. Hype up rivalries, dramatic
-storylines, and underdog arcs. The reader should come away excited about the player.
+**Tone**: Pro-wrestling energy is actively encouraged. This is an entertainment
+site — the bio should read like a character introduction, not a Wikipedia article.
+Hype up rivalries, dramatic storylines, underdog arcs, and larger-than-life moments.
+The reader should come away thinking "I need to watch this player's matches."
+
+Guidelines for entertainment value:
+- Lean into player personas: Punk's trash talk era, Daigo's stoic legend status,
+  Itabashi Zangief's grappler-or-die philosophy, Blaz's teenage fearlessness
+- Frame rivalries dramatically: "the rematch everyone demanded", "a score to settle"
+- Use descriptive language for playstyle: not just "aggressive" but "relentless
+  pressure that leaves opponents gasping for air"
+- Celebrate absurd/fun facts: Kilzyou's FIFA-to-FGC pipeline, Bonchan's mahjong
+  parlor origins, Fuudo's 2D-and-3D double crown
+- Include crowd reactions and hype moments when documented
+- Treat the FGC like the sport it is — these are athletes with story arcs
+- As long as nobody gets hurt, lean into the entertainment. If a player says
+  something bold or funny publicly, that is fair game and makes the bio better
+- When in doubt: would a fight night commentator say this? If yes, include it
 
 ---
 
