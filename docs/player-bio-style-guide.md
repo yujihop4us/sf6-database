@@ -231,9 +231,47 @@ See database entry for player id=24 (Tokido) as the gold standard reference.
 Both `bio` and `bio_en` fields demonstrate the expected depth, tone, and structure
 for a Tier S player biography.
 
+
 ---
 
-## 11. Technical Notes / 技衳メモ
+## 11. Site Design Philosophy / サイトデザイン思想
+
+This database powers an entertainment-first fighting game site.
+The core design philosophy leans into the "fight night" aesthetic:
+
+### The Vision
+Think UFC Fight Night meets ESPN player profiles. Every element of the site
+should make the viewer feel like they are watching a major sporting event.
+H2H (Head to Head) data is the backbone — rivalry narratives are built on
+real match data, not just vibes.
+
+### How Bio Integrates with H2H
+- Player bios provide the STORY ("Tokido and Daigo have battled across three
+  decades of Street Fighter, from arcades to sold-out arenas")
+- H2H data provides the PROOF ("Career H2H: Tokido 15 - 12 Daigo")
+- Together they create a fight-card experience: when a user views a matchup,
+  they see the stats AND the narrative, like a pre-fight hype package
+
+### Frontend Direction (Future)
+- Player profile pages: bio + recent results + H2H records against key rivals
+- Matchup pages: side-by-side tale-of-the-tape style presentation
+- Pre-tournament features: "paths to collision" showing potential bracket matchups
+  with historical rivalry context
+- Post-tournament recaps: updated bios woven with fresh results
+- Visual tone: bold, high-contrast, fight-night energy — not sterile esports stats
+
+### Bio Writing with H2H in Mind
+When writing bios, consider which rivalries have H2H data in the database.
+Reference specific opponents and series results where possible:
+- GOOD: "At CC12, Blaz defeated Fuudo in a grueling 5-4 set — their third
+  meeting at a major, with Blaz now leading the series 2-1"
+- BASIC: "At CC12, Blaz placed 3rd"
+
+The bio should make the reader want to click through to the H2H page.
+
+---
+
+## 12. Technical Notes / 技衳メモ
 
 Database columns used:
 - bio (text): Japanese biography
