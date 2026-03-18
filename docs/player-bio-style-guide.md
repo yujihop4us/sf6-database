@@ -1,9 +1,9 @@
 # SF6 Database — Player Bio Style Guide & Rules
 # プレイヤーBio スタイルガイド & ルール
 
-> Version: 1.0
+> Version: 1.1
 > Created: 2026-03-17
-> Last Updated: 2026-03-17
+> Last Updated: 2026-03-18
 
 ---
 
@@ -15,8 +15,8 @@ Each player in the database has two bio fields:
 
 These are NOT direct translations. Each is written to feel natural in its language,
 with cultural context appropriate for the target audience.
-- Japanese: FGC日本コミュニティに馨染む文興・ニュアンスで執筆
-- English: Global/Western FGC audience向けに響く文興で執筆
+- Japanese: FGC日本コミュニティに馴染む文体・ニュアンスで執筆
+- English: Global/Western FGC audience向けに響く文体で執筆
 
 Both versions should cover the same core facts, but tone, emphasis,
 and supplementary context may differ.
@@ -39,13 +39,13 @@ Every bio MUST include the following when available:
 
 ---
 
-## 3. Recommended Fields / 推奈項盭 (include when available)
+## 3. Recommended Fields / 推奨項目 (include when available)
 
 - **Career origin story**: How they got into fighting games, early arcade days, etc.
 - **Major titles & achievements**: EVO wins, Capcom Cup, EWC, SBO, etc. with years
 - **Character history**: Evolution of character choices across SF generations
 - **Epithet / Nickname**: "Murder Face", "2D God", "The Prodigy" — and origin if known
-- **Handle origin**: Why they chose their tag (e.g., Tokido = "闣気道")
+- **Handle origin**: Why they chose their tag (e.g., Tokido = "闘気道")
 - **Playstyle description**: Aggressive, calculated, execution-heavy, etc.
 - **Memorable episodes**: Iconic matches, crowd moments, rivalries
 - **Memes & community culture**: Things the FGC community associates with them
@@ -102,6 +102,7 @@ Guidelines for entertainment value:
 8. **FGC media** (Sajam, theScore esports, HiFight, etc.) — Documentary-style content
 9. **saiganak.com** — Particularly good for Japanese SFL interviews and event reports
 10. **fgamers.saikyou.biz** — Japanese player wiki with detailed profiles
+    (Tier S players often have extensive entries with episode-level detail)
 
 ### Handling uncertain information:
 - Use "approximately" / "約" for estimated figures
@@ -113,23 +114,33 @@ Guidelines for entertainment value:
 
 ## 6. Player Tier System / 選手Tierシステム
 
-Each player is assigned a tier stored in the `player_tier` column.
+Each player is assigned a tier stored in the `player_tier` column (internal use).
 This determines bio depth expectations and update priority.
+
+**Tier assignment is based on OVERALL INDUSTRY CONTRIBUTION AND POPULARITY,
+not just tournament results.** Evaluation criteria include: competitive achievements,
+community impact, sponsorships, streaming activity, charisma, and media exposure.
 
 ### Tier S — Legends & Major Title Holders
 **Criteria**: EVO champion, Capcom Cup champion, EWC champion, or historically
-significant figure who shaped the FGC (even if recent results are modest).
+significant figure who shaped the FGC. Must also have substantial industry
+presence beyond tournament results (sponsorships, streaming, media, community
+building, mentorship).
 **Bio expectation**: 400-800+ words per language. Full backstory, multiple episodes,
-character history across game generations, rivalry narratives.
-**Examples**: Daigo, Tokido, MenaRD, Sako, Kazunoko, Xiao Hai, Punk, AngryBird
+character history across game generations, rivalry narratives, memes/community
+culture, playstyle analysis.
+**Current roster (13 players)**:
+Daigo (65), Tokido (24), Momochi (31), Fuudo (26), Punk (7), MenaRD (8),
+Kazunoko (4761), Bonchan (20), Gachikun (5), Leshar (13), Mago (id TBC),
+Blaz (12), Xiao Hai (4)
 
 ### Tier A — Elite Competitors & Notable Figures
 **Criteria**: Consistent Tier 1 event top-8, SFL champions/finalists, rising stars
 generating significant buzz, or players with high character/entertainment value.
 **Bio expectation**: 250-500 words per language. Solid backstory, key achievements,
 at least 1-2 memorable episodes.
-**Examples**: Leshar, Sahara, Blaz, Kilzyou, Higuchi, Fuudo, Mago, Nemo, Big Bird,
-Bonchan, GO1, Dogura, Xian
+**Examples**: Sahara, Kilzyou, Higuchi, AngryBird, Big Bird, Kawano, Nemo,
+GO1, Dogura, Xian, Sako, Uryo, Itabashi Zangief
 
 ### Tier B — Professional Competitors
 **Criteria**: Active SFL roster members, CPT/World Warrior qualifiers, regular
@@ -149,6 +160,8 @@ opportunistically.
 - **Annual review**: Full tier reassessment once per year (suggested: post-Capcom Cup)
 - **Promotion triggers**: Winning or placing top-3 at a Tier 1 event automatically
   flags a player for tier review
+- **Note**: Tier placement is an internal classification for bio prioritization.
+  The `player_tier` column has not yet been added to the database schema.
 
 ---
 
@@ -165,16 +178,35 @@ opportunistically.
 | SFL season start (JP/US/EU) | New roster members | At roster announcement |
 
 ### What to update:
-- Add new major results to bio narrative (not just append - weave into the story)
+- Add new major results to bio narrative (not just append — weave into the story)
 - Update current team if changed
 - Update SF6 main character if changed
 - Update career earnings (or flag for auto-update)
 - Reassess tier if warranted
 
 ### What NOT to do:
-- Don't overwrite historical narrative - add to it
+- Don't overwrite historical narrative — add to it
 - Don't remove old achievements to make room for new ones
 - Don't update bio for minor tournament results (Tier 3+)
+
+### Recommended Workflow for Bio Writing Sessions:
+
+Tier S bios are long (often 1,000-2,000+ words per language). To prevent data
+loss from chat context limits or session refreshes:
+
+1. **Write 2-3 players per batch** — do not attempt all 13 Tier S in one session
+2. **Generate curl commands immediately** after writing each batch
+3. **Execute in terminal and confirm OK (204)** before moving to the next batch
+4. **Save a session log** at the end of each session summarizing:
+   - Which players were updated (id, name, status)
+   - Which players remain (with current bio status: null / short / needs-rewrite)
+   - Any open issues or decisions deferred
+5. **When starting a new chat session**, paste the following into the new chat:
+   - The most recent session log
+   - This style guide (or its location: docs/player-bio-style-guide.md)
+   - The curl command template from Section 12
+6. **Single-quote escaping**: All apostrophes inside bio text must be escaped
+   as '\'' in the shell command. This is the most common source of curl failures.
 
 ---
 
@@ -183,19 +215,32 @@ opportunistically.
 The following data is NOT part of the bio text and should be updated
 automatically via API integrations:
 
-recent_results (JSON column - to be added):
+### recent_results (JSON column — to be added):
 Example schema:
-{"results":[{"event":"Capcom Cup 12","date":"2026-03-14","placement":1,"character":"Ed","prize_usd":1000000}],"last_updated":"2026-03-15T00:00:00Z"}
 
-total_sf6_earnings_usd (existing column):
+    {
+      "results": [
+        {
+          "event": "Capcom Cup 12",
+          "date": "2026-03-14",
+          "placement": 1,
+          "character": "Ed",
+          "prize_usd": 1000000
+        }
+      ],
+      "last_updated": "2026-03-15T00:00:00Z"
+    }
+
+### total_sf6_earnings_usd (existing column):
 - Updated after each major event via start.gg API or manual entry
 
-Data Sources for Automation:
+### Data Sources for Automation:
 - start.gg API: Tournament brackets, placements, entrants
+  (preferred for events using start.gg, e.g., DreamHack Birmingham)
 - Liquipedia API: Career earnings, team changes
-- Manual fallback: For events not on start.gg
+- Manual fallback: For events not on start.gg (e.g., Capcom Cup)
 
-New Player Addition Rules:
+### New Player Addition Rules:
 1. After each major tournament: import top-32 bracket, cross-reference with
    existing DB, INSERT any new players (Tier C by default)
 2. At each SFL season announcement: add all roster members not yet in DB
@@ -222,15 +267,26 @@ Before submitting a bio, verify:
 - [ ] English bio reads naturally in English (not a translation)
 - [ ] Tone is entertaining, respectful, and hype-appropriate
 - [ ] Length matches player tier expectations
+- [ ] Handle origin / nickname origin included (Tier S/A)
+- [ ] At least one memorable episode or meme included (Tier S/A)
+- [ ] Playstyle description included (Tier S/A)
+- [ ] H2H rivalry context referenced where data exists (Tier S/A)
 
 ---
 
-## 10. Example Bio — Tier S Reference (Tokido)
+## 10. Reference Bios — Tier S Gold Standard
 
-See database entry for player id=24 (Tokido) as the gold standard reference.
-Both `bio` and `bio_en` fields demonstrate the expected depth, tone, and structure
-for a Tier S player biography.
+The following players have completed Tier S detailed biographies in the database.
+Use these as reference for tone, depth, and structure when writing new bios:
 
+| Player | DB id | Updated | Notes |
+|--------|-------|---------|-------|
+| Tokido | 24 | 2026-03-18 | Full narrative: origin, EVO 2017, Murderface, Kemonomichi, SFL 2025, memes |
+| Daigo (梅原大吾) | 65 | 2026-03-18 | Full narrative: prodigy era, Moment #37, retirement/return, Guile Village, REJECT |
+| Punk | 7 | 2026-03-18 | Full narrative: netplay origin, 2017 dominance, EVO 2017 loss, EVO 2024 redemption |
+| MenaRD | 8 | 2026-03-18 | Full narrative: Dominican origin, CC 2017, community reinvestment, Grand Slam, Capcom-DR partnership |
+| Fuudo (ふ～ど) | 26 | 2026-03-18 | Full narrative: VF to SF transition, EVO 2011, 2D/3D double crown, REJECT, Kuramochi marriage |
+| Momochi (ももち) | 31 | 2026-03-18 | Full narrative: ninja ancestry, triple crown, Shinobism, Chocoblanka, ZETA DIVISION |
 
 ---
 
@@ -271,27 +327,106 @@ The bio should make the reader want to click through to the H2H page.
 
 ---
 
-## 12. Technical Notes / 技衳メモ
+## 12. Technical Reference / 技術リファレンス
 
-Database columns used:
+### Database Schema (bio-related columns):
 - bio (text): Japanese biography
 - bio_en (text): English biography
-- player_tier (text): S / A / B / C (to be added)
-- recent_results (jsonb): Auto-updated tournament results (to be added)
+- player_tier (text): S / A / B / C — NOT YET ADDED, internal use only
+- recent_results (jsonb): Auto-updated tournament results — NOT YET ADDED
 - total_sf6_earnings_usd (float): Existing column
 
-Update method:
-- Bio updates via Supabase REST API PATCH using SUPABASE_SERVICE_ROLE_KEY
-- Rate limit: 0.5s sleep between requests
-- Always use python3 JSON escaping for bio text in curl commands
+### Supabase Update Command (curl):
 
-Future automation:
-- Claude Code / openClaw can reference this document at
-  docs/player-bio-style-guide.md in the repository
-- When tasked with writing bios, the AI should:
-  1. Read this guide first
-  2. Check player's current tier
-  3. Research via Liquipedia + additional sources per tier
-  4. Write both JP and EN bios
-  5. Run through the checklist (Section 9)
-  6. Submit via Supabase API
+    # Step 1: Load environment
+    cd ~/sf6-database && source .env.local
+
+    # Step 2: Define update function
+    update_player() {
+      local ID=$1
+      local BIO=$2
+      local BIO_EN=$3
+
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/players?id=eq.${ID}" \
+        -X PATCH \
+        -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+        -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{\"bio\":$(echo "$BIO" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))'),\"bio_en\":$(echo "$BIO_EN" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read()))')}")
+
+      if [ "$HTTP_CODE" = "204" ] || [ "$HTTP_CODE" = "200" ]; then
+        echo "OK  id=${ID} (${HTTP_CODE})"
+      else
+        echo "FAIL id=${ID} (${HTTP_CODE})"
+      fi
+      sleep 0.5
+    }
+
+    # Step 3: Execute (example)
+    update_player 24 \
+    'Japanese bio text here...' \
+    'English bio text here...'
+
+### Key Technical Notes:
+- requests Python module is not available in the environment;
+  use curl + python3 JSON escaping
+- Single quotes inside bio text MUST be escaped as '\''
+- Environment variables NEXT_PUBLIC_SUPABASE_URL and
+  SUPABASE_SERVICE_ROLE_KEY are stored in .env.local
+- Table name: players
+- Rate limit: 0.5s sleep between requests (built into function)
+- Expected success response: HTTP 204 (No Content) or 200 (OK)
+
+### Revert to null (if needed):
+
+    curl -s -o /dev/null -w "%{http_code}" \
+      "${NEXT_PUBLIC_SUPABASE_URL}/rest/v1/players?id=eq.${ID}" \
+      -X PATCH \
+      -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+      -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+      -H "Content-Type: application/json" \
+      -d '{"bio":null,"bio_en":null}'
+
+---
+
+## 13. Current Tier S Roster & Bio Status / Tier S 進捗管理
+
+Last updated: 2026-03-18
+
+| # | Player | DB id | Bio Status | Notes |
+|---|--------|-------|------------|-------|
+| 1 | Tokido | 24 | DONE (2026-03-18) | Full detailed bio |
+| 2 | Daigo (梅原大吾) | 65 | DONE (2026-03-18) | Full detailed bio |
+| 3 | Punk | 7 | DONE (2026-03-18) | Full detailed bio |
+| 4 | MenaRD | 8 | DONE (2026-03-18) | Full detailed bio |
+| 5 | Fuudo (ふ～ど) | 26 | DONE (2026-03-18) | Full detailed bio |
+| 6 | Momochi (ももち) | 31 | DONE (2026-03-18) | Full detailed bio |
+| 7 | Kazunoko (かずのこ) | 4761 | NULL (reverted) | Needs full research + write |
+| 8 | Bonchan (ボンちゃん) | 20 | SHORT (needs rewrite) | Short version exists, needs Tier S depth |
+| 9 | Gachikun (ガチくん) | 5 | SHORT (needs rewrite) | Short version exists, needs Tier S depth |
+| 10 | Leshar | 13 | SHORT (OK but upgradeable) | Short version OK, recommend upgrade |
+| 11 | Mago (マゴ) | TBC | NULL (reverted) | DB id needs confirmation; needs full write |
+| 12 | Blaz | 12 | SHORT (OK but upgradeable) | Short version OK, recommend upgrade |
+| 13 | Xiao Hai | 4 | SHORT (OK but upgradeable) | Short version OK, recommend upgrade |
+
+**Next session priority**: Kazunoko, Bonchan, Gachikun, Mago, Leshar, Blaz, Xiao Hai
+
+---
+
+## Changelog
+
+### v1.1 (2026-03-18)
+- Updated Tier S roster: moved Fuudo, Bonchan, Leshar, Mago, Blaz from Tier A to Tier S
+  based on overall industry contribution and popularity assessment
+- Added Tier S bio status tracking table (Section 13)
+- Added recommended workflow for bio writing sessions (Section 7)
+  including 2-3 player batch size and session log practices
+- Added complete curl command reference and revert command (Section 12)
+- Added writing checklist items for handle origin, episodes, playstyle, H2H (Section 9)
+- Updated Section 10 with 6 completed gold-standard reference bios
+- Added changelog
+- Fixed typos in original version
+
+### v1.0 (2026-03-17)
+- Initial creation (243 lines / 10,253 bytes)
