@@ -18,6 +18,18 @@ export function getTournamentSeries(name: string): TournamentSeries {
   return 'OTHER'
 }
 
+// Returns true for tournaments that grant EWC 2026 qualification spots.
+// Includes Road to EWC events AND CPT Premier events with concurrent EWC qualifier stops:
+//   - Combo Breaker (concurrent: DreamHack Schaumburg)
+//   - EVO main (concurrent: Road to EWC TBD stop) — excludes EVO Japan / EVO France
+export function hasEwcQual(name: string, series: TournamentSeries): boolean {
+  if (series === 'ROAD_TO_EWC') return true
+  const n = name.toLowerCase()
+  if (n.includes('combo breaker')) return true
+  if (n.startsWith('evo 20') || n.startsWith('evo2')) return true  // main EVO only
+  return false
+}
+
 export type HomeTournament = {
   id: number
   name: string
@@ -29,6 +41,7 @@ export type HomeTournament = {
   isLive: boolean
   entrantCount: number
   series: TournamentSeries
+  ewcQual: boolean
 }
 
 export type RecentResult = {
@@ -91,18 +104,22 @@ async function fetchHomeData(): Promise<HomeData> {
     return nowMs >= start && nowMs <= end
   }
 
-  const mapped: HomeTournament[] = tourns.map(t => ({
-    id: t.id,
-    name: t.name,
-    startDate: t.start_date ?? null,
-    endDate: t.end_date ?? null,
-    location: t.location ?? null,
-    totalPrizeUsd: t.total_prize_usd ?? null,
-    isOnline: t.is_online ?? false,
-    isLive: isLive(t),
-    entrantCount: countMap[t.id] ?? 0,
-    series: getTournamentSeries(t.name),
-  }))
+  const mapped: HomeTournament[] = tourns.map(t => {
+    const series = getTournamentSeries(t.name)
+    return {
+      id: t.id,
+      name: t.name,
+      startDate: t.start_date ?? null,
+      endDate: t.end_date ?? null,
+      location: t.location ?? null,
+      totalPrizeUsd: t.total_prize_usd ?? null,
+      isOnline: t.is_online ?? false,
+      isLive: isLive(t),
+      entrantCount: countMap[t.id] ?? 0,
+      series,
+      ewcQual: hasEwcQual(t.name, series),
+    }
+  })
 
   const nowMs = Date.now()
   const liveTournament = mapped.find(t => t.isLive) ?? null

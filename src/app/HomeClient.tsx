@@ -170,7 +170,7 @@ function UpcomingSection({ upcoming }: { upcoming: HomeTournament[] }) {
                   fontFamily: D.fDisplay, fontSize: 18, fontWeight: 800,
                   color: D.text, lineHeight: 1.2, marginBottom: 6,
                 }}>{t2.name}</div>
-                {t2.series === 'ROAD_TO_EWC' && (
+                {t2.ewcQual && (
                   <div style={{ marginBottom: 8 }}>
                     <EwcQualBadge lang={lang} />
                   </div>
@@ -320,7 +320,7 @@ function PastSection({ past }: { past: HomeTournament[] }) {
                   color: D.text, letterSpacing: '0.01em',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>{tournament.name}</span>
-                {tournament.series === 'ROAD_TO_EWC' && <EwcQualBadge lang={lang} />}
+                {tournament.ewcQual && <EwcQualBadge lang={lang} />}
                 {tournament.series === 'CPT_FINALS' && <SeriesBadge series={tournament.series} />}
                 {tournament.series === 'EWC' && <SeriesBadge series={tournament.series} />}
               </div>
