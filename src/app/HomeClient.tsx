@@ -168,8 +168,13 @@ function UpcomingSection({ upcoming }: { upcoming: HomeTournament[] }) {
                 </div>
                 <div style={{
                   fontFamily: D.fDisplay, fontSize: 18, fontWeight: 800,
-                  color: D.text, lineHeight: 1.2, marginBottom: 8,
+                  color: D.text, lineHeight: 1.2, marginBottom: 6,
                 }}>{t2.name}</div>
+                {t2.series === 'ROAD_TO_EWC' && (
+                  <div style={{ marginBottom: 8 }}>
+                    <EwcQualBadge lang={lang} />
+                  </div>
+                )}
                 <div style={{ fontFamily: D.fDisplay, fontSize: 13, color: D.muted }}>
                   {fmtDate(t2.startDate, lang)}
                   {t2.location && ` · ${t2.location}`}
@@ -309,13 +314,15 @@ function PastSection({ past }: { past: HomeTournament[] }) {
                   borderRadius: 3, padding: '2px 6px', color: '#fff', flexShrink: 0,
                 }}>LIVE</span>
               )}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   fontFamily: D.fDisplay, fontSize: 16, fontWeight: 700,
                   color: D.text, letterSpacing: '0.01em',
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  display: 'block',
                 }}>{tournament.name}</span>
+                {tournament.series === 'ROAD_TO_EWC' && <EwcQualBadge lang={lang} />}
+                {tournament.series === 'CPT_FINALS' && <SeriesBadge series={tournament.series} />}
+                {tournament.series === 'EWC' && <SeriesBadge series={tournament.series} />}
               </div>
               <div style={{ fontFamily: D.fDisplay, fontSize: 13, color: D.muted, flexShrink: 0, whiteSpace: 'nowrap' }}>
                 {fmtDate(tournament.startDate, lang)}
@@ -361,6 +368,24 @@ function SeriesBadge({ series }: { series: TournamentSeries }) {
       borderRadius: 4, padding: '2px 7px',
       flexShrink: 0,
     }}>{cfg.label}</span>
+  )
+}
+
+function EwcQualBadge({ lang }: { lang: string }) {
+  const label = lang === 'ja' ? 'EWC出場権' : 'EWC Qualifier'
+  return (
+    <span style={{
+      fontFamily: D.fDisplay, fontSize: 9, fontWeight: 700,
+      letterSpacing: '0.08em',
+      color: '#ff9500',
+      background: 'rgba(255,149,0,0.1)',
+      border: '1px solid rgba(255,149,0,0.35)',
+      borderRadius: 4, padding: '2px 8px',
+      flexShrink: 0,
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+    }}>
+      <span style={{ fontSize: 9 }}>★</span>{label}
+    </span>
   )
 }
 
