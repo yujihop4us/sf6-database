@@ -136,3 +136,51 @@
 .animate-ticker {
   animation: ticker linear infinite;
 }
+
+/* SF6 Stats design system */
+:root {
+  /* Core backgrounds */
+  --sf6-bg:       #0a0a0a;
+  --sf6-nav:      #0a0a0a;
+  --sf6-hero:     #0f1923;
+  --sf6-card:     #1a1a2e;
+  --sf6-surface:  #0e1419;
+  --sf6-surface2: #131c24;
+  --sf6-surface3: #1a2530;
+
+  /* Borders */
+  --sf6-border:   rgba(255,255,255,0.06);
+  --sf6-border2:  rgba(0,212,170,0.2);
+
+  /* Accent */
+  --sf6-accent:     #00d4aa;
+  --sf6-accent-dim: rgba(0,212,170,0.12);
+  --sf6-accent-glow: 0 0 20px rgba(0,212,170,0.3);
+
+  /* Text */
+  --sf6-text:       #ffffff;
+  --sf6-text-muted: #9ca3af;
+  --sf6-text-dim:   #4b5563;
+
+  /* Semantic */
+  --sf6-gold:   #f5c842;
+  --sf6-silver: #a0b0bf;
+  --sf6-bronze: #cd8c52;
+  --sf6-red:    #ff4d6a;
+  --sf6-green:  #4ade80;
+
+  /* Table */
+  --sf6-row-even: rgba(255,255,255,0.03);
+  --sf6-row-hover: rgba(0,212,170,0.05);
+}
+
+@keyframes sf6-pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes sf6-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sf6-fade-up { animation: sf6-fade-up 0.4s ease forwards; }

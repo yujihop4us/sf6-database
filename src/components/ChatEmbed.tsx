@@ -2,7 +2,7 @@
 
 interface ChatEmbedProps {
   platform: 'twitch' | 'youtube' | null
-  channel?: string
+  channel?: string | null
   parentDomain?: string
 }
 

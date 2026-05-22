@@ -40,3 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 scripts/update_bios/
+.claude/worktrees/*/.next/
+.cc12-cache.json

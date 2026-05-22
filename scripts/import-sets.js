@@ -164,11 +164,11 @@ async function main() {
   if (!sf6Event) { console.error('❌ No SF6 event found'); process.exit(1); }
   console.log(`   SF6 Event: ${sf6Event.name} (${sf6Event.numEntrants} entrants)`);
 
-  // Get tournament_id from DB
+  // Get tournament_id from DB (column is 'slug', not 'startgg_slug')
   const { data: dbTournament } = await supabase
     .from('tournaments')
     .select('id')
-    .eq('startgg_slug', slug)
+    .eq('slug', slug)
     .single();
 
   if (!dbTournament) {

@@ -45,6 +45,7 @@ interface TournamentDashboardProps {
   results: ResultEntry[]
   onMatchClick?: (player1: string, player2: string) => void
   lastUpdated?: string
+  defaultTab?: 'groups' | 'results'
 }
 
 export default function TournamentDashboard({ tournamentName, phases, results, onMatchClick, lastUpdated }: TournamentDashboardProps) {
