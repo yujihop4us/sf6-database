@@ -25,11 +25,11 @@ query EventSetsRecent($eventId: ID!, $page: Int!, $perPage: Int!) {
     sets(page: $page, perPage: $perPage, sortType: RECENT) {
       pageInfo { totalPages }
       nodes {
-        id fullRoundText state completedAt
+        id fullRoundText state completedAt displayScore
         phaseGroup { displayIdentifier phase { name } }
         slots {
           entrant {
-            name
+            id name initialSeedNum
             participants { gamerTag }
           }
           standing { stats { score { value } } }
@@ -47,11 +47,11 @@ query EventSetsLive($eventId: ID!, $perPage: Int!) {
     sets(page: 1, perPage: $perPage, sortType: STANDARD
          filters: { state: [2, 6] }) {
       nodes {
-        id fullRoundText state completedAt
+        id fullRoundText state completedAt displayScore
         phaseGroup { displayIdentifier phase { name } }
         slots {
           entrant {
-            name
+            id name initialSeedNum
             participants { gamerTag }
           }
           standing { stats { score { value } } }
@@ -116,14 +116,21 @@ function mapSet(set: any) {
   const poolId    = set.phaseGroup?.displayIdentifier || ''
 
   return {
-    group:          phaseName + (poolId ? ' - ' + poolId : ''),
-    round:          set.fullRoundText || 'Unknown',
-    player1:        p1name,
-    player2:        p2name,
-    player1_handle: extractHandle(p1name, p1gt),
-    player2_handle: extractHandle(p2name, p2gt),
+    group:            phaseName + (poolId ? ' - ' + poolId : ''),
+    phase:            phaseName,
+    pool:             poolId,
+    round:            set.fullRoundText || 'Unknown',
+    player1:          p1name,
+    player2:          p2name,
+    player1_handle:   extractHandle(p1name, p1gt),
+    player2_handle:   extractHandle(p2name, p2gt),
+    player1_entrantId: s0?.entrant?.id ?? null,
+    player2_entrantId: s1?.entrant?.id ?? null,
+    player1_seed:     s0?.entrant?.initialSeedNum ?? null,
+    player2_seed:     s1?.entrant?.initialSeedNum ?? null,
+    displayScore:     set.displayScore ?? null,
     score, winner, status,
-    completedAt:    set.completedAt ?? null,   // Unix 秒 (Pools: 1→3 直接遷移で使用)
+    completedAt:      set.completedAt ?? null,
     maps: [],
   }
 }
