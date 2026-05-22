@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase-server'
+import { getSupabaseAdmin } from '@/lib/supabase-server'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
@@ -469,12 +469,13 @@ export async function GET(request: Request) {
     lastFetch = now
     saveFileCache(data)
 
-    // Log completed matches to Supabase
+    // Log completed matches to Supabase (環境変数未設定時はスキップ)
     const completed = data.matches.filter((m: MatchResult) => m.status === 'completed')
     if (completed.length > 0) {
       try {
+        const db = getSupabaseAdmin()
         for (const m of completed) {
-          await supabaseAdmin
+          await db
             .from('cc12_match_log')
             .upsert({
               group_name: m.group,
