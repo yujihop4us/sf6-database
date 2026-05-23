@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 
 // ── Design tokens (pools.html CSS variables) ──────────────────────────────────
@@ -979,6 +979,9 @@ export function PoolsDashboard({
   data: PoolsData | null
   onToast?: (event: ToastEvent | null) => void
 }) {
+  // re-render 確認ログ — 数字が変われば props が正しく更新されている
+  console.log('[PD] render', data?.feed?.length, 'feed /', data?.qualified?.length, 'qual /', data?.setsAnalyzed, 'sets')
+
   usePoolsStyles()
 
   // Highlight card: latest UPSET or MARQUEE

@@ -2178,6 +2178,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           const feedCount      = data.feed?.length ?? 0
           const qualifiedCount = data.qualified?.length ?? 0
           console.log('[POOLS] response:', { feedCount, qualifiedCount, phase: data.currentPhase, cached: data.cached })
+          console.log('[POOLS] setState', feedCount, qualifiedCount)
           setPoolsData(data)
           // 手動切替していない場合のみ自動判定（ref 経由で最新値を参照）
           if (!displayModeManualRef.current) {
