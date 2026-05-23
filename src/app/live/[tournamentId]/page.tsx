@@ -2161,29 +2161,41 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   }, [config.startggEventId, hasStream, searchQuery])
 
   // ── /api/pools-dashboard ポーリング (30秒) ──────────────────────────────────
+  // displayModeManual は deps に入れない：手動切替のたびにインターバルがリセットされるのを防ぐ
+  const displayModeManualRef = useRef(displayModeManual)
+  useEffect(() => { displayModeManualRef.current = displayModeManual }, [displayModeManual])
+
   useEffect(() => {
     const dbId = config.dbTournamentId
     if (!dbId) return
+    const url = '/api/pools-dashboard?tournamentId=' + dbId
     const fetch_ = async () => {
+      console.log('[POOLS] fetching...', new Date().toISOString())
       try {
-        const res  = await fetch('/api/pools-dashboard?tournamentId=' + dbId)
+        const res  = await fetch(url)
         const data = await res.json()
         if (!data.error) {
+          const feedCount      = data.feed?.length ?? 0
+          const qualifiedCount = data.qualified?.length ?? 0
+          console.log('[POOLS] response:', { feedCount, qualifiedCount, phase: data.currentPhase, cached: data.cached })
           setPoolsData(data)
-          // 手動切替していない場合のみ自動判定
-          // currentPhase が Winners/Losers ラウンド名 = pools フェーズ中
-          if (!displayModeManual) {
+          // 手動切替していない場合のみ自動判定（ref 経由で最新値を参照）
+          if (!displayModeManualRef.current) {
             const phase = (data.currentPhase ?? '').toLowerCase()
             const isPoolsPhase = phase.includes('winners') || phase.includes('losers') || phase.includes('round')
             setDisplayMode(isPoolsPhase ? 'pools' : 'h2h')
           }
+        } else {
+          console.warn('[POOLS] API error:', data.error)
         }
-      } catch (e) { console.error('[pools-dashboard]', e) }
+      } catch (e) { console.error('[POOLS] fetch failed:', e) }
     }
     fetch_()
     const id = setInterval(fetch_, 30000)
     return () => clearInterval(id)
-  }, [config.dbTournamentId, displayModeManual])
+  // dbTournamentId が変わった時だけインターバルを張り直す
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.dbTournamentId])
 
   // ── mergedPhases ──────────────────────────────────────────────────────────
   // start.gg フェーズ名とコンフィグフェーズ名が一致しない場合（例: "Round 1" vs "Pools"）の

@@ -76,6 +76,7 @@ export interface ToastEvent {
   s2: number
   pool: string
   round: string
+  timestamp?: number  // アニメーション再起動用（新イベント到着時に key を変える）
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -182,7 +183,8 @@ function HighlightCard({ event }: { event: ToastEvent | null }) {
   const glowSoft = isUpset ? 'rgba(255,60,60,0.18)' : 'rgba(255,200,50,0.18)'
   const glowHard = isUpset ? 'rgba(255,60,60,0.35)' : 'rgba(255,200,50,0.30)'
   const icon     = isUpset ? '🔥' : '⚔️'
-  const animKey  = `${event.kind}-${event.p1}`
+  // timestamp が変わるたびに React がノードを再マウント → animation が最初から再生される
+  const animKey  = `${event.kind}-${event.timestamp ?? event.p1}`
 
   return (
     <div
@@ -964,6 +966,7 @@ function apiToToastEvent(ev: ApiFeedEvent): ToastEvent | null {
     s2: Math.min(s1, s2),
     pool: ev.pool,
     round: ev.round,
+    timestamp: ev.timestamp,
   }
 }
 
@@ -980,6 +983,8 @@ export function PoolsDashboard({
 
   // Highlight card: latest UPSET or MARQUEE
   const [highlightEvent, setHighlightEvent] = useState<ToastEvent | null>(null)
+  // "timestamp::type::player0" で同一イベントへの再発火を防ぐ
+  const prevHighlightKey = useRef<string>('')
 
   // Flash IDs for qualified rows
   const [flashIds, setFlashIds] = useState<string[]>([])
@@ -988,19 +993,27 @@ export function PoolsDashboard({
   // Convert API feed to display events
   const displayEvents: DisplayEvent[] = data ? apiToDisplayEvents(data.feed) : []
 
-  // Derived highlight: first UPSET or MARQUEE_RESULT from feed
+  // Derived highlight: most recent UPSET or MARQUEE_RESULT in feed
+  // feed は created_at DESC なので先頭のものが最新
   useEffect(() => {
     if (!data) return
+    // UPSET / MARQUEE_RESULT の中で最も新しいもの（feed はすでに timestamp DESC）
     const bigEvent = data.feed.find(e => e.type === 'UPSET' || e.type === 'MARQUEE_RESULT')
-    if (bigEvent) {
-      const toast = apiToToastEvent(bigEvent)
-      if (toast) {
-        setHighlightEvent(toast)
-        onToast?.(toast)
-      }
+    if (!bigEvent) return
+
+    // 同一イベントへの再発火を防止（timestamp + type + player0 handle で識別）
+    const key = `${bigEvent.timestamp}::${bigEvent.type}::${bigEvent.players[0]?.handle ?? ''}`
+    if (key === prevHighlightKey.current) return
+    prevHighlightKey.current = key
+
+    const toast = apiToToastEvent(bigEvent)
+    if (toast) {
+      setHighlightEvent(toast)
+      onToast?.(toast)
     }
+  // feed 内の最新 UPSET/MARQUEE の timestamp を watch — feed[0] ではなく専用フィールドで比較
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.feed[0]?.timestamp, data?.feed[0]?.type])
+  }, [data?.feed])
 
   // Flash new qualified players
   useEffect(() => {
