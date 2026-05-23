@@ -753,6 +753,7 @@ function StreamCenter({
   timezone, streamStartTime, startDate, endDate,
   onMatchClick, onStreamQueueMatch,
   streamToast,
+  poolsMode,
 }: {
   score: { p1: number; p2: number }
   centerTab: 'stream' | 'bracket'
@@ -783,6 +784,7 @@ function StreamCenter({
   onMatchClick: (p1: string, p2: string) => void
   onStreamQueueMatch?: (p1Handle: string, p2Handle: string, p1PlayerId?: number, p2PlayerId?: number) => void
   streamToast?: ToastEvent | null
+  poolsMode?: boolean
 }) {
   // マルチチャンネル: 選択中のチャンネルインデックス
   const [activeChanIdx, setActiveChanIdx] = useState(0)
@@ -903,6 +905,93 @@ function StreamCenter({
     if (s.winner_id === player2.id) return 'p2'
     return null
   }).filter(Boolean) as ('p1' | 'p2')[]
+
+  // ── Pools モード: PlayerBand / H2H バーなし、配信のみフルハイト ─────────────
+  if (poolsMode) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: '100%', height: '100%', minHeight: 0,
+      }}>
+        <div style={{
+          aspectRatio: '16/9',
+          height: '100%', width: 'auto', maxWidth: '100%',
+          position: 'relative',
+          background: V.surface2, border: `1px solid ${V.border}`,
+          borderRadius: 8, overflow: 'hidden', flexShrink: 0,
+        }}>
+          {/* チャンネル選択バー */}
+          {twitchChannels && twitchChannels.length > 1 && (
+            <div style={{
+              position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4,
+              display: 'flex', gap: 4, flexWrap: 'wrap' as const,
+              padding: '6px 10px',
+              background: 'rgba(8,12,20,0.85)', backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+            }}>
+              {twitchChannels.map((ch, i) => (
+                <button
+                  key={ch.channel}
+                  onClick={() => setActiveChanIdx(i)}
+                  style={{
+                    background: activeChanIdx === i ? V.surface3 : 'transparent',
+                    border: `1px solid ${activeChanIdx === i ? V.accent + '55' : V.border}`,
+                    borderRadius: 4, padding: '3px 10px', cursor: 'pointer',
+                    fontFamily: V.FD, fontSize: 10, fontWeight: 700,
+                    letterSpacing: '0.07em',
+                    color: activeChanIdx === i ? V.accent : V.muted,
+                  }}
+                >{ch.name}</button>
+              ))}
+            </div>
+          )}
+          {/* ストリーム本体 */}
+          {(showStream && hasStream && activeStreamChannel) ? (
+            <iframe
+              key={activeStreamChannel}
+              src={
+                streamPlatform === 'twitch'
+                  ? `https://player.twitch.tv/?channel=${activeStreamChannel}&parent=sf6-database.vercel.app&parent=localhost`
+                  : `https://www.youtube.com/embed/${activeStreamChannel}?autoplay=1`
+              }
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+              allowFullScreen
+              allow="autoplay; encrypted-media"
+            />
+          ) : (
+            <CountdownDisplay
+              countdown={countdown}
+              streamStartTime={streamStartTime}
+              configName={configName}
+              streamChannel={activeStreamChannel}
+            />
+          )}
+          {/* LIVE バッジ */}
+          {isStreamLive && (
+            <div style={{
+              position: 'absolute', top: 12, left: 12, zIndex: 5,
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(255,77,106,0.9)', borderRadius: 4, padding: '4px 10px',
+              fontFamily: V.FD, fontSize: 11, fontWeight: 800, letterSpacing: '0.1em', color: '#fff',
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fff', display: 'inline-block' }} />
+              LIVE
+            </div>
+          )}
+          {isStreamLive && streamInfo.viewerCount > 0 && (
+            <div style={{
+              position: 'absolute', top: 12, right: 12, zIndex: 5,
+              background: 'rgba(8,12,20,0.88)', border: `1px solid ${V.border}`,
+              borderRadius: 4, padding: '4px 10px',
+              fontFamily: V.FD, fontSize: 12, fontWeight: 700, color: V.muted,
+            }}>👁 {streamInfo.viewerCount.toLocaleString()}</div>
+          )}
+          {/* Pools トースト */}
+          {streamToast && <StreamToast event={streamToast} />}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 0 }}>
@@ -2415,98 +2504,57 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           </div>
         )}
 
-        {/* ── AUTO バッジ (緑点滅) — 自動検知モード中のみ表示 ── */}
-        {autoDetected && (
-          <div style={{
-            flexShrink: 0,
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: `${V.accent}0d`, border: `1px solid ${V.accent}30`,
-            borderRadius: 8, padding: '7px 12px',
-          }}>
-            <span className="sf6live-dot-green" style={{ width: 7, height: 7 }} />
-            <span style={{
-              fontFamily: V.FD, fontSize: 11, fontWeight: 800,
-              letterSpacing: '0.14em', textTransform: 'uppercase' as const,
-              color: V.accent,
-            }}>AUTO</span>
-            <span style={{ fontFamily: V.FB, fontSize: 11, color: V.muted }}>
-              start.gg の進行中セットを自動検知中 — P1 / P2 を自動更新しています
-            </span>
-            <button
-              onClick={() => {
-                setAutoDetected(false)
-                // 手動モードに移行: 次の state=2 検知でも上書きしない
-                autoDetectKeyRef.current = '__manual__'
-              }}
-              style={{
-                marginLeft: 'auto', background: 'none', border: 'none',
-                cursor: 'pointer', color: V.dim, fontSize: 13, padding: '0 4px',
-                lineHeight: 1,
-              }}
-              title="自動検知を無効化"
-            >✕</button>
-          </div>
-        )}
-
-        {/* ── 3カラム フェイスオフ レイアウト ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '220px 1fr 220px',
-          gap: 0, borderRadius: 12, overflow: 'hidden',
-          border: `1px solid ${V.border}`,
-          flexShrink: 0,
-        }}>
-          <PlayerBand
-            player={player1} score={score.p1} side="left"
-            isWinning={score.p1 > score.p2}
-            onSelectPlayer={() => openSearch('p1')}
-            scoreState={score}
-            onScoreChange={d => setScore(s => ({ ...s, p1: Math.max(0, s.p1 + d) }))}
-          />
-          <StreamCenter
-            score={score}
-            centerTab={centerTab} setCenterTab={setCenterTab}
-            hasStream={hasStream}
-            streamPlatform={streamPlatform} streamChannel={streamChannel}
-            twitchChannels={config.twitchChannels}
-            isStreamLive={isStreamLive} streamInfo={streamInfo}
-            player1={player1} player2={player2} h2hData={h2hData}
-            tournamentId={tournamentId}
-            dbTournamentId={config.dbTournamentId}
-            startggMatches={startggMatches} configName={config.name}
-            cc12LastUpdated={cc12LastUpdated} onMatchClick={handleMatchClick}
-            ewcQualifier={config.ewcQualifier}
-            ewcSlots={config.ewcSlots}
-            cptPremier={config.cptPremier}
-            locationLabel={config.locationLabel}
-            timezone={config.timezone ?? 'UTC'}
-            streamStartTime={config.streamStartTime}
-            startDate={config.startDate}
-            endDate={config.endDate}
-            tournamentSlug={effectiveTournamentSlug}
-            onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
-            streamToast={displayMode === 'pools' ? streamToast : null}
-          />
-          <PlayerBand
-            player={player2} score={score.p2} side="right"
-            isWinning={score.p2 > score.p1}
-            onSelectPlayer={() => openSearch('p2')}
-            scoreState={score}
-            onScoreChange={d => setScore(s => ({ ...s, p2: Math.max(0, s.p2 + d) }))}
-          />
-        </div>
-
-        {/* ── セカンダリ: モードにより切替 ── */}
         {displayMode === 'pools' ? (
-          /* Pools Dashboard モード */
+
+          /* ══════════════════════════════════════════════════════════
+             POOLS モード: 2カラム (配信+チャット 左 / PoolsDashboard 右)
+             PlayerBand・H2Hバーは非表示。右パネルが画面上から下まで全高さ
+          ══════════════════════════════════════════════════════════ */
           <div style={{
             flex: 1, minHeight: 0,
-            display: 'grid', gridTemplateColumns: '280px 1fr', gap: 12,
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 380px',
+            gap: 12,
           }}>
-            <SidePanelLeft
-              player1={player1} player2={player2}
-              twitchChatChannels={config.twitchChatChannels}
-            />
+            {/* 左カラム: 配信映像(7) + チャット(3) */}
+            <div style={{
+              display: 'grid',
+              gridTemplateRows: '7fr 3fr',
+              gap: 12,
+              minHeight: 0,
+            }}>
+              <StreamCenter
+                score={score}
+                centerTab={centerTab} setCenterTab={setCenterTab}
+                hasStream={hasStream}
+                streamPlatform={streamPlatform} streamChannel={streamChannel}
+                twitchChannels={config.twitchChannels}
+                isStreamLive={isStreamLive} streamInfo={streamInfo}
+                player1={player1} player2={player2} h2hData={h2hData}
+                tournamentId={tournamentId}
+                dbTournamentId={config.dbTournamentId}
+                startggMatches={startggMatches} configName={config.name}
+                cc12LastUpdated={cc12LastUpdated} onMatchClick={handleMatchClick}
+                ewcQualifier={config.ewcQualifier}
+                ewcSlots={config.ewcSlots}
+                cptPremier={config.cptPremier}
+                locationLabel={config.locationLabel}
+                timezone={config.timezone ?? 'UTC'}
+                streamStartTime={config.streamStartTime}
+                startDate={config.startDate}
+                endDate={config.endDate}
+                tournamentSlug={effectiveTournamentSlug}
+                onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
+                streamToast={streamToast}
+                poolsMode={true}
+              />
+              <SidePanelLeft
+                player1={player1} player2={player2}
+                twitchChatChannels={config.twitchChatChannels}
+              />
+            </div>
+
+            {/* 右カラム: PoolsDashboard 全高さ */}
             <PoolsDashboard
               data={poolsData}
               onToast={(ev) => {
@@ -2518,26 +2566,114 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               }}
             />
           </div>
+
         ) : (
-          /* H2H モード（従来表示） */
-          <div style={{
-            flex: 1, minHeight: 0,
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-          }}>
-            <SidePanelLeft
-              player1={player1} player2={player2}
-              twitchChatChannels={config.twitchChatChannels}
-            />
-            <FeaturedMatchesPanel
-              matches={upNextMatches}
-              mode={featuredMode}
-              onMatchClick={(p1, p2) => {
-                setAutoDetected(false)
-                autoDetectKeyRef.current = '__manual__'
-                handleMatchClick(p1, p2)
-              }}
-            />
-          </div>
+
+          /* ══════════════════════════════════════════════════════════
+             H2H モード: 従来レイアウト (変更なし)
+          ══════════════════════════════════════════════════════════ */
+          <>
+            {/* AUTO バッジ (緑点滅) — 自動検知モード中のみ表示 */}
+            {autoDetected && (
+              <div style={{
+                flexShrink: 0,
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: `${V.accent}0d`, border: `1px solid ${V.accent}30`,
+                borderRadius: 8, padding: '7px 12px',
+              }}>
+                <span className="sf6live-dot-green" style={{ width: 7, height: 7 }} />
+                <span style={{
+                  fontFamily: V.FD, fontSize: 11, fontWeight: 800,
+                  letterSpacing: '0.14em', textTransform: 'uppercase' as const,
+                  color: V.accent,
+                }}>AUTO</span>
+                <span style={{ fontFamily: V.FB, fontSize: 11, color: V.muted }}>
+                  start.gg の進行中セットを自動検知中 — P1 / P2 を自動更新しています
+                </span>
+                <button
+                  onClick={() => {
+                    setAutoDetected(false)
+                    autoDetectKeyRef.current = '__manual__'
+                  }}
+                  style={{
+                    marginLeft: 'auto', background: 'none', border: 'none',
+                    cursor: 'pointer', color: V.dim, fontSize: 13, padding: '0 4px',
+                    lineHeight: 1,
+                  }}
+                  title="自動検知を無効化"
+                >✕</button>
+              </div>
+            )}
+
+            {/* 3カラム フェイスオフ */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '220px 1fr 220px',
+              gap: 0, borderRadius: 12, overflow: 'hidden',
+              border: `1px solid ${V.border}`,
+              flexShrink: 0,
+            }}>
+              <PlayerBand
+                player={player1} score={score.p1} side="left"
+                isWinning={score.p1 > score.p2}
+                onSelectPlayer={() => openSearch('p1')}
+                scoreState={score}
+                onScoreChange={d => setScore(s => ({ ...s, p1: Math.max(0, s.p1 + d) }))}
+              />
+              <StreamCenter
+                score={score}
+                centerTab={centerTab} setCenterTab={setCenterTab}
+                hasStream={hasStream}
+                streamPlatform={streamPlatform} streamChannel={streamChannel}
+                twitchChannels={config.twitchChannels}
+                isStreamLive={isStreamLive} streamInfo={streamInfo}
+                player1={player1} player2={player2} h2hData={h2hData}
+                tournamentId={tournamentId}
+                dbTournamentId={config.dbTournamentId}
+                startggMatches={startggMatches} configName={config.name}
+                cc12LastUpdated={cc12LastUpdated} onMatchClick={handleMatchClick}
+                ewcQualifier={config.ewcQualifier}
+                ewcSlots={config.ewcSlots}
+                cptPremier={config.cptPremier}
+                locationLabel={config.locationLabel}
+                timezone={config.timezone ?? 'UTC'}
+                streamStartTime={config.streamStartTime}
+                startDate={config.startDate}
+                endDate={config.endDate}
+                tournamentSlug={effectiveTournamentSlug}
+                onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
+                streamToast={null}
+              />
+              <PlayerBand
+                player={player2} score={score.p2} side="right"
+                isWinning={score.p2 > score.p1}
+                onSelectPlayer={() => openSearch('p2')}
+                scoreState={score}
+                onScoreChange={d => setScore(s => ({ ...s, p2: Math.max(0, s.p2 + d) }))}
+              />
+            </div>
+
+            {/* セカンダリ: H2H */}
+            <div style={{
+              flex: 1, minHeight: 0,
+              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+            }}>
+              <SidePanelLeft
+                player1={player1} player2={player2}
+                twitchChatChannels={config.twitchChatChannels}
+              />
+              <FeaturedMatchesPanel
+                matches={upNextMatches}
+                mode={featuredMode}
+                onMatchClick={(p1, p2) => {
+                  setAutoDetected(false)
+                  autoDetectKeyRef.current = '__manual__'
+                  handleMatchClick(p1, p2)
+                }}
+              />
+            </div>
+          </>
+
         )}
 
       </div>
