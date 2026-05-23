@@ -912,10 +912,12 @@ function StreamCenter({
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: '100%', height: '100%', minHeight: 0,
+        overflow: 'hidden',
       }}>
         <div style={{
           aspectRatio: '16/9',
-          height: '100%', width: 'auto', maxWidth: '100%',
+          height: '100%', width: 'auto',
+          maxWidth: '100%', maxHeight: '100%',
           position: 'relative',
           background: V.surface2, border: `1px solid ${V.border}`,
           borderRadius: 8, overflow: 'hidden', flexShrink: 0,
@@ -954,7 +956,7 @@ function StreamCenter({
                   ? `https://player.twitch.tv/?channel=${activeStreamChannel}&parent=sf6-database.vercel.app&parent=localhost`
                   : `https://www.youtube.com/embed/${activeStreamChannel}?autoplay=1`
               }
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', maxHeight: '100%', border: 'none' }}
               allowFullScreen
               allow="autoplay; encrypted-media"
             />
@@ -2516,12 +2518,13 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             gridTemplateColumns: 'minmax(0, 1fr) 380px',
             gap: 12,
           }}>
-            {/* 左カラム: 配信映像(7) + チャット(3) */}
+            {/* 左カラム: 配信映像(上) + チャット(下) */}
             <div style={{
               display: 'grid',
-              gridTemplateRows: '7fr 3fr',
+              gridTemplateRows: '1.8fr 1fr',
               gap: 12,
               minHeight: 0,
+              overflow: 'hidden',
             }}>
               <StreamCenter
                 score={score}
