@@ -17,6 +17,29 @@
 
 ## 最新の作業ログ
 
+### 2026-05-23 — Pools Dashboard API: Supabase 移行
+
+**対象:** `src/app/api/pools-dashboard/route.ts`, `src/app/live/[tournamentId]/page.tsx`
+
+#### 変更内容
+
+**1. /api/pools-dashboard を Supabase ベースに全面書き換え**
+- 問題: start.gg API の `perPage=25` 制限により 1,568件中25件しか取得できず、QUALIFIED=0 / UPSET=9 件しか表示されなかった
+- 解決: `tournament_sets` テーブルを直接クエリ (バッチ 1000件×複数回) → 1,482件の completed セットを全件解析
+- パラメータ変更: `?eventId=` → `?tournamentId=` (Supabase DB の numeric ID)
+- プレイヤー名は `players` テーブルと JOIN (winner_id / loser_id → players.handle)
+- **qualifying ラウンド自動検出**: 各ブラケットサイドで `round_text` をランク付けし、最深ラウンドを qualifying final と判定
+  - 現在: Winners Semi-Final = QUALIFIED_W、Losers Quarter-Final = QUALIFIED_L
+  - tournament が進行して "Winners Final" が現れると自動的に切り替わる
+- feed イベント内訳: QUALIFIED_W(42件) / QUALIFIED_L(42件) / ELIMINATED(111件) / MARQUEE_RESULT(23件)
+- キャッシュ TTL: 15秒 → 30秒
+
+**2. page.tsx polls ポーリング更新**
+- `config.startggEventId` → `config.dbTournamentId` を使用
+- `isPoolsPhase` 判定: phase 名比較 → round_text キーワード (winners/losers/round) 検出に変更
+
+---
+
 ### 2026-05-22 — Pools Dashboard デザイン実装 (pools.html ハンドオフ)
 
 **対象:** `src/components/live/PoolsDashboard.tsx` (新規), `src/app/live/[tournamentId]/page.tsx`
