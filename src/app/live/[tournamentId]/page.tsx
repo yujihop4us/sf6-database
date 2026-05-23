@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { use } from 'react'
 import SiteNavbar from '@/components/SiteNavbar'
+import { PoolsDashboard, StreamToast, type PoolsData, type ToastEvent } from '@/components/live/PoolsDashboard'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -751,6 +752,7 @@ function StreamCenter({
   locationLabel,
   timezone, streamStartTime, startDate, endDate,
   onMatchClick, onStreamQueueMatch,
+  streamToast,
 }: {
   score: { p1: number; p2: number }
   centerTab: 'stream' | 'bracket'
@@ -780,6 +782,7 @@ function StreamCenter({
   endDate?: string
   onMatchClick: (p1: string, p2: string) => void
   onStreamQueueMatch?: (p1Handle: string, p2Handle: string, p1PlayerId?: number, p2PlayerId?: number) => void
+  streamToast?: ToastEvent | null
 }) {
   // マルチチャンネル: 選択中のチャンネルインデックス
   const [activeChanIdx, setActiveChanIdx] = useState(0)
@@ -1088,6 +1091,9 @@ function StreamCenter({
                 fontFamily: V.FD, fontSize: 12, fontWeight: 700, color: V.muted,
               }}>👁 {streamInfo.viewerCount.toLocaleString()}</div>
             )}
+
+            {/* Pools toast overlay */}
+            {streamToast && <StreamToast event={streamToast} />}
 
           </div>
 
@@ -1556,213 +1562,7 @@ function FeaturedMatchesPanel({
   )
 }
 
-// ── PoolsDashboard ────────────────────────────────────────────────────────────
-
-const FEED_ICON: Record<string, string> = {
-  UPSET:          '🔥',
-  QUALIFIED_W:    '✅',
-  QUALIFIED_L:    '✅',
-  ELIMINATED:     '❌',
-  MARQUEE_RESULT: '⚔️',
-}
-const FEED_COLOR: Record<string, string> = {
-  HIGH:   '#f5c842',
-  MEDIUM: '#10b981',
-  LOW:    '#475569',
-}
-
-function PoolsDashboard({ data }: {
-  data: {
-    currentPhase: string
-    overallProgress: Record<string, { completed: number; total: number; percent: number }>
-    feed: any[]
-    qualified: any[]
-    pools: any[]
-    lastUpdated?: string
-  } | null
-}) {
-  if (!data) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100%', color: '#475569', fontFamily: "'Barlow Condensed', sans-serif",
-        fontSize: 13, letterSpacing: '0.08em',
-      }}>
-        プールデータ取得中...
-      </div>
-    )
-  }
-
-  const now = Date.now() / 1000
-  const fmtTime = (ts: number) => {
-    const diff = now - ts
-    if (diff < 60)  return `${Math.round(diff)}s ago`
-    if (diff < 3600) return `${Math.round(diff / 60)}m ago`
-    return `${Math.round(diff / 3600)}h ago`
-  }
-
-  const winners  = data.qualified.filter(q => q.side === 'winners')
-  const losers   = data.qualified.filter(q => q.side === 'losers')
-
-  return (
-    <div style={{
-      flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: 10,
-    }}>
-      {/* ── 上段: フィード + プール進行 ── */}
-      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-
-        {/* 左: Live Feed */}
-        <div style={{
-          background: V.surface, border: `1px solid ${V.border}`, borderRadius: 10,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0,
-        }}>
-          {/* ヘッダー */}
-          <div style={{
-            background: V.surface2, borderBottom: `1px solid ${V.border}`,
-            padding: '10px 14px', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontFamily: V.FD, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.gold }}>
-              ⚡ LIVE FEED
-            </span>
-            <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim }}>
-              {data.currentPhase} · {data.feed.length} events
-            </span>
-          </div>
-          {/* フィードリスト */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' as const }}>
-            {data.feed.length === 0 ? (
-              <div style={{ padding: '24px 14px', color: V.dim, fontFamily: V.FD, fontSize: 12, textAlign: 'center' }}>
-                進行中のイベントなし
-              </div>
-            ) : data.feed.map((ev: any, i: number) => (
-              <div key={i} style={{
-                padding: '8px 14px',
-                borderBottom: `1px solid ${V.border}`,
-                display: 'flex', flexDirection: 'column', gap: 3,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13, flexShrink: 0 }}>{FEED_ICON[ev.type] ?? '·'}</span>
-                  <span style={{
-                    flex: 1, minWidth: 0,
-                    fontFamily: V.FB, fontSize: 12, color: V.text,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-                  }}>{ev.message}</span>
-                  <span style={{
-                    fontFamily: V.FD, fontSize: 9, fontWeight: 700,
-                    color: FEED_COLOR[ev.priority] ?? V.dim,
-                    flexShrink: 0, letterSpacing: '0.06em',
-                  }}>{ev.priority}</span>
-                </div>
-                <div style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, paddingLeft: 19 }}>
-                  {ev.round} · {fmtTime(ev.timestamp)}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 右: Pool Progress */}
-        <div style={{
-          background: V.surface, border: `1px solid ${V.border}`, borderRadius: 10,
-          display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0,
-        }}>
-          {/* ヘッダー */}
-          <div style={{
-            background: V.surface2, borderBottom: `1px solid ${V.border}`,
-            padding: '10px 14px', flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span style={{ fontFamily: V.FD, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.accent }}>
-              📊 POOL PROGRESS
-            </span>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {Object.entries(data.overallProgress).map(([phase, p]: [string, any]) => (
-                <span key={phase} style={{ fontFamily: V.FD, fontSize: 10, color: V.muted }}>
-                  {phase}: <strong style={{ color: p.percent === 100 ? V.accent : V.gold }}>{p.percent}%</strong>
-                </span>
-              ))}
-            </div>
-          </div>
-          {/* プールリスト */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' as const, padding: '8px 0' }}>
-            {data.pools.length === 0 ? (
-              <div style={{ padding: '24px 14px', color: V.dim, fontFamily: V.FD, fontSize: 12, textAlign: 'center' }}>
-                プールデータなし
-              </div>
-            ) : data.pools.map((pool: any, i: number) => (
-              <div key={i} style={{ padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: V.FD, fontSize: 11, fontWeight: 700, color: V.muted, width: 48, flexShrink: 0 }}>
-                  {pool.id}
-                </span>
-                <div style={{ flex: 1, height: 6, background: V.surface3, borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{
-                    width: pool.percent + '%', height: '100%', borderRadius: 3,
-                    background: pool.percent === 100 ? V.dim : V.accent,
-                    transition: 'width 0.5s ease',
-                  }} />
-                </div>
-                <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, width: 36, textAlign: 'right' as const, flexShrink: 0 }}>
-                  {pool.completed}/{pool.total}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── 下段: Qualified Players ── */}
-      {(winners.length > 0 || losers.length > 0) && (
-        <div style={{
-          background: V.surface, border: `1px solid ${V.border}`, borderRadius: 10,
-          padding: '10px 14px', flexShrink: 0,
-        }}>
-          <div style={{ fontFamily: V.FD, fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.accent, marginBottom: 8 }}>
-            🏆 QUALIFIED PLAYERS
-          </div>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' as const }}>
-            {winners.length > 0 && (
-              <div>
-                <div style={{ fontFamily: V.FD, fontSize: 10, color: V.accent, letterSpacing: '0.1em', marginBottom: 4 }}>WINNERS ({winners.length})</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
-                  {winners.map((q: any, i: number) => (
-                    <a key={i} href={`/players?search=${encodeURIComponent(q.handle)}`}
-                      style={{
-                        fontFamily: V.FD, fontSize: 12, fontWeight: 700,
-                        color: V.text, textDecoration: 'none',
-                        background: `${V.accent}20`, border: `1px solid ${V.accent}40`,
-                        borderRadius: 5, padding: '2px 8px',
-                      }}>
-                      {q.seed ? `#${q.seed} ` : ''}{q.handle}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-            {losers.length > 0 && (
-              <div>
-                <div style={{ fontFamily: V.FD, fontSize: 10, color: V.gold, letterSpacing: '0.1em', marginBottom: 4 }}>LOSERS ({losers.length})</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' as const }}>
-                  {losers.map((q: any, i: number) => (
-                    <a key={i} href={`/players?search=${encodeURIComponent(q.handle)}`}
-                      style={{
-                        fontFamily: V.FD, fontSize: 12, fontWeight: 700,
-                        color: V.text, textDecoration: 'none',
-                        background: `${V.gold}18`, border: `1px solid ${V.gold}40`,
-                        borderRadius: 5, padding: '2px 8px',
-                      }}>
-                      {q.seed ? `#${q.seed} ` : ''}{q.handle}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+// PoolsDashboard is imported from @/components/live/PoolsDashboard
 
 // ── NextMatchesPanel ──────────────────────────────────────────────────────────
 
@@ -1966,15 +1766,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
   // ── Pools Dashboard state ────────────────────────────────────────────────────
   const [displayMode, setDisplayMode] = useState<'h2h' | 'pools'>('h2h')
-  const [poolsData, setPoolsData] = useState<{
-    currentPhase: string
-    overallProgress: Record<string, { completed: number; total: number; percent: number }>
-    feed: any[]
-    qualified: any[]
-    pools: any[]
-    lastUpdated?: string
-  } | null>(null)
+  const [poolsData, setPoolsData] = useState<PoolsData | null>(null)
   const [displayModeManual, setDisplayModeManual] = useState(false)
+  const [streamToast, setStreamToast] = useState<ToastEvent | null>(null)
+  const streamToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── 大会設定 ────────────────────────────────────────────────────────────────
   const tournamentConfig: Record<string, {
@@ -2690,6 +2485,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             endDate={config.endDate}
             tournamentSlug={effectiveTournamentSlug}
             onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
+            streamToast={displayMode === 'pools' ? streamToast : null}
           />
           <PlayerBand
             player={player2} score={score.p2} side="right"
@@ -2711,7 +2507,16 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               player1={player1} player2={player2}
               twitchChatChannels={config.twitchChatChannels}
             />
-            <PoolsDashboard data={poolsData} />
+            <PoolsDashboard
+              data={poolsData}
+              onToast={(ev) => {
+                setStreamToast(ev)
+                if (streamToastTimer.current) clearTimeout(streamToastTimer.current)
+                if (ev) {
+                  streamToastTimer.current = setTimeout(() => setStreamToast(null), 5000)
+                }
+              }}
+            />
           </div>
         ) : (
           /* H2H モード（従来表示） */
