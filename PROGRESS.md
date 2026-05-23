@@ -17,6 +17,35 @@
 
 ## 最新の作業ログ
 
+### 2026-05-22 — Pools Dashboard デザイン実装 (pools.html ハンドオフ)
+
+**対象:** `src/components/live/PoolsDashboard.tsx` (新規), `src/app/live/[tournamentId]/page.tsx`
+
+#### 変更内容
+
+**1. PoolsDashboard コンポーネント新規作成 (`src/components/live/PoolsDashboard.tsx`)**
+- デザインハンドオフ (`pools.html`) を元に右レール全体を実装
+- **HighlightCard**: UPSET / MARQUEE 系イベントをトップに大きく表示、glow-pulse アニメーション (red/gold)
+- **TabbedPanel**: FEED / QUALIFIED / PROGRESS の3タブ
+  - FEED タブ: 全件 / UPSET / QUAL / MARQUEE のサブフィルター、優先度別カードサイズ
+  - QUALIFIED タブ: 2カラムグリッド、Winners=緑 / Losers=金のサイドバー、新規選手でバッジ通知
+  - PROGRESS タブ: SVG サークル進捗、プールドットグリッド、統計セル (完了数・進行中・UPSETS 等)
+- デザイントークンは `pools.html` CSS 変数準拠: bg `#0a0a0f` / accent `#00ffb3` / red `#ff3c3c` / gold `#ffc832`
+- 全選手名は `/player/[handle]` へリンク (`Link` コンポーネント)
+- CSS keyframes は DOM 挿入 (冪等) で Next.js SSR と共存
+
+**2. StreamToast コンポーネント追加**
+- UPSET / MARQUEE イベント発生時に配信映像下部にスライドインするトースト
+- `pd-toast-flash` アニメーション (5秒で自動フェードアウト)
+- PoolsDashboard の `onToast` コールバック → page.tsx → StreamCenter の `streamToast` prop で連携
+
+**3. page.tsx リファクタリング**
+- インライン `PoolsDashboard` 関数を削除し、`@/components/live/PoolsDashboard` からインポートに切替
+- `streamToast` / `streamToastTimer` state を追加
+- StreamCenter に `streamToast` prop を追加、pools モード時のみ渡す
+
+---
+
 ### 2026-05-20 — トップページ: 最新結果修正 + upcoming 並び順 + シリーズバッジ
 
 **対象:** `src/app/page.tsx`, `src/app/HomeClient.tsx`
