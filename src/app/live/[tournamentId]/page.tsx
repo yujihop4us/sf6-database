@@ -1305,13 +1305,26 @@ function LiveChat({
             ))}
           </div>
         )}
-        <iframe
-          key={channel}
-          src={`https://www.twitch.tv/embed/${channel}/chat?parent=localhost&parent=sf6-database.vercel.app&darkpopout`}
-          style={{ flex: 1, border: 'none', width: '100%', minHeight: 0 }}
-          title={`Twitch chat: ${channel}`}
-          allowFullScreen
-        />
+        {/* iframe を overflow:hidden でラップしてチャット入力欄を隠す
+            Twitch の darkpopout では:
+              下部 ~52px = chat input box (display-only では不要)
+              上部 ~1px  = border
+            ランキング・お知らせは Twitch 側 UI のため公式パラメータでは非表示不可。
+            もし上部バナーが邪魔な場合は marginTop: -56 + height calc を追加 */}
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative' }}>
+          <iframe
+            key={channel}
+            src={`https://www.twitch.tv/embed/${channel}/chat?parent=localhost&parent=sf6-database.vercel.app&darkpopout`}
+            style={{
+              border: 'none', width: '100%',
+              // 親より 52px 背高く stretch → 下部の chat input が clipping で隠れる
+              height: 'calc(100% + 52px)',
+              display: 'block',
+            }}
+            title={`Twitch chat: ${channel}`}
+            allowFullScreen
+          />
+        </div>
       </div>
     )
   }
@@ -2177,7 +2190,9 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         if (!data.error) {
           const feedCount      = data.feed?.length ?? 0
           const qualifiedCount = data.qualified?.length ?? 0
-          console.log('[POOLS] response:', { feedCount, qualifiedCount, phase: data.currentPhase, cached: data.cached })
+          const newestTs = data.feed?.[0]?.timestamp
+          const newestHuman = newestTs ? new Date(newestTs * 1000).toISOString().slice(11, 19) : 'none'
+          console.log('[POOLS] response:', { feedCount, qualifiedCount, phase: data.currentPhase, newestEvent: newestHuman, setsAnalyzed: data.setsAnalyzed, cached: data.cached })
           console.log('[POOLS] setState', feedCount, qualifiedCount)
           setPoolsData(data)
           // 手動切替していない場合のみ自動判定（ref 経由で最新値を参照）
@@ -2192,7 +2207,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
       } catch (e) { console.error('[POOLS] fetch failed:', e) }
     }
     fetch_()
-    const id = setInterval(fetch_, 30000)
+    const id = setInterval(fetch_, 15000)
     return () => clearInterval(id)
   // dbTournamentId が変わった時だけインターバルを張り直す
   // eslint-disable-next-line react-hooks/exhaustive-deps

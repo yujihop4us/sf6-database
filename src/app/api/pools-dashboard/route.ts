@@ -306,8 +306,13 @@ async function fetchPoolsData(tournamentId: number) {
     }
   }
 
-  // Sort feed by timestamp desc, cap at 150
-  feedEvents.sort((a, b) => b.timestamp - a.timestamp)
+  // Sort feed by timestamp desc (created_at はバッチ挿入時刻なので同秒内は round_text でセカンダリソート)
+  feedEvents.sort((a, b) => {
+    if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp
+    // 同一秒内: QUALIFIED > MARQUEE > ELIMINATED の優先度で見せる
+    const typePrio: Record<string, number> = { QUALIFIED_W: 3, QUALIFIED_L: 3, MARQUEE_RESULT: 2, UPSET: 2, ELIMINATED: 1 }
+    return (typePrio[b.type] ?? 0) - (typePrio[a.type] ?? 0)
+  })
   const feed = feedEvents.slice(0, 150)
 
   // Sort qualified: winners first, then losers
@@ -332,23 +337,26 @@ async function fetchPoolsData(tournamentId: number) {
   // 7. Current phase = the most recent round_text
   const currentPhase = allSets.length > 0 ? allSets[0].round_text : 'Unknown'
 
+  const newestEventTs = feed.length > 0 ? feed[0].timestamp : null
+
   return {
     currentPhase,
     overallProgress,
     feed,
     qualified,
     pools,
-    lastUpdated:   new Date().toISOString(),
-    setsAnalyzed:  allSets.length,
+    lastUpdated:     new Date().toISOString(),
+    setsAnalyzed:    allSets.length,
     topWinnersRound,
     topLosersRound,
+    newestEventTs,   // 最新イベントの UNIX タイム (クライアント side での変更検知用)
   }
 }
 
-// ── Memory cache (30 seconds) ─────────────────────────────────────────────────
+// ── Memory cache (15 seconds) ─────────────────────────────────────────────────
 
 const cache = new Map<number, { data: any; ts: number }>()
-const CACHE_TTL = 30 * 1000
+const CACHE_TTL = 15 * 1000
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

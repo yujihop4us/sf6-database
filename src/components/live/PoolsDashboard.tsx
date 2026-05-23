@@ -64,6 +64,7 @@ export interface PoolsData {
   pools: ApiPoolProgress[]
   lastUpdated?: string
   setsAnalyzed?: number
+  newestEventTs?: number  // 最新イベントの UNIX タイム
 }
 
 export interface ToastEvent {
@@ -826,12 +827,13 @@ function TabbedPanel({
       minHeight: 0,
       flex: 1,
     }}>
-      {/* Primary tabs */}
+      {/* Primary tabs + live indicator */}
       <div style={{
         display: 'flex',
         background: V.surface2,
         borderBottom: `1px solid ${V.border}`,
         flexShrink: 0,
+        alignItems: 'stretch',
       }}>
         {tabs.map(t => (
           <button
@@ -867,6 +869,29 @@ function TabbedPanel({
             )}
           </button>
         ))}
+        {/* LIVE indicator + sets count */}
+        {data.lastUpdated && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '0 10px', flexShrink: 0,
+            borderLeft: `1px solid ${V.border}`,
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: V.accent,
+              boxShadow: `0 0 6px ${V.accent}`,
+              animation: 'pd-badge-pulse 1.4s ease-in-out infinite',
+              flexShrink: 0,
+            }} />
+            <span style={{
+              fontFamily: V.FD, fontSize: 9, fontWeight: 700,
+              letterSpacing: '0.1em', color: V.dim,
+              lineHeight: 1,
+            }}>
+              {new Date(data.lastUpdated).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Tab content */}
