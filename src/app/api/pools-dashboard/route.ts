@@ -1,30 +1,16 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 
-const STARTGG_API = 'https://api.start.gg/gql/alpha'
+// ── Supabase ──────────────────────────────────────────────────────────────────
 
-// ── GQL: completed sets with seed + pool info ─────────────────────────────────
-// perPage 25 で complexity ~600 — CB2026/EVO 規模でも安全圏
-const Q_POOLS_SETS = `
-query PoolsSets($eventId: ID!, $page: Int!) {
-  event(id: $eventId) {
-    sets(page: $page, perPage: 25, sortType: RECENT, filters: { state: [3] }) {
-      pageInfo { totalPages }
-      nodes {
-        id fullRoundText state completedAt displayScore
-        phaseGroup { displayIdentifier phase { name } }
-        slots {
-          entrant {
-            id name initialSeedNum
-            participants { gamerTag }
-          }
-          standing { stats { score { value } } }
-        }
-      }
-    }
-  }
-}`
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase env vars not set')
+  return createClient(url, key)
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,304 +45,335 @@ interface QualifiedPlayer {
   phase: string
 }
 
-// ── ヘルパー ───────────────────────────────────────────────────────────────────
-
-function extractHandle(name: string, gamerTag?: string | null): string {
-  if (gamerTag) return gamerTag
-  if (name.includes(' | ')) return name.split(' | ').slice(1).join(' | ').trim()
-  return name
+// DB row shape (only the columns we actually need)
+interface SetRow {
+  id: number
+  round_text: string
+  display_score: string | null
+  winner_id: number | null
+  loser_id: number | null
+  winner_score: number | null
+  loser_score: number | null
+  winner_character: string | null
+  loser_character: string | null
+  created_at: string
 }
 
-function isUpset(
-  winnerSeed: number | null,
-  loserSeed: number | null,
-): boolean {
-  if (winnerSeed == null || loserSeed == null) return false
-  // 高シード番号（下位）が低シード番号（上位）に勝った = upset
-  return winnerSeed > loserSeed && (winnerSeed - loserSeed) >= 20
+// ── Round ranking ─────────────────────────────────────────────────────────────
+// Higher number = deeper in the bracket (later round = closer to qualifying)
+
+function roundRank(rt: string): number {
+  const t = rt.toLowerCase()
+  const base = t.startsWith('winners') ? 1000 : 0
+  // Grand Final
+  if (t.includes('grand final')) return base + 700
+  // Final (not semi/quarter)
+  if (/\bfinals?\b/.test(t) && !t.includes('semi') && !t.includes('quarter')) return base + 600
+  // Semi-Final
+  if (t.includes('semi')) return base + 500
+  // Quarter-Final
+  if (t.includes('quarter')) return base + 400
+  // Numbered Round
+  const m = t.match(/round\s+(\d+)/)
+  if (m) return base + parseInt(m[1]) * 10
+  return base
 }
 
-// "Winners Final", "Losers Final" 等のパターン判定
-function matchesFinal(text: string, side: 'winners' | 'losers'): boolean {
-  const t = text.toLowerCase()
-  if (side === 'winners') return t.includes('winners final') || t.includes('winners finals')
-  return t.includes('losers final') || t.includes('losers finals')
+function isWinnersBracket(rt: string): boolean {
+  return rt.toLowerCase().startsWith('winners')
 }
 
-function isLosersBracket(text: string): boolean {
-  return text.toLowerCase().startsWith('losers')
+function isLosersBracket(rt: string): boolean {
+  return rt.toLowerCase().startsWith('losers')
 }
 
-// ── Feed generation ───────────────────────────────────────────────────────────
+// ── Handle extraction from display_score ──────────────────────────────────────
+// display_score format: "CLE | Greil 2 - Green Hayato 0"
+// extracts "Greil" and "Green Hayato" style names; prefer DB player handle
 
-function buildFeedEvents(sets: any[]): FeedEvent[] {
-  const events: FeedEvent[] = []
+function parseDisplayScore(
+  score: string | null,
+  winnerScore: number | null,
+  loserScore: number | null,
+): { p1name: string; p2name: string; scoreStr: string } {
+  const scoreStr =
+    winnerScore != null && loserScore != null
+      ? `${winnerScore}-${loserScore}`
+      : score ?? ''
 
-  for (const set of sets) {
-    if (set.state !== 3) continue  // completed のみ
+  if (!score) return { p1name: 'P1', p2name: 'P2', scoreStr }
 
-    const s0 = set.slots?.[0]
-    const s1 = set.slots?.[1]
-    if (!s0?.entrant || !s1?.entrant) continue
+  // "CLE | Greil 2 - Green Hayato 0"  →  split on " N - " to get names
+  // More reliably: split on score numbers
+  // Pattern: <name> <digits> - <name> <digits>
+  const m = score.match(/^(.+?)\s+\d+\s*-\s*(.+?)\s+\d+$/)
+  if (m) return { p1name: m[1].trim(), p2name: m[2].trim(), scoreStr }
 
-    const p1name   = s0.entrant.name || 'TBD'
-    const p2name   = s1.entrant.name || 'TBD'
-    const p1handle = extractHandle(p1name, s0.entrant.participants?.[0]?.gamerTag)
-    const p2handle = extractHandle(p2name, s1.entrant.participants?.[0]?.gamerTag)
-    const p1seed   = s0.entrant.initialSeedNum ?? null
-    const p2seed   = s1.entrant.initialSeedNum ?? null
+  const parts = score.split(' - ')
+  if (parts.length >= 2) {
+    return { p1name: parts[0].trim(), p2name: parts[1].trim(), scoreStr }
+  }
+  return { p1name: 'P1', p2name: 'P2', scoreStr }
+}
 
-    const sv1 = s0.standing?.stats?.score?.value ?? -1
-    const sv2 = s1.standing?.stats?.score?.value ?? -1
-    const score = sv1 >= 0 && sv2 >= 0 ? `${sv1}-${sv2}` : (set.displayScore ?? '')
+// strip team prefix: "CLE | Greil" → "Greil"
+function cleanHandle(raw: string): string {
+  if (raw.includes(' | ')) return raw.split(' | ').slice(1).join(' | ').trim()
+  return raw.trim()
+}
 
-    const winnerName   = sv1 > sv2 ? p1name   : p2name
-    const loserName    = sv1 > sv2 ? p2name   : p1name
-    const winnerHandle = sv1 > sv2 ? p1handle : p2handle
-    const loserHandle  = sv1 > sv2 ? p2handle : p1handle
-    const winnerSeed   = sv1 > sv2 ? p1seed   : p2seed
-    const loserSeed    = sv1 > sv2 ? p2seed   : p1seed
+// ── Main data builder ─────────────────────────────────────────────────────────
 
-    const pool     = set.phaseGroup?.displayIdentifier || ''
-    const phase    = set.phaseGroup?.phase?.name || ''
-    const round    = set.fullRoundText || ''
-    const ts       = set.completedAt ?? Math.floor(Date.now() / 1000)
+async function fetchPoolsData(tournamentId: number) {
+  const supabase = getSupabase()
+
+  // 1. Fetch ALL completed sets (winner_id IS NOT NULL)
+  // Supabase default limit is 1000 — use range to get all
+  let allSets: SetRow[] = []
+  let from = 0
+  const batchSize = 1000
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('tournament_sets')
+      .select(
+        'id, round_text, display_score, winner_id, loser_id, winner_score, loser_score, winner_character, loser_character, created_at',
+      )
+      .eq('tournament_id', tournamentId)
+      .not('winner_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .range(from, from + batchSize - 1)
+
+    if (error) throw new Error('Supabase error: ' + error.message)
+    if (!data || data.length === 0) break
+
+    allSets = allSets.concat(data as SetRow[])
+    if (data.length < batchSize) break
+    from += batchSize
+  }
+
+  // 2. Fetch total set count (completed + in-progress) for progress %
+  const { count: totalCount } = await supabase
+    .from('tournament_sets')
+    .select('*', { count: 'exact', head: true })
+    .eq('tournament_id', tournamentId)
+
+  // 3. Collect unique player IDs and resolve handles
+  const playerIds = new Set<number>()
+  for (const s of allSets) {
+    if (s.winner_id) playerIds.add(s.winner_id)
+    if (s.loser_id) playerIds.add(s.loser_id)
+  }
+
+  const handleMap = new Map<number, string>()
+  if (playerIds.size > 0) {
+    const ids = Array.from(playerIds)
+    // Batch in groups of 500 (PostgREST URL length limit)
+    for (let i = 0; i < ids.length; i += 500) {
+      const batch = ids.slice(i, i + 500)
+      const { data: players } = await supabase
+        .from('players')
+        .select('id, handle')
+        .in('id', batch)
+      if (players) {
+        for (const p of players) {
+          handleMap.set(p.id, p.handle ?? String(p.id))
+        }
+      }
+    }
+  }
+
+  // 4. Determine the "qualifying" round for each bracket side
+  // The deepest (highest-ranked) round = qualifying final
+  const winnerRoundRanks = new Map<string, number>()
+  const loserRoundRanks  = new Map<string, number>()
+
+  for (const s of allSets) {
+    const rt = s.round_text
+    const rank = roundRank(rt)
+    if (isWinnersBracket(rt)) {
+      const cur = winnerRoundRanks.get(rt) ?? rank
+      winnerRoundRanks.set(rt, Math.max(cur, rank))
+    } else if (isLosersBracket(rt)) {
+      const cur = loserRoundRanks.get(rt) ?? rank
+      loserRoundRanks.set(rt, Math.max(cur, rank))
+    }
+  }
+
+  const topWinnersRound = winnerRoundRanks.size > 0
+    ? [...winnerRoundRanks.entries()].reduce((a, b) => (a[1] > b[1] ? a : b))[0]
+    : null
+
+  const topLosersRound = loserRoundRanks.size > 0
+    ? [...loserRoundRanks.entries()].reduce((a, b) => (a[1] > b[1] ? a : b))[0]
+    : null
+
+  // 5. Build feed events, qualified list
+  const feedEvents: FeedEvent[] = []
+  const qualified: QualifiedPlayer[] = []
+  const qualifiedSet = new Set<string>()  // deduplicate by "side::playerId"
+
+  for (const s of allSets) {
+    const rt          = s.round_text
+    const winnerId    = s.winner_id!
+    const loserId     = s.loser_id!
+    const winnerHandle = handleMap.get(winnerId) ?? String(winnerId)
+    const loserHandle  = handleMap.get(loserId) ?? String(loserId)
+    const wScore      = s.winner_score ?? 0
+    const lScore      = s.loser_score ?? 0
+    const scoreStr    = `${wScore}-${lScore}`
+    const ts          = Math.floor(new Date(s.created_at).getTime() / 1000)
 
     const base = {
-      pool, phase, round, timestamp: ts,
-      score,
+      pool:      '',
+      phase:     'Pools',
+      round:     rt,
+      timestamp: ts,
+      score:     scoreStr,
       players: [
-        { name: p1name, handle: p1handle, seed: p1seed },
-        { name: p2name, handle: p2handle, seed: p2seed },
+        { name: winnerHandle, handle: winnerHandle, seed: null },
+        { name: loserHandle,  handle: loserHandle,  seed: null },
       ],
     }
 
     // ── QUALIFIED_W ──────────────────────────────────────────────────────────
-    if (matchesFinal(round, 'winners')) {
-      events.push({
+    if (topWinnersRound && rt === topWinnersRound) {
+      const key = `W::${winnerId}`
+      if (!qualifiedSet.has(key)) {
+        qualifiedSet.add(key)
+        qualified.push({
+          name:   winnerHandle,
+          handle: winnerHandle,
+          seed:   null,
+          side:   'winners',
+          pool:   '',
+          phase:  'Pools',
+        })
+      }
+      feedEvents.push({
         ...base,
-        type: 'QUALIFIED_W',
+        type:     'QUALIFIED_W',
         priority: 'HIGH',
-        message: `✅ ${winnerHandle} → Top Cut (Winners) [Pool ${pool}]`,
+        message:  `✅ ${winnerHandle} → Top Cut (Winners)`,
       })
       continue
     }
 
     // ── QUALIFIED_L ──────────────────────────────────────────────────────────
-    if (matchesFinal(round, 'losers')) {
-      events.push({
-        ...base,
-        type: 'QUALIFIED_L',
-        priority: 'MEDIUM',
-        message: `✅ ${winnerHandle} → Top Cut (Losers) [Pool ${pool}]`,
-      })
-      continue
-    }
-
-    // ── UPSET ────────────────────────────────────────────────────────────────
-    if (isUpset(winnerSeed, loserSeed)) {
-      events.push({
-        ...base,
-        type: 'UPSET',
-        priority: 'HIGH',
-        message: `🔥 UPSET! #${winnerSeed} ${winnerHandle} def. #${loserSeed} ${loserHandle} ${score}`,
-      })
-      continue
-    }
-
-    // ── ELIMINATED (seed <= 32 の選手のみ) ───────────────────────────────────
-    if (isLosersBracket(round)) {
-      const notableSeed = loserSeed != null && loserSeed <= 32
-      if (notableSeed) {
-        events.push({
-          ...base,
-          type: 'ELIMINATED',
-          priority: 'LOW',
-          message: `❌ #${loserSeed} ${loserHandle} eliminated [Pool ${pool}]`,
+    if (topLosersRound && rt === topLosersRound) {
+      const key = `L::${winnerId}`
+      if (!qualifiedSet.has(key)) {
+        qualifiedSet.add(key)
+        qualified.push({
+          name:   winnerHandle,
+          handle: winnerHandle,
+          seed:   null,
+          side:   'losers',
+          pool:   '',
+          phase:  'Pools',
         })
-        continue
       }
+      // Loser of the LB final = ELIMINATED
+      feedEvents.push({
+        ...base,
+        type:     'QUALIFIED_L',
+        priority: 'MEDIUM',
+        message:  `✅ ${winnerHandle} → Top Cut (Losers)`,
+      })
+      continue
     }
 
-    // ── MARQUEE_RESULT (両者 seed <= 32) ─────────────────────────────────────
-    if (p1seed != null && p1seed <= 32 && p2seed != null && p2seed <= 32) {
-      events.push({
+    // ── ELIMINATED (lost in any Losers match) ────────────────────────────────
+    if (isLosersBracket(rt)) {
+      feedEvents.push({
         ...base,
-        type: 'MARQUEE_RESULT',
+        type:     'ELIMINATED',
+        priority: 'LOW',
+        message:  `❌ ${loserHandle} eliminated in ${rt}`,
+      })
+      continue
+    }
+
+    // ── RESULT (won in Winners bracket non-final) ─────────────────────────────
+    // Only add for semi-final/quarter-final (notable rounds)
+    if (isWinnersBracket(rt) && roundRank(rt) >= 1400) {
+      feedEvents.push({
+        ...base,
+        type:     'MARQUEE_RESULT',
         priority: 'MEDIUM',
-        message: `⚔️ #${p1seed} ${p1handle} vs #${p2seed} ${p2handle} → ${winnerHandle} wins ${score}`,
+        message:  `⚔️ ${winnerHandle} def. ${loserHandle} ${scoreStr} in ${rt}`,
       })
     }
   }
 
-  // 新しい順（completedAt 降順）
-  return events.sort((a, b) => b.timestamp - a.timestamp).slice(0, 100)
-}
+  // Sort feed by timestamp desc, cap at 150
+  feedEvents.sort((a, b) => b.timestamp - a.timestamp)
+  const feed = feedEvents.slice(0, 150)
 
-// ── Pool progress ─────────────────────────────────────────────────────────────
-
-function buildPoolProgress(sets: any[]): PoolProgress[] {
-  // phaseGroup ごとに completed/total を集計
-  // total は同じプールの全セット数は取れないため、
-  // このレスポンスに含まれるセット数から推定
-  const map = new Map<string, { phase: string; completed: number; total: number }>()
-
-  for (const set of sets) {
-    const poolId = set.phaseGroup?.displayIdentifier || 'Unknown'
-    const phase  = set.phaseGroup?.phase?.name || 'Unknown'
-    const key    = `${phase}::${poolId}`
-
-    const entry = map.get(key) ?? { phase, completed: 0, total: 0 }
-    entry.total += 1
-    if (set.state === 3) entry.completed += 1
-    map.set(key, entry)
-  }
-
-  return Array.from(map.entries())
-    .map(([key, v]) => {
-      const [, poolId] = key.split('::')
-      return {
-        id:        poolId,
-        phase:     v.phase,
-        completed: v.completed,
-        total:     v.total,
-        percent:   v.total > 0 ? Math.round(v.completed / v.total * 100) : 0,
-      }
-    })
-    .sort((a, b) => a.id.localeCompare(b.id))
-}
-
-// ── Qualified players ─────────────────────────────────────────────────────────
-
-function buildQualified(sets: any[]): QualifiedPlayer[] {
-  const seen = new Set<string>()
-  const result: QualifiedPlayer[] = []
-
-  for (const set of sets) {
-    if (set.state !== 3) continue
-
-    const round = set.fullRoundText || ''
-    const isWFinal = matchesFinal(round, 'winners')
-    const isLFinal = matchesFinal(round, 'losers')
-    if (!isWFinal && !isLFinal) continue
-
-    const s0 = set.slots?.[0]
-    const s1 = set.slots?.[1]
-    if (!s0?.entrant || !s1?.entrant) continue
-
-    const sv1 = s0.standing?.stats?.score?.value ?? -1
-    const sv2 = s1.standing?.stats?.score?.value ?? -1
-    const winnerSlot = sv1 > sv2 ? s0 : s1
-
-    const name   = winnerSlot.entrant.name || ''
-    const handle = extractHandle(name, winnerSlot.entrant.participants?.[0]?.gamerTag)
-    const key    = `${isWFinal ? 'W' : 'L'}::${name}`
-    if (seen.has(key)) continue
-    seen.add(key)
-
-    result.push({
-      name,
-      handle,
-      seed:  winnerSlot.entrant.initialSeedNum ?? null,
-      side:  isWFinal ? 'winners' : 'losers',
-      pool:  set.phaseGroup?.displayIdentifier || '',
-      phase: set.phaseGroup?.phase?.name || '',
-    })
-  }
-
-  return result.sort((a, b) => (a.seed ?? 9999) - (b.seed ?? 9999))
-}
-
-// ── Main fetch ────────────────────────────────────────────────────────────────
-
-async function fetchPoolsData(eventId: number) {
-  const token = process.env.STARTGG_API_TOKEN || process.env.STARTGG_TOKEN
-  if (!token) throw new Error('STARTGG_API_TOKEN not set')
-
-  // Page 1 のみ取得 (perPage=25, 最新25セット)
-  // EVO規模でも速報目的なら page 1 で十分
-  const res = await fetch(STARTGG_API, {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + token,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      query: Q_POOLS_SETS,
-      variables: { eventId, page: 1 },
-    }),
-    cache: 'no-store',
+  // Sort qualified: winners first, then losers
+  qualified.sort((a, b) => {
+    if (a.side !== b.side) return a.side === 'winners' ? -1 : 1
+    return a.handle.localeCompare(b.handle)
   })
 
-  const text = await res.text()
-  let data: any
-  try { data = JSON.parse(text) } catch {
-    throw new Error('Non-JSON from start.gg: ' + text.slice(0, 200))
-  }
-  if (data.errors) throw new Error('GQL: ' + (data.errors[0]?.message ?? JSON.stringify(data.errors)))
+  // 6. Pool progress (single "Pools" phase since phase_name is null)
+  const completed = allSets.length
+  const total     = totalCount ?? completed
+  const percent   = total > 0 ? Math.round(completed / total * 100) : 0
 
-  const sets: any[] = data?.data?.event?.sets?.nodes ?? []
+  const pools: PoolProgress[] = [
+    { id: 'Pools', phase: 'Pools', completed, total, percent },
+  ]
 
-  // 現在フェーズ: 最新 completed セットの phase.name
-  const latestCompleted = sets.find((s: any) => s.state === 3)
-  const currentPhase = latestCompleted?.phaseGroup?.phase?.name ?? 'Unknown'
-
-  // Pool ごとのセット数概算 (今回取得分から)
-  // overall progress: フェーズ単位で集計
-  const phaseProgress: Record<string, { completed: number; total: number }> = {}
-  for (const set of sets) {
-    const phase = set.phaseGroup?.phase?.name || 'Unknown'
-    if (!phaseProgress[phase]) phaseProgress[phase] = { completed: 0, total: 0 }
-    phaseProgress[phase].total += 1
-    if (set.state === 3) phaseProgress[phase].completed += 1
+  const overallProgress: Record<string, { completed: number; total: number; percent: number }> = {
+    Pools: { completed, total, percent },
   }
 
-  const overallProgress: Record<string, { completed: number; total: number; percent: number }> = {}
-  for (const [phase, v] of Object.entries(phaseProgress)) {
-    overallProgress[phase] = {
-      ...v,
-      percent: v.total > 0 ? Math.round(v.completed / v.total * 100) : 0,
-    }
-  }
+  // 7. Current phase = the most recent round_text
+  const currentPhase = allSets.length > 0 ? allSets[0].round_text : 'Unknown'
 
   return {
     currentPhase,
     overallProgress,
-    feed:      buildFeedEvents(sets),
-    qualified: buildQualified(sets),
-    pools:     buildPoolProgress(sets),
-    lastUpdated: new Date().toISOString(),
-    setsAnalyzed: sets.length,
+    feed,
+    qualified,
+    pools,
+    lastUpdated:   new Date().toISOString(),
+    setsAnalyzed:  allSets.length,
+    topWinnersRound,
+    topLosersRound,
   }
 }
 
-// ── Route handler ─────────────────────────────────────────────────────────────
+// ── Memory cache (30 seconds) ─────────────────────────────────────────────────
 
-// シンプルなメモリキャッシュ (15秒)
 const cache = new Map<number, { data: any; ts: number }>()
-const CACHE_TTL = 15 * 1000
+const CACHE_TTL = 30 * 1000
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const eventId = parseInt(searchParams.get('eventId') || '0')
-  if (!eventId) {
-    return NextResponse.json({ error: 'eventId is required' }, { status: 400 })
+  const tournamentId = parseInt(searchParams.get('tournamentId') || '0')
+  if (!tournamentId) {
+    return NextResponse.json(
+      { error: 'tournamentId is required (e.g. ?tournamentId=48)' },
+      { status: 400 },
+    )
   }
 
-  const now = Date.now()
-  const cached = cache.get(eventId)
-  if (cached && (now - cached.ts) < CACHE_TTL) {
+  const now    = Date.now()
+  const cached = cache.get(tournamentId)
+  if (cached && now - cached.ts < CACHE_TTL) {
     return NextResponse.json({ ...cached.data, cached: true })
   }
 
   try {
-    const data = await fetchPoolsData(eventId)
-    cache.set(eventId, { data, ts: now })
+    const data = await fetchPoolsData(tournamentId)
+    cache.set(tournamentId, { data, ts: now })
     return NextResponse.json({ ...data, cached: false })
   } catch (error: any) {
     console.error('[pools-dashboard]', error.message)
-    const stale = cache.get(eventId)
-    if (stale) return NextResponse.json({ ...stale.data, cached: true, error: error.message })
+    const stale = cache.get(tournamentId)
+    if (stale) return NextResponse.json({ ...stale.data, cached: true, staleError: error.message })
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

@@ -2160,27 +2160,30 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     if (!ended) { const id = setInterval(fetch_, 15000); return () => clearInterval(id) }
   }, [config.startggEventId, hasStream, searchQuery])
 
-  // ── /api/pools-dashboard ポーリング (15秒) ──────────────────────────────────
+  // ── /api/pools-dashboard ポーリング (30秒) ──────────────────────────────────
   useEffect(() => {
-    if (!config.startggEventId) return
+    const dbId = config.dbTournamentId
+    if (!dbId) return
     const fetch_ = async () => {
       try {
-        const res  = await fetch('/api/pools-dashboard?eventId=' + config.startggEventId)
+        const res  = await fetch('/api/pools-dashboard?tournamentId=' + dbId)
         const data = await res.json()
         if (!data.error) {
           setPoolsData(data)
           // 手動切替していない場合のみ自動判定
+          // currentPhase が Winners/Losers ラウンド名 = pools フェーズ中
           if (!displayModeManual) {
-            const isPoolsPhase = data.currentPhase === 'Round 1' || data.currentPhase === 'Round 2'
+            const phase = (data.currentPhase ?? '').toLowerCase()
+            const isPoolsPhase = phase.includes('winners') || phase.includes('losers') || phase.includes('round')
             setDisplayMode(isPoolsPhase ? 'pools' : 'h2h')
           }
         }
       } catch (e) { console.error('[pools-dashboard]', e) }
     }
     fetch_()
-    const id = setInterval(fetch_, 15000)
+    const id = setInterval(fetch_, 30000)
     return () => clearInterval(id)
-  }, [config.startggEventId, displayModeManual])
+  }, [config.dbTournamentId, displayModeManual])
 
   // ── mergedPhases ──────────────────────────────────────────────────────────
   // start.gg フェーズ名とコンフィグフェーズ名が一致しない場合（例: "Round 1" vs "Pools"）の
