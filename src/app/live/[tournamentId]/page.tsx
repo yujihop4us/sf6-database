@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { use } from 'react'
 import SiteNavbar from '@/components/SiteNavbar'
 import { PoolsDashboard, StreamToast, type PoolsData, type ToastEvent } from '@/components/live/PoolsDashboard'
+import { resolveTournamentConfig } from './tournamentConfig'
+import { usePoolsDashboard } from '@/hooks/usePoolsDashboard'
+import { useStartggPolling }  from '@/hooks/useStartggPolling'
+import { useAutoDetect }      from '@/hooks/useAutoDetect'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1862,237 +1866,9 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const [isStreamLive, setIsStreamLive] = useState(false)
   const [streamInfo, setStreamInfo]     = useState({ title: '', viewerCount: 0, gameName: '' })
   const [centerTab, setCenterTab]       = useState<'stream' | 'bracket'>('stream')
-  const [cc12Matches, setCc12Matches]   = useState<any[]>([])
-  const [cc12LastUpdated, setCc12LastUpdated] = useState('')
-  const [startggMatches, setStartggMatches] = useState<any[]>([])
-  const [autoDetected, setAutoDetected] = useState(false)
-  const autoDetectKeyRef = useRef<string>('')
 
-  // ── Pools Dashboard state ────────────────────────────────────────────────────
-  const [displayMode, setDisplayMode] = useState<'h2h' | 'pools'>('h2h')
-  const [poolsData, setPoolsData] = useState<PoolsData | null>(null)
-  const [displayModeManual, setDisplayModeManual] = useState(false)
-  const [streamToast, setStreamToast] = useState<ToastEvent | null>(null)
-  const streamToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ── 大会設定 ────────────────────────────────────────────────────────────────
-  const tournamentConfig: Record<string, {
-    name: string
-    streamPlatform: 'twitch' | 'youtube' | null
-    streamChannel: string | null
-    twitchChannels?: { name: string; channel: string }[]
-    twitchChatChannels?: string[]
-    startggEventId?: number
-    startDate?: string
-    endDate?: string
-    dbTournamentId?: number   // Supabase tournaments.id (slug-keyed configs用)
-    ewcQualifier?: boolean    // EWC 出場権がかかっているか
-    ewcSlots?: number         // EWC 出場枠数
-    cptPremier?: boolean      // CPT Premier 大会か
-    locationLabel?: string    // 都市名表示 (e.g. "Atlanta, GA")
-    timezone: string          // IANA timezone (e.g. "America/New_York")
-    streamStartTime?: string  // 配信開始予定時刻 ISO 8601
-    totalDays: number         // 大会日数
-    phases: any[]
-    results: any[]
-  }> = {
-    '9': {
-      name: 'Capcom Cup 12',
-      streamPlatform: null, streamChannel: null,
-      startDate: '2026-03-11', endDate: '2026-03-15',
-      timezone: 'Asia/Tokyo', totalDays: 4,
-      phases: [
-        { name: 'Phase 1', format: 'GSL (Double Elim) — FT3', groups: [
-          { name: 'Group A', players: [{ name: 'Xiao Hai' }, { name: 'Blaz' }, { name: 'HotDog29' }, { name: 'Juicyjoe' }], matches: [
-            { player1: 'Xiao Hai', player2: 'Juicyjoe', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Blaz', player2: 'HotDog29', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group B', players: [{ name: 'Kawano' }, { name: 'Fuudo' }, { name: 'EndingWalker' }, { name: 'Bravery' }], matches: [
-            { player1: 'Kawano', player2: 'EndingWalker', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Fuudo', player2: 'Bravery', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group C', players: [{ name: 'Big Bird' }, { name: 'DakCorgi' }, { name: 'YHC-Mochi' }, { name: 'MenaRD' }], matches: [
-            { player1: 'Big Bird', player2: 'YHC-Mochi', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'DakCorgi', player2: 'MenaRD', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group D', players: [{ name: 'NL' }, { name: 'Sahara' }, { name: 'shaka22' }, { name: 'JabhiM' }], matches: [
-            { player1: 'Sahara', player2: 'shaka22', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'NL', player2: 'JabhiM', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group E', players: [{ name: 'YONANGEL' }, { name: 'Dual Kevin' }, { name: 'Caba' }, { name: 'pugera' }], matches: [
-            { player1: 'YONANGEL', player2: 'Caba', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Dual Kevin', player2: 'pugera', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group F', players: [{ name: 'kincho' }, { name: 'Momochi' }, { name: 'Angry Bird' }, { name: 'Tashi' }], matches: [
-            { player1: 'kincho', player2: 'Angry Bird', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Momochi', player2: 'Tashi', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group G', players: [{ name: 'gachikun' }, { name: 'Kobayan' }, { name: 'Vxbao' }, { name: 'NotPedro' }], matches: [
-            { player1: 'gachikun', player2: 'Vxbao', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Kobayan', player2: 'NotPedro', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group H', players: [{ name: 'Leshar' }, { name: 'Ryukichi' }, { name: 'LUGABO' }, { name: 'Travis Styles' }], matches: [
-            { player1: 'Leshar', player2: 'LUGABO', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Ryukichi', player2: 'Travis Styles', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group I', players: [{ name: 'Higuchi' }, { name: 'ARMAKOF' }, { name: 'Tokido' }, { name: 'Xerna' }], matches: [
-            { player1: 'Higuchi', player2: 'Tokido', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'ARMAKOF', player2: 'Xerna', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group J', players: [{ name: 'Rainpro' }, { name: 'Chris T' }, { name: 'Lexx' }, { name: 'Micky' }], matches: [
-            { player1: 'Rainpro', player2: 'Lexx', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Chris T', player2: 'Micky', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group K', players: [{ name: 'Kilzyou' }, { name: 'NuckleDu' }, { name: 'Hinao' }, { name: 'lllRaihanlll' }], matches: [
-            { player1: 'Kilzyou', player2: 'Hinao', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'NuckleDu', player2: 'lllRaihanlll', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-          { name: 'Group L', players: [{ name: 'JAK' }, { name: 'Itabashi Zangief' }, { name: 'Deiver' }, { name: 'Jiewa' }], matches: [
-            { player1: 'JAK', player2: 'Deiver', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'Itabashi Zangief', player2: 'Jiewa', round: 'Opening Matches', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Winners Match', date: 'Mar 11', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Elimination Match', date: 'Mar 12', status: 'upcoming' },
-            { player1: 'TBD', player2: 'TBD', round: 'Decider Match', date: 'Mar 12', status: 'upcoming' },
-          ] },
-        ] },
-        { name: 'Phase 2', format: 'Round Robin — FT3', groups: [
-          { name: 'Group 1', players: [{ name: 'TBD' }, { name: 'TBD' }, { name: 'TBD' }], matches: [] },
-          { name: 'Group 2', players: [{ name: 'TBD' }, { name: 'TBD' }, { name: 'TBD' }], matches: [] },
-          { name: 'Group 3', players: [{ name: 'TBD' }, { name: 'TBD' }, { name: 'TBD' }], matches: [] },
-          { name: 'Group 4', players: [{ name: 'TBD' }, { name: 'TBD' }, { name: 'TBD' }], matches: [] },
-        ] },
-        { name: 'Phase 3', format: 'Single Elim — FT5', groups: [
-          { name: 'Top 16', players: Array(16).fill({ name: 'TBD' }), matches: [] },
-        ] },
-      ],
-      results: [],
-    },
-    'dreamhack-birmingham': {
-      name: 'DreamHack Birmingham 2026',
-      streamPlatform: 'twitch', streamChannel: 'dreamhackfighters',
-      startDate: '2026-03-27', endDate: '2026-03-29',
-      timezone: 'Europe/London', totalDays: 2,
-      startggEventId: 1554815,
-      phases: [
-        { name: 'Pools', format: 'Double Elimination Pools', groups: [{ name: 'Pool 1', players: Array(32).fill({ name: 'TBD' }), matches: [] }] },
-        { name: 'Top 32', format: 'Double Elimination', groups: [{ name: 'Main Bracket', players: Array(32).fill({ name: 'TBD' }), matches: [] }] },
-      ],
-      results: [],
-    },
-    '40': {
-      name: 'EVO Japan 2026',
-      streamPlatform: 'twitch', streamChannel: 'evo',
-      twitchChannels: [
-        { name: 'EVO (EN)',          channel: 'evo' },
-        { name: 'EVO Japan 1 (JP)', channel: 'evojapan01' },
-        { name: 'EVO Japan 2 (JP)', channel: 'evojapan02' },
-        { name: 'EVO Japan 3 (JP)', channel: 'evojapan03' },
-        { name: 'EVO Japan 4 (JP)', channel: 'evojapan04' },
-      ],
-      twitchChatChannels: ['evo', 'evojapan01', 'evojapan02', 'evojapan03', 'evojapan04'],
-      startDate: '2026-05-01', endDate: '2026-05-03',
-      timezone: 'Asia/Tokyo', totalDays: 3,
-      startggEventId: 1516510, dbTournamentId: 40,
-      cptPremier: true,
-      phases: [
-        { name: 'Round 1', format: 'Double Elimination Pools', groups: [{ name: 'Pools', players: Array(32).fill({ name: 'TBD' }), matches: [] }] },
-        { name: 'Finals', format: 'Double Elimination', groups: [{ name: 'Top 8', players: Array(8).fill({ name: 'TBD' }), matches: [] }] },
-      ],
-      results: [],
-    },
-
-    // ── Road to EWC: DreamHack Atlanta 2026 ──────────────────────────────
-    'dh-atlanta-2026': {
-      name: 'Road to EWC: DreamHack Atlanta 2026',
-      streamPlatform: 'twitch', streamChannel: 'ewc_plus_en2',
-      twitchChannels: [
-        { name: 'EWC EN2 (メイン)',  channel: 'ewc_plus_en2' },
-        { name: 'EWC EN (サブ)',     channel: 'ewc_plus_en' },
-      ],
-      twitchChatChannels: ['ewc_plus_en2', 'ewc_plus_en'],
-      startDate: '2026-05-15', endDate: '2026-05-17',
-      timezone: 'America/New_York', locationLabel: 'Atlanta, GA',
-      totalDays: 3,
-      streamStartTime: '2026-05-16T10:00:00-04:00',
-      startggEventId: 1600986, dbTournamentId: 47,
-      ewcQualifier: true, ewcSlots: 2,
-      cptPremier: false,
-      phases: [
-        { name: 'Pools',  format: 'Double Elimination', groups: [{ name: 'Pools', players: [], matches: [] }] },
-        { name: 'Top 32', format: 'Double Elimination', groups: [{ name: 'Top 32', players: [], matches: [] }] },
-        { name: 'Top 8',  format: 'Double Elimination Ft5', groups: [{ name: 'Top 8', players: [], matches: [] }] },
-      ],
-      results: [],
-    },
-
-    // ── COMBO BREAKER 2026 ────────────────────────────────────────────────
-    'combo-breaker-2026': {
-      name: 'COMBO BREAKER 2026',
-      streamPlatform: 'twitch', streamChannel: 'capcomfighters',
-      twitchChannels: [
-        { name: 'Capcom Fighters (メイン)', channel: 'capcomfighters' },
-      ],
-      twitchChatChannels: ['capcomfighters'],
-      startDate: '2026-05-22', endDate: '2026-05-24',
-      timezone: 'America/Chicago', locationLabel: 'Schaumburg, IL',
-      totalDays: 3,
-      streamStartTime: '2026-05-22T10:00:00-05:00',
-      startggEventId: 1528962, dbTournamentId: 48,
-      ewcQualifier: true, ewcSlots: 2,
-      cptPremier: true,
-      phases: [
-        { name: 'Round 1', format: 'Double Elimination Pools', groups: [{ name: 'Round 1', players: [], matches: [] }] },
-        { name: 'Round 2', format: 'Double Elimination',       groups: [{ name: 'Round 2', players: [], matches: [] }] },
-        { name: 'Round 3', format: 'Double Elimination',       groups: [{ name: 'Round 3', players: [], matches: [] }] },
-        { name: 'Top 24',  format: 'Double Elimination',       groups: [{ name: 'Top 24',  players: [], matches: [] }] },
-        { name: 'Top 8',   format: 'Double Elimination Ft5',   groups: [{ name: 'Top 8',   players: [], matches: [] }] },
-      ],
-      results: [],
-    },
-  }
-
-  // tournamentId が数値文字列 ("48") の場合、dbTournamentId でフォールバック検索
-  const configKey: string = tournamentConfig[tournamentId]
-    ? tournamentId
-    : (Object.entries(tournamentConfig).find(([, c]) => c.dbTournamentId === Number(tournamentId))?.[0] ?? tournamentId)
-
-  const config = tournamentConfig[configKey] ?? {
-    name: 'Tournament', streamPlatform: 'twitch' as const, streamChannel: 'capcomfighters',
-    endDate: '', phases: [], results: [], timezone: 'UTC' as const, totalDays: 1,
-  }
+  // ── 大会設定 (tournamentConfig.ts から) ──────────────────────────────────
+  const { config, configKey } = resolveTournamentConfig(tournamentId)
 
   // stream-queue API 用スラッグ: 数値 ID の場合でも slug キーを取得
   const effectiveTournamentSlug: string | undefined = isNaN(Number(tournamentId))
@@ -2101,6 +1877,24 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const hasStream      = !!config.streamPlatform && !!config.streamChannel
   const streamPlatform = config.streamPlatform
   const streamChannel  = config.streamChannel
+
+  // ── フック: pools-dashboard / startgg ポーリング ─────────────────────────
+  const {
+    poolsData, displayMode, setDisplayMode,
+    displayModeManual, setDisplayModeManual,
+    streamToast, setStreamToast, streamToastTimer,
+  } = usePoolsDashboard(config.dbTournamentId)
+
+  const {
+    startggMatches, cc12Matches, cc12LastUpdated,
+    mergedPhases, upNextMatches, featuredMode,
+  } = useStartggPolling({
+    startggEventId: config.startggEventId,
+    endDate: config.endDate,
+    phases: config.phases,
+    hasStream,
+    searchQuery,
+  })
 
   // クロックは StreamCenter 内で timezone ベースに計算
 
@@ -2142,224 +1936,6 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     return () => clearTimeout(t)
   }, [searchQuery])
 
-  // ── CC12 Liquipedia ポーリング (60秒) ────────────────────────────────────
-  useEffect(() => {
-    if (hasStream) return
-    const fetch_ = async () => {
-      try {
-        const res  = await fetch('/api/cc12/results?fresh=1')
-        const data = await res.json()
-        if (data.matches) { setCc12Matches(data.matches); setCc12LastUpdated(data.lastUpdated || '') }
-      } catch (e) { console.error('[CC12]', e) }
-    }
-    fetch_()
-    const id = setInterval(fetch_, 60000)
-    return () => clearInterval(id)
-  }, [hasStream])
-
-  // ── start.gg ポーリング (30秒) ────────────────────────────────────────────
-  useEffect(() => {
-    if (!config.startggEventId) return
-    const ended = config.endDate && new Date() > new Date(config.endDate + 'T23:59:59')
-    const fetch_ = async () => {
-      try {
-        const res  = await fetch('/api/startgg?eventId=' + config.startggEventId + '&fresh=1')
-        const data = await res.json()
-        if (data.matches) setStartggMatches(data.matches)
-        if (data.lastUpdated) setCc12LastUpdated(data.lastUpdated)
-      } catch (e) { console.error('[startgg]', e) }
-    }
-    fetch_()
-    if (!ended) { const id = setInterval(fetch_, 15000); return () => clearInterval(id) }
-  }, [config.startggEventId, hasStream, searchQuery])
-
-  // ── /api/pools-dashboard ポーリング (30秒) ──────────────────────────────────
-  // displayModeManual は deps に入れない：手動切替のたびにインターバルがリセットされるのを防ぐ
-  const displayModeManualRef = useRef(displayModeManual)
-  useEffect(() => { displayModeManualRef.current = displayModeManual }, [displayModeManual])
-
-  useEffect(() => {
-    const dbId = config.dbTournamentId
-    if (!dbId) return
-    const url = '/api/pools-dashboard?tournamentId=' + dbId
-    const fetch_ = async () => {
-      console.log('[POOLS] fetching...', new Date().toISOString())
-      try {
-        const res  = await fetch(url)
-        const data = await res.json()
-        if (!data.error) {
-          const feedCount      = data.feed?.length ?? 0
-          const qualifiedCount = data.qualified?.length ?? 0
-          const newestTs = data.feed?.[0]?.timestamp
-          const newestHuman = newestTs ? new Date(newestTs * 1000).toISOString().slice(11, 19) : 'none'
-          console.log('[POOLS] response:', { feedCount, qualifiedCount, phase: data.currentPhase, newestEvent: newestHuman, setsAnalyzed: data.setsAnalyzed, cached: data.cached })
-          console.log('[POOLS] setState', feedCount, qualifiedCount)
-          setPoolsData(data)
-          // 手動切替していない場合のみ自動判定（ref 経由で最新値を参照）
-          if (!displayModeManualRef.current) {
-            const phase = (data.currentPhase ?? '').toLowerCase()
-            const isPoolsPhase = phase.includes('winners') || phase.includes('losers') || phase.includes('round')
-            setDisplayMode(isPoolsPhase ? 'pools' : 'h2h')
-          }
-        } else {
-          console.warn('[POOLS] API error:', data.error)
-        }
-      } catch (e) { console.error('[POOLS] fetch failed:', e) }
-    }
-    fetch_()
-    const id = setInterval(fetch_, 15000)
-    return () => clearInterval(id)
-  // dbTournamentId が変わった時だけインターバルを張り直す
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.dbTournamentId])
-
-  // ── mergedPhases ──────────────────────────────────────────────────────────
-  // start.gg フェーズ名とコンフィグフェーズ名が一致しない場合（例: "Round 1" vs "Pools"）の
-  // フォールバック: 全 startggMatches を最初のフェーズに割り当て
-  const startggMatchesAssigned = (() => {
-    if (!config.startggEventId || startggMatches.length === 0 || config.phases.length === 0) return false
-    const anyMatch = config.phases.some((ph: any) =>
-      startggMatches.some((m: any) => (m.group || '').startsWith(ph.name) || (m.group || '').includes(ph.name))
-    )
-    return !anyMatch  // true = フェーズ名が全く一致しない → フォールバックが必要
-  })()
-
-  const mergedPhases = config.phases.map((phase: any, phaseIdx: number) => {
-    if (config.startggEventId && startggMatches.length > 0) {
-      const pm = startggMatches.filter((m: any) => (m.group || '').startsWith(phase.name) || (m.group || '').includes(phase.name))
-      // フェーズ名不一致フォールバック: 最初のフェーズに全セットを割り当て
-      const src = pm.length > 0 ? pm
-        : (config.phases.length === 1 ? startggMatches
-          : (startggMatchesAssigned && phaseIdx === 0 ? startggMatches : []))
-      if (src.length > 0) {
-        const groups: Record<string, any[]> = {}
-        src.forEach((m: any) => { const g = m.group || phase.name; groups[g] = groups[g] || []; groups[g].push(m) })
-        return {
-          ...phase, groups: Object.entries(groups).map(([gn, ms]: [string, any[]]) => ({
-            name: gn,
-            players: [...new Set(ms.flatMap((m: any) => [m.player1, m.player2]).filter((p: string) => p && p !== 'TBD'))].map((p: string) => ({ name: p })),
-            matches: ms.map((m: any) => ({ player1: m.player1, player2: m.player2, player1_handle: m.player1_handle, player2_handle: m.player2_handle, score: m.score, winner: m.winner, round: m.round, date: '', status: m.status })),
-          })),
-        }
-      }
-      return phase
-    }
-    const pm = cc12Matches.filter((m: any) => {
-      if (phase.name === 'Phase 1') return m.group.startsWith('Group ') && !m.group.startsWith('P2')
-      if (phase.name === 'Phase 2') return m.group.startsWith('P2 ')
-      if (phase.name === 'Phase 3') return m.group.startsWith('P3 ')
-      return false
-    })
-    if (pm.length === 0) return phase
-    if (phase.name === 'Phase 2') {
-      const g2: Record<string, any[]> = {}
-      pm.forEach((m: any) => { const n = m.group.replace('P2 ', ''); g2[n] = g2[n] || []; g2[n].push(m) })
-      return { ...phase, groups: Object.entries(g2).map(([n, ms]: [string, any[]]) => ({ name: n, players: [...new Set(ms.flatMap((m: any) => [m.player1, m.player2]))].map((p: string) => ({ name: p })), matches: ms.map((m: any) => ({ player1: m.player1, player2: m.player2, score: m.score, winner: m.winner, round: m.round, date: '', status: m.status })) })) }
-    }
-    if (phase.name === 'Phase 3') {
-      const players = [...new Set(pm.flatMap((m: any) => [m.player1, m.player2]).filter(Boolean))]
-      return { ...phase, groups: [{ name: 'Top 16 Bracket', players: players.map((p: string) => ({ name: p })), matches: pm.map((m: any) => ({ player1: m.player1, player2: m.player2, score: m.score, winner: m.winner, round: m.round, date: '', status: m.status })) }] }
-    }
-    return {
-      ...phase, groups: phase.groups.map((g: any) => {
-        const gm = pm.filter((m: any) => m.group === g.name)
-        return gm.length === 0 ? g : { ...g, matches: gm.map((m: any) => ({ player1: m.player1, player2: m.player2, round: m.round, date: m.date || '', score: m.score || '', winner: m.winner || '', status: m.status, maps: m.maps || [] })) }
-      }),
-    }
-  })
-
-  // ── upNextMatches + featuredMode ─────────────────────────────────────────
-  // 'live'   : state=2 セットあり → Featured Matches
-  // 'latest' : state=2 なし + 直近5分以内に完了したセットあり → Latest Results
-  // 'recent' : それ以外 → Recent Matches (従来フォールバック)
-  const { upNextMatches, featuredMode } = (() => {
-    const nowTs = Date.now() / 1000
-    const LATEST_WINDOW = 300  // 5分
-
-    // start.gg winner (entrant name) から handle を抽出
-    const extractH = (name: string) =>
-      name?.includes(' | ') ? name.split(' | ').slice(1).join(' | ').trim() : (name || '')
-
-    // startggMatches から直接収集 (mergedPhases より新鮮)
-    const toEntry = (m: any, groupName?: string) => {
-      const p1h = m.player1_handle || m.player1 || ''
-      const p2h = m.player2_handle || m.player2 || ''
-      // winner は entrant name 形式 → handle に変換して比較
-      const winnerH = extractH(m.winner || '')
-      const winner_is_p1: boolean | null =
-        m.status === 'completed' && winnerH
-          ? winnerH.toLowerCase() === p1h.toLowerCase()
-            ? true
-            : winnerH.toLowerCase() === p2h.toLowerCase()
-              ? false
-              : null   // handle 一致なし
-          : null
-      return {
-        round_text:      (groupName || m.group || '') + ' — ' + (m.round || ''),
-        player1_handle:  p1h,
-        player2_handle:  p2h,
-        score:           m.score ?? '',         // "2-0" 形式
-        winner_is_p1,                           // true=p1勝, false=p2勝, null=未確定
-        player1_char:    null,
-        player2_char:    null,
-        player1_country: null,
-        player2_country: null,
-        status:          m.status,
-        completedAt:     m.completedAt ?? null,
-      }
-    }
-
-    const validMatch = (m: any) => {
-      const p1h = m.player1_handle || m.player1 || 'TBD'
-      const p2h = m.player2_handle || m.player2 || 'TBD'
-      return p1h !== 'TBD' && p2h !== 'TBD'
-    }
-
-    // 1. mergedPhases から live/completed を収集
-    const live: any[] = []
-    const completedPhase: any[] = []
-    mergedPhases.forEach((ph: any) => {
-      (ph.groups || []).forEach((g: any) => {
-        (g.matches || []).forEach((m: any) => {
-          if (!validMatch(m)) return
-          const entry = toEntry(m, g.name)
-          if (m.status === 'live' || m.status === 'upcoming') live.push(entry)
-          else if (m.status === 'completed') completedPhase.push(entry)
-        })
-      })
-    })
-
-    // 2. state=2 があれば Featured Matches
-    if (live.length > 0) {
-      live.sort((a, b) => (a.status === 'live' ? -1 : b.status === 'live' ? 1 : 0))
-      return { upNextMatches: live.slice(0, 8), featuredMode: 'live' as const }
-    }
-
-    // 3. startggMatches から completedAt 付きで直近5分の Latest Results を検索
-    //    mergedPhases 経由だと completedAt が消えるため startggMatches を直接参照
-    const latestResults = startggMatches
-      .filter((m: any) =>
-        m.status === 'completed' &&
-        m.completedAt != null &&
-        (nowTs - m.completedAt) < LATEST_WINDOW &&
-        validMatch(m)
-      )
-    if (latestResults.length > 0) {
-      return {
-        upNextMatches: latestResults.slice(0, 8).map(m => toEntry(m)),
-        featuredMode: 'latest' as const,
-      }
-    }
-
-    // 4. フォールバック: phase 経由の直近完了セット
-    if (completedPhase.length > 0) {
-      return { upNextMatches: completedPhase.slice(0, 8), featuredMode: 'recent' as const }
-    }
-
-    // 5. 最終フォールバック: startggMatches 直接参照
-    const fallback = startggMatches.filter(validMatch).slice(0, 8).map(m => toEntry(m))
-    return { upNextMatches: fallback, featuredMode: 'recent' as const }
-  })()
 
   // ── ヘルパー ──────────────────────────────────────────────────────────────
   const selectPlayer = (p: Player) => {
@@ -2393,74 +1969,11 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   }
 
   // ── start.gg 自動検知 ────────────────────────────────────────────────────
-  // 優先順位:
-  //   1. state=2 (in-progress) セット → Featured Matches として自動検知
-  //   2. state=2 なし + autoDetected=true → 直近5分の Latest Result を使用
-  // - 手動モード (__manual__) 中は自動上書きしない
-  useEffect(() => {
-    if (!config.startggEventId || startggMatches.length === 0) return
-
-    // 手動モード中は何もしない
-    if (autoDetectKeyRef.current === '__manual__') return
-
-    const nowTs = Date.now() / 1000
-
-    // ── Branch 1: state=2 (live) セット優先 ──────────────────────────────
-    const liveSet = startggMatches.find((m: any) => m.status === 'live')
-    if (liveSet) {
-      const p1 = liveSet.player1_handle || liveSet.player1 || ''
-      const p2 = liveSet.player2_handle || liveSet.player2 || ''
-      if (!p1 || !p2 || p1 === 'TBD' || p2 === 'TBD') return
-
-      const key = `${p1}|${p2}`
-      if (autoDetectKeyRef.current === key) return
-
-      console.log('[AUTO] Branch1 live set detected', { p1, p2, key })
-      autoDetectKeyRef.current = key
-      setAutoDetected(true)
-      setScore({ p1: 0, p2: 0 })
-      handleMatchClick(p1, p2)
-      return
-    }
-
-    // ── Branch 2: latest results (completedAt < 300s) ─────────────────────
-    // Pools など 1→3 直接遷移する大会向け。
-    // autoDetected の状態に関わらず autoDetectKey で重複制御する。
-    const latestSet = startggMatches.find((m: any) =>
-      m.status === 'completed' &&
-      m.completedAt != null &&
-      (nowTs - m.completedAt) < 300 &&
-      (m.player1_handle || m.player1) !== 'TBD' &&
-      (m.player2_handle || m.player2) !== 'TBD'
-    )
-
-    console.log('[AUTO]', {
-      autoDetectKey:   autoDetectKeyRef.current,
-      autoDetected,
-      featuredMode,
-      latestMatch:     upNextMatches?.[0] ?? null,
-      currentP1:       player1?.handle ?? null,
-      currentP2:       player2?.handle ?? null,
-      latestSetFound:  latestSet
-        ? `${latestSet.player1_handle}|${latestSet.player2_handle} (completedAt-${Math.round(nowTs - latestSet.completedAt)}s ago)`
-        : null,
-    })
-
-    if (!latestSet) return
-
-    const p1 = latestSet.player1_handle || latestSet.player1 || ''
-    const p2 = latestSet.player2_handle || latestSet.player2 || ''
-    if (!p1 || !p2) return
-
-    const key = `${p1}|${p2}`
-    if (autoDetectKeyRef.current === key) return   // 同じセットは再トリガーしない
-
-    console.log('[AUTO] Branch2 latest result detected', { p1, p2, key })
-    autoDetectKeyRef.current = key
-    setAutoDetected(true)   // ← AUTO バッジを点灯
-    setScore({ p1: 0, p2: 0 })
-    handleMatchClick(p1, p2)
-  }, [startggMatches, config.startggEventId])
+  const { autoDetected, setManualMode } = useAutoDetect(
+    startggMatches,
+    config.startggEventId,
+    (p1, p2) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2) },
+  )
 
   // ── レンダー ──────────────────────────────────────────────────────────────
   return (
@@ -2625,10 +2138,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                   start.gg の進行中セットを自動検知中 — P1 / P2 を自動更新しています
                 </span>
                 <button
-                  onClick={() => {
-                    setAutoDetected(false)
-                    autoDetectKeyRef.current = '__manual__'
-                  }}
+                  onClick={() => setManualMode()}
                   style={{
                     marginLeft: 'auto', background: 'none', border: 'none',
                     cursor: 'pointer', color: V.dim, fontSize: 13, padding: '0 4px',
@@ -2700,8 +2210,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 matches={upNextMatches}
                 mode={featuredMode}
                 onMatchClick={(p1, p2) => {
-                  setAutoDetected(false)
-                  autoDetectKeyRef.current = '__manual__'
+                  setManualMode()
                   handleMatchClick(p1, p2)
                 }}
               />
