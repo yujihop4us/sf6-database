@@ -17,6 +17,33 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — page.tsx リファクタリング (Phase 1-3)
+
+**対象:** `src/app/live/[tournamentId]/page.tsx` (2716行 → 391行) + 新規ファイル群
+
+#### Phase 1: カスタムフック抽出
+- `src/app/live/[tournamentId]/tournamentConfig.ts` — 大会設定 (`TOURNAMENT_CONFIG`, `resolveTournamentConfig`)
+- `src/hooks/usePoolsDashboard.ts` — pools-dashboard ポーリング + displayMode 管理
+- `src/hooks/useStartggPolling.ts` — startgg/CC12 ポーリング + mergedPhases / upNextMatches 計算
+- `src/hooks/useAutoDetect.ts` — live/latest セット自動検知 (manual-mode ガード付き)
+
+#### Phase 2: 小コンポーネント抽出
+`src/components/live/` に以下を新規作成:
+- `tokens.ts` — デザイントークン・共有型 (V, CHAR_COLORS, Player, SetData, H2HData 等)
+- `CharPill.tsx`, `PlayerBand.tsx`, `LiveSetsTable.tsx`, `LiveBracket.tsx`
+- `FeaturedMatchesPanel.tsx` (NextMatchesPanel 含む), `SearchModal.tsx`
+
+page.tsx: 2226行 → 1154行 (-48%)
+
+#### Phase 3: 残り大型コンポーネント抽出
+- `StreamCenter.tsx` (~290行), `LiveChat.tsx`, `SidePanelLeft.tsx`, `CountdownDisplay.tsx`
+
+page.tsx: 1154行 → **391行** (元 2716行から **-86%**)
+
+**タグ:** `v0.6.0-refactor`
+
+---
+
 ### 2026-05-23 — Pools Dashboard API: Supabase 移行
 
 **対象:** `src/app/api/pools-dashboard/route.ts`, `src/app/live/[tournamentId]/page.tsx`
