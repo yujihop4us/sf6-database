@@ -44,7 +44,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
     .select('id, placement, seed, prize_amount, players(id, handle, country_code, main_character, team, profile_image_url)')
     .eq('tournament_id', numericId)
     .order('placement', { nullsFirst: false })
-    .limit(200)
+    .limit(2000)
 
   // Sets with basic fields — join player data separately
   const { data: setsRaw } = await supabase
@@ -52,7 +52,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
     .select('id, round_text, phase_name, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
     .eq('tournament_id', numericId)
     .order('id', { ascending: false })
-    .limit(300)
+    .limit(2000)
 
   // Collect all player IDs from sets and fetch them
   const setList = (setsRaw ?? []) as {
@@ -167,8 +167,12 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
         return (lastLossSetId[b] ?? 0) - (lastLossSetId[a] ?? 0)  // later elimination = better
       })
 
-    // Grand final participants
-    const lastSet = sorted[sorted.length - 1]
+    // Grand final participants — prefer set with round_text matching "Grand Final" (not Reset)
+    // Fall back to the last set by ID if no explicit Grand Final label exists
+    const explicitGf = [...sorted]
+      .reverse()
+      .find(s => /grand final/i.test(s.round_text ?? '') && !/reset/i.test(s.round_text ?? ''))
+    const lastSet = explicitGf ?? sorted[sorted.length - 1]
     const gfWinner = lastSet?.winner_id
     const gfLoser  = lastSet?.loser_id
 
