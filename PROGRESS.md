@@ -17,6 +17,28 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — CB2026 (id=48) Xiao Hai 表示バグ修正
+
+**対象:** `src/app/tournament/[id]/page.tsx`
+
+#### 原因
+2つのバグが重なっていた:
+
+1. **entrantsクエリの limit=200**: CB2026 は 1448 entrants あり、Xiao Hai の entrant レコード (id=40909) が 200件に含まれなかった
+2. **inferPlacements() の Grand Final 検出バグ**: CB2026 は全 set の `phase_name=NULL`。sets を ID 降順 `.limit(300)` で取得すると最終レコードが id=26578 (Winners Final) になり、実際の Grand Final (id=26577, Xiao Hai勝利) より後ろに並ぶため、champion として25790が誤検出されていた
+
+#### 修正
+- `entrantsクエリ`: `.limit(200)` → `.limit(2000)`
+- `setsクエリ`: `.limit(300)` → `.limit(2000)`
+- `inferPlacements()`: 最後の set ではなく `round_text` に "Grand Final" を含む set を優先して champion を判定するよう修正 ("Reset" は除外)
+
+#### 確認
+- `npm run build` — ✅ エラーなし
+- `curl http://localhost:3000/tournament/48 | grep Xiao Hai` — ✅ 9件ヒット (standings + sets)
+- Xiao Hai が `color:var(--sf6-accent)` (1位カラー) で 1位 * として表示されることを確認
+
+---
+
 ### 2026-05-26 — page.tsx リファクタリング (Phase 1-3)
 
 **対象:** `src/app/live/[tournamentId]/page.tsx` (2716行 → 391行) + 新規ファイル群
