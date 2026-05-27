@@ -17,6 +17,32 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — LiveStandings コンポーネント実装（H2H モード確定順位表示）
+
+**対象:** `src/components/live/LiveStandings.tsx` (NEW), `src/app/live/[tournamentId]/page.tsx`
+
+#### 実装内容
+1. **`src/components/live/LiveStandings.tsx`** 新規作成
+   - **UP NEXT セクション**: live/upcoming マッチを最大2件表示（クリックで H2H 自動設定）
+   - **確定順位セクション**: 完了した Losers ブラケットセットから順位を自動計算
+   - ダブルエリミネーション順位ルール: GF winner=1st / GF loser=2nd / LF=3rd / LSF=4th / LQF=5th / LR3=7th / LR2=9th / LR1=13th
+   - 金/銀/銅バッジカラーリング (1st: #FFD700 / 2nd: #C0C0C0 / 3rd: #CD7F32)
+   - champion 行はアクセントカラー + トロフィー絵文字
+   - データなし時の空状態表示
+   - `normalizePlayerName` による表示名正規化
+   - `shortenRound` による round 略称表示
+   - `winnerSide()` でパイプ区切りスポンサータグ込み winner 文字列を解析
+
+2. **`src/app/live/[tournamentId]/page.tsx`** 更新
+   - H2H モードの右下パネルで `FeaturedMatchesPanel` → `LiveStandings` に置き換え
+   - `startggMatches` + `upNextMatches` を渡す
+   - POOLS モードは変更なし（`FeaturedMatchesPanel` 継続使用）
+
+#### コミット
+`8878444` feat(live): add LiveStandings component with UP NEXT and real-time placements
+
+---
+
 ### 2026-05-26 — 選手名正規化（スポンサータグ除去 + 表記揺れ対応）
 
 **対象:** `src/lib/normalizePlayerName.ts`, `src/app/api/players/search/route.ts`, `src/app/api/startgg/route.ts`, `src/hooks/useAutoDetect.ts`, `src/components/live/FeaturedMatchesPanel.tsx`, `src/app/live/[tournamentId]/page.tsx`
