@@ -17,6 +17,53 @@
 
 ## 最新の作業ログ
 
+### 2026-05-27 — キャラ・国情報の構造的問題修正 + バックフィルスクリプト群
+
+**対象:** `scripts/backfill-characters.js` (NEW), `scripts/update-player-profiles.js` (NEW), `scripts/live-fetch-v2.js`
+
+#### 調査結果
+- CB2026 は `import-sets.js` で初回インポート → `winner_character` は最初から null（バックフィルによる上書きではない）
+- CC11 (141/142) は無傷
+- `legacyRow` に `winner_character: null` を明示してupsertすると、ライブポーリングで入ったキャラデータを消す危険があった → `hasGames` フラグで修正済み (`adbcd70`)
+
+#### 実装
+
+**`scripts/backfill-characters.js`**
+- start.gg `set(id) { games { selections } }` API からキャラクターを補完
+- 78 req/batch → 62s 待機 (rate limit 安全マージン)
+- オプション: `--tournament-id=48`, `--dry-run`, `--limit=N`, `--resume`
+- エラーログ: `scripts/backfill-errors-t{id}.json` に保存 → `--resume` で再試行
+
+**`scripts/update-player-profiles.js`**
+- `--char-only`: `tournament_sets.winner_character` 集計 → `players.main_character` を最多使用キャラで更新
+- `--country-only`: start.gg `player.user.location.country` → ISO2 コード → `players.country_code`
+- オプション: `--tournament-id=N`, `--dry-run`, `--limit=N`
+- 国名→ISO2 マッピング 50 ヶ国対応
+
+**`scripts/live-fetch-v2.js`**
+- `--with-characters` オプション追加
+- `initial-fetch` 完了後に `charBackfill()` を自動実行（ワンコマンドで全データ補完）
+
+#### 使い方
+```bash
+# CB2026 キャラバックフィル（約37分）
+node scripts/backfill-characters.js --tournament-id=48
+
+# CB2026 出場選手の main_character / country_code 更新
+node scripts/update-player-profiles.js --tournament-id=48
+
+# 次回大会: 1コマンドでインポート＋キャラ補完
+node scripts/live-fetch-v2.js \
+  --tournament-id=X --event-id=X --tournament-slug=X --db-tournament-id=X \
+  --initial-fetch --with-characters
+```
+
+#### コミット
+`adbcd70` fix(live-fetch-v2): protect winner/loser_character from null overwrite
+`3330232` feat: character backfill + player profile updater + auto-char option
+
+---
+
 ### 2026-05-26 — Pools Dashboard: pool_identifier / seed / UPSET 検知実装
 
 **対象:** `supabase/migrations/20260526_pools_seed.sql` (NEW), `scripts/live-fetch-v2.js`, `src/app/api/pools-dashboard/route.ts`
