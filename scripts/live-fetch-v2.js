@@ -395,9 +395,13 @@ async function upsertSet(set) {
     loser_entrant_id:  loserSlot?.entrant?.id  ? Number(loserSlot.entrant.id)  : null,
     winner_character:  winnerChar,
     loser_character:   loserChar,
+    // 20260526 migration: pools_seed (legacyRow に昇格 — 常に書き込む)
+    pool_identifier: set.phaseGroup?.displayIdentifier ?? null,
+    winner_seed:     winnerSlot?.entrant?.initialSeedNum ?? null,
+    loser_seed:      loserSlot?.entrant?.initialSeedNum  ?? null,
   }
 
-  // ── v2 追加カラム (migration 適用後のみ有効) ──
+  // ── v2 追加カラム (20260518_v2_pipeline migration 適用後のみ有効) ──
   const v2Row = {
     state:           set.state    ?? null,
     full_round_text: set.fullRoundText ?? null,
@@ -411,10 +415,6 @@ async function upsertSet(set) {
     p2_player_id:    p1pid ? (playerCache.get(String(p1pid)) ?? null) : null,
     p1_name:         s0?.entrant?.name ?? null,
     p2_name:         s1?.entrant?.name ?? null,
-    // 20260526 migration: pools_seed
-    pool_identifier: set.phaseGroup?.displayIdentifier ?? null,
-    winner_seed:     winnerSlot?.entrant?.initialSeedNum ?? null,
-    loser_seed:      loserSlot?.entrant?.initialSeedNum  ?? null,
   }
 
   const fullRow = v2MigrationApplied ? { ...legacyRow, ...v2Row } : legacyRow
