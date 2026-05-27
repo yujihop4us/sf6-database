@@ -72,6 +72,35 @@ node scripts/live-fetch-v2.js \
 
 ---
 
+### 2026-05-27 — CB2026 バックフィル完了 + live-fetch-v2 legacyRow 修正
+
+**対象:** `scripts/live-fetch-v2.js`, Supabase (tournament_sets, tournament_id=48)
+
+#### 問題
+- `20260526_pools_seed.sql` マイグレーション適用後にバックフィルを実行したが、
+  `pool_identifier` / `winner_seed` / `loser_seed` が DB に書き込まれなかった
+- 原因: この3カラムが `v2Row` に入っており、`20260518_v2_pipeline.sql` が未適用のため
+  v2 fallback が発動し `legacyRow` のみで upsert → pool/seed がスキップ
+
+#### 修正
+- `scripts/live-fetch-v2.js`: `pool_identifier`, `winner_seed`, `loser_seed` を
+  `v2Row` から `legacyRow`（常に書き込む）へ移動
+- `v2Row` は引き続き `20260518_v2_pipeline.sql` 適用後のみ有効な state/timestamps 等のみ
+
+#### バックフィル結果（CB2026, tournament_id=48）
+- **2903 sets** インポート完了（0 errors）
+- `with_pool: 2825`, `with_seed: 2825` (プール以外の sets は pool_identifier=null)
+- Unique pools: **27プール** (A103〜I104 系)
+- `/api/pools-dashboard?tournamentId=48` 結果:
+  - feed: 150件 / UPSET: 48件 / QUALIFIED: 2件
+  - withPool: 149件 / withSeed: 149件
+  - pools: 27エントリ (全プール 100% 完了)
+
+#### コミット
+`9ade8ec` fix(live-fetch-v2): move pool_identifier/winner_seed/loser_seed to legacyRow
+
+---
+
 ### 2026-05-26 — リアルタイムゲームスコア表示（H2H StreamCenter）
 
 **対象:** `src/app/api/startgg/route.ts`, `src/hooks/useStartggPolling.ts`, `src/hooks/useAutoDetect.ts`, `src/components/live/StreamCenter.tsx`, `src/app/live/[tournamentId]/page.tsx`
