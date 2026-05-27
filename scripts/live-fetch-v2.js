@@ -378,8 +378,10 @@ async function upsertSet(set) {
   const p1pid = s1?.entrant?.participants?.[0]?.player?.id
 
   // キャラクター (既存カラム: 文字列名)
+  // set.games が取得できた場合のみ書き込む（null で既存データを上書きしない）
   const winnerChar = charNameFromGames(set.games, winnerSlot?.entrant?.id)
   const loserChar  = charNameFromGames(set.games, loserSlot?.entrant?.id)
+  const hasGames   = Array.isArray(set.games) && set.games.length > 0
 
   // ── 既存スキーマカラム (常に書き込む) ──
   const legacyRow = {
@@ -393,8 +395,8 @@ async function upsertSet(set) {
     loser_score:       loserSlot?.standing?.stats?.score?.value  ?? null,
     winner_entrant_id: winnerSlot?.entrant?.id ? Number(winnerSlot.entrant.id) : null,
     loser_entrant_id:  loserSlot?.entrant?.id  ? Number(loserSlot.entrant.id)  : null,
-    winner_character:  winnerChar,
-    loser_character:   loserChar,
+    // games が取得できた時のみ書き込む（未取得時は既存 character を保護）
+    ...(hasGames && { winner_character: winnerChar, loser_character: loserChar }),
     // 20260526 migration: pools_seed (legacyRow に昇格 — 常に書き込む)
     pool_identifier: set.phaseGroup?.displayIdentifier ?? null,
     winner_seed:     winnerSlot?.entrant?.initialSeedNum ?? null,
