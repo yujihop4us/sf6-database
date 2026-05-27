@@ -12,7 +12,8 @@
  *     --db-tournament-id=48 \
  *     [--stream-interval=30] \
  *     [--sets-interval=60] \
- *     [--initial-fetch]
+ *     [--initial-fetch] \
+ *     [--with-characters]   # initial-fetch 後にキャラバックフィルを自動実行
  *
  * 前提: supabase/migrations/20260518_v2_pipeline.sql を Supabase Dashboard で実行済み。
  *       未適用の場合は既存カラムのみで動作（v2 列は書き込みスキップ）。
@@ -86,6 +87,7 @@ const DB_TOURNAMENT_ID      = Number(argv['db-tournament-id'])
 const STREAM_INTERVAL       = Number(argv['stream-interval'] ?? 30) * 1000
 const SETS_INTERVAL         = Number(argv['sets-interval']   ?? 60) * 1000
 const DO_INITIAL_FETCH      = !!argv['initial-fetch']
+const WITH_CHARACTERS       = !!argv['with-characters']  // initial-fetch 後にキャラ補完
 
 if (!STARTGG_TOURNAMENT_ID || !STARTGG_EVENT_ID || !TOURNAMENT_SLUG || !DB_TOURNAMENT_ID) {
   console.error('Usage: node scripts/live-fetch-v2.js --tournament-id=X --event-id=X --tournament-slug=X --db-tournament-id=X')
@@ -652,12 +654,94 @@ async function initialFetch() {
   console.log(`\n[INIT] Done — ${total} sets imported (${completed} completed)`)
 }
 
+// ── Character backfill (--with-characters) ────────────────────────────────────
+// initial-fetch 後にキャラクターデータが null のセットを start.gg games API で補完
+
+const Q_SET_GAMES_INLINE = `
+query SetGames($setId: ID!) {
+  set(id: $setId) {
+    games {
+      winnerId
+      selections {
+        entrant { id }
+        selectionValue
+      }
+    }
+  }
+}`
+
+const CHAR_RATE_BATCH  = 78     // 80 req/min の安全マージン
+const CHAR_RATE_PAUSE  = 62_000 // バッチ間の待機 ms
+const CHAR_REQ_WAIT    = 760    // リクエスト間の待機 ms
+
+async function charBackfill() {
+  console.log('\n[CHAR] Starting character backfill (--with-characters)...')
+
+  // winner_character が null のセットを取得
+  const { data: sets, error } = await supabase
+    .from('tournament_sets')
+    .select('id, startgg_set_id, winner_entrant_id, loser_entrant_id')
+    .eq('tournament_id', DB_TOURNAMENT_ID)
+    .is('winner_character', null)
+    .not('startgg_set_id', 'is', null)
+    .not('winner_entrant_id', 'is', null)
+    .order('id')
+    .limit(20000)
+
+  if (error) { console.error('[CHAR] DB error:', error.message); return }
+  if (!sets?.length) { console.log('[CHAR] No sets need character data.'); return }
+
+  const total = sets.length
+  const etaMin = Math.ceil((total / CHAR_RATE_BATCH) * (CHAR_RATE_PAUSE / 60_000 + 1))
+  console.log(`[CHAR] ${total} sets — ETA ~${etaMin} min\n`)
+
+  let processed = 0, updated = 0, noData = 0, errors = 0, reqCount = 0
+
+  for (const set of sets) {
+    if (reqCount > 0 && reqCount % CHAR_RATE_BATCH === 0) {
+      console.log(`\n[CHAR RATE LIMIT] ${reqCount} requests — pausing ${CHAR_RATE_PAUSE / 1000}s...`)
+      await sleep(CHAR_RATE_PAUSE)
+    }
+
+    const data = await gql(Q_SET_GAMES_INLINE, { setId: String(set.startgg_set_id) })
+    reqCount++
+    processed++
+
+    const games = data?.set?.games
+    if (!games?.length) { noData++; await sleep(CHAR_REQ_WAIT); continue }
+
+    const winnerChar = charNameFromGames(games, set.winner_entrant_id)
+    const loserChar  = charNameFromGames(games, set.loser_entrant_id)
+
+    if (!winnerChar && !loserChar) {
+      noData++
+    } else {
+      const { error: upErr } = await supabase
+        .from('tournament_sets')
+        .update({ winner_character: winnerChar ?? null, loser_character: loserChar ?? null })
+        .eq('id', set.id)
+      if (upErr) { errors++; console.error(`[CHAR] id=${set.id}: ${upErr.message}`) }
+      else updated++
+    }
+
+    if (processed % 200 === 0 || processed === total) {
+      const pct = (processed / total * 100).toFixed(1)
+      console.log(`[CHAR] ${processed}/${total} (${pct}%) — updated=${updated} noData=${noData} errors=${errors}`)
+    }
+
+    await sleep(CHAR_REQ_WAIT)
+  }
+
+  console.log(`\n[CHAR] Done — updated=${updated} noData=${noData} errors=${errors}`)
+}
+
 // ── Main loop ─────────────────────────────────────────────────────────────────
 
 async function main() {
   await loadPlayerCache()
 
   if (DO_INITIAL_FETCH) await initialFetch()
+  if (DO_INITIAL_FETCH && WITH_CHARACTERS) await charBackfill()
 
   // stream queue タイマー
   const streamTimer = setInterval(async () => {
