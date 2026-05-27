@@ -19,7 +19,7 @@ export interface UseAutoDetectReturn {
 export function useAutoDetect(
   startggMatches: any[],
   eventId: number | undefined,
-  onNewPlayers: (p1: string, p2: string) => void,
+  onNewPlayers: (p1: string, p2: string, p1StartggId?: number | null, p2StartggId?: number | null) => void,
 ): UseAutoDetectReturn {
   const [autoDetected,  setAutoDetected]  = useState(false)
   const autoDetectKeyRef = useRef<string>('')
@@ -47,7 +47,7 @@ export function useAutoDetect(
       console.log('[AUTO] Branch1 live set detected', { p1, p2, key })
       autoDetectKeyRef.current = key
       setAutoDetected(true)
-      onNewPlayersRef.current(p1, p2)
+      onNewPlayersRef.current(p1, p2, liveSet.player1_startggId ?? null, liveSet.player2_startggId ?? null)
       return
     }
 
@@ -80,7 +80,7 @@ export function useAutoDetect(
     console.log('[AUTO] Branch2 latest result detected', { p1, p2, key })
     autoDetectKeyRef.current = key
     setAutoDetected(true)
-    onNewPlayersRef.current(p1, p2)
+    onNewPlayersRef.current(p1, p2, latestSet.player1_startggId ?? null, latestSet.player2_startggId ?? null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startggMatches, eventId])
 

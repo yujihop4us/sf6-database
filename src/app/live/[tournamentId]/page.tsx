@@ -14,6 +14,7 @@ import { FeaturedMatchesPanel } from '@/components/live/FeaturedMatchesPanel'
 import { SearchModal } from '@/components/live/SearchModal'
 import { StreamCenter } from '@/components/live/StreamCenter'
 import { SidePanelLeft } from '@/components/live/SidePanelLeft'
+import { normalizePlayerName } from '@/lib/normalizePlayerName'
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -109,36 +110,38 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     setShowSearch(false); setSearchQuery(''); setSearchResults([]); setSearchSide(null)
   }
   const openSearch = (side: 'p1' | 'p2') => { setSearchSide(side); setShowSearch(true); setSearchQuery('') }
-  const handleMatchClick = async (p1n: string, p2n: string) => {
-    // "TEAM | Handle" 形式をクリーニング — start.gg entrant name には
-    // チームプレフィックスが入るが DB の handle はプレフィックスなし
-    const stripTeam = (n: string) =>
-      n.includes(' | ') ? n.split(' | ').slice(1).join(' | ').trim() : n
-
-    const find = async (rawName: string, side: 'p1' | 'p2') => {
-      const name = stripTeam(rawName)
+  const handleMatchClick = async (
+    p1n: string, p2n: string,
+    p1StartggId?: number | null, p2StartggId?: number | null,
+  ) => {
+    const find = async (rawName: string, side: 'p1' | 'p2', startggId?: number | null) => {
+      // スポンサータグ除去 + 表記揺れ対応は normalizePlayerName に委譲
+      const normalized = normalizePlayerName(rawName)
       try {
-        const res  = await fetch('/api/players/search?q=' + encodeURIComponent(name))
+        // startgg player ID がある場合は ID での直接検索を優先
+        let url = '/api/players/search?q=' + encodeURIComponent(rawName)
+        if (startggId) url += '&startggId=' + startggId
+        const res  = await fetch(url)
         const data = await res.json()
+        const players: Player[] = data.players || []
         const found =
-          // 完全一致を優先
-          (data.players || []).find((p: Player) => p.handle.toLowerCase() === name.toLowerCase()) ||
-          // フォールバック: 元の名前でも試す (team prefix 込み)
-          (rawName !== name
-            ? (data.players || []).find((p: Player) => p.handle.toLowerCase() === rawName.toLowerCase())
-            : null) ||
-          (data.players || [])[0]
+          // 完全一致を優先 (正規化後)
+          players.find(p => p.handle.toLowerCase() === normalized.toLowerCase()) ||
+          // 完全一致 (元の名前)
+          players.find(p => p.handle.toLowerCase() === rawName.toLowerCase()) ||
+          // 先頭候補をフォールバック
+          players[0]
         if (found) { if (side === 'p1') setPlayer1(found); else setPlayer2(found) }
       } catch (e) { console.error(e) }
     }
-    find(p1n, 'p1'); find(p2n, 'p2')
+    find(p1n, 'p1', p1StartggId); find(p2n, 'p2', p2StartggId)
   }
 
   // ── start.gg 自動検知 ────────────────────────────────────────────────────
   const { autoDetected, setManualMode } = useAutoDetect(
     startggMatches,
     config.startggEventId,
-    (p1, p2) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2) },
+    (p1, p2, p1Id, p2Id) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2, p1Id, p2Id) },
   )
 
   // ── レンダー ──────────────────────────────────────────────────────────────
@@ -257,7 +260,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 startDate={config.startDate}
                 endDate={config.endDate}
                 tournamentSlug={effectiveTournamentSlug}
-                onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
+                onStreamQueueMatch={(p1h, p2h, p1Id, p2Id) => handleMatchClick(p1h, p2h, p1Id, p2Id)}
                 streamToast={streamToast}
                 poolsMode={true}
               />
@@ -351,7 +354,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 startDate={config.startDate}
                 endDate={config.endDate}
                 tournamentSlug={effectiveTournamentSlug}
-                onStreamQueueMatch={(p1h, p2h) => handleMatchClick(p1h, p2h)}
+                onStreamQueueMatch={(p1h, p2h, p1Id, p2Id) => handleMatchClick(p1h, p2h, p1Id, p2Id)}
                 streamToast={null}
               />
               <PlayerBand

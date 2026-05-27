@@ -45,7 +45,7 @@ export function FeaturedMatchesPanel({
 }: {
   matches: any[]
   mode: 'live' | 'latest' | 'recent'
-  onMatchClick: (p1: string, p2: string) => void
+  onMatchClick: (p1: string, p2: string, p1StartggId?: number | null, p2StartggId?: number | null) => void
 }) {
   // 上位 10 件をそのまま表示（2列×5行グリッド）
   const display = matches.slice(0, 10)
@@ -95,7 +95,7 @@ export function FeaturedMatchesPanel({
             const isLive   = m.status === 'live'
             return (
               <div key={i}
-                onClick={() => canClick && onMatchClick(m.player1_handle, m.player2_handle)}
+                onClick={() => canClick && onMatchClick(m.player1_handle, m.player2_handle, m.player1_startggId ?? null, m.player2_startggId ?? null)}
                 style={{
                   background: isLive ? `rgba(16,185,129,0.07)` : V.surface2,
                   border: `1px solid ${isLive ? V.border2 : V.border}`,

@@ -30,7 +30,7 @@ query EventSetsRecent($eventId: ID!, $page: Int!, $perPage: Int!) {
         slots {
           entrant {
             id name initialSeedNum
-            participants { gamerTag }
+            participants { gamerTag player { id } }
           }
           standing { stats { score { value } } }
         }
@@ -52,7 +52,7 @@ query EventSetsLive($eventId: ID!, $perPage: Int!) {
         slots {
           entrant {
             id name initialSeedNum
-            participants { gamerTag }
+            participants { gamerTag player { id } }
           }
           standing { stats { score { value } } }
         }
@@ -101,6 +101,9 @@ function mapSet(set: any) {
   const p2name = s1?.entrant?.name || 'TBD'
   const p1gt   = s0?.entrant?.participants?.[0]?.gamerTag || null
   const p2gt   = s1?.entrant?.participants?.[0]?.gamerTag || null
+  // start.gg player ID (DB の startgg_player_ids と照合するため)
+  const p1StartggId = s0?.entrant?.participants?.[0]?.player?.id ?? null
+  const p2StartggId = s1?.entrant?.participants?.[0]?.player?.id ?? null
 
   const s1v = s0?.standing?.stats?.score?.value ?? -1
   const s2v = s1?.standing?.stats?.score?.value ?? -1
@@ -122,10 +125,12 @@ function mapSet(set: any) {
     round:            set.fullRoundText || 'Unknown',
     player1:          p1name,
     player2:          p2name,
-    player1_handle:   extractHandle(p1name, p1gt),
-    player2_handle:   extractHandle(p2name, p2gt),
-    player1_entrantId: s0?.entrant?.id ?? null,
-    player2_entrantId: s1?.entrant?.id ?? null,
+    player1_handle:      extractHandle(p1name, p1gt),
+    player2_handle:      extractHandle(p2name, p2gt),
+    player1_startggId:   p1StartggId,
+    player2_startggId:   p2StartggId,
+    player1_entrantId:   s0?.entrant?.id ?? null,
+    player2_entrantId:   s1?.entrant?.id ?? null,
     player1_seed:     s0?.entrant?.initialSeedNum ?? null,
     player2_seed:     s1?.entrant?.initialSeedNum ?? null,
     displayScore:     set.displayScore ?? null,
