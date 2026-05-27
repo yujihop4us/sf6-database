@@ -17,6 +17,36 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — リアルタイムゲームスコア表示（H2H StreamCenter）
+
+**対象:** `src/app/api/startgg/route.ts`, `src/hooks/useStartggPolling.ts`, `src/hooks/useAutoDetect.ts`, `src/components/live/StreamCenter.tsx`, `src/app/live/[tournamentId]/page.tsx`
+
+#### 実装内容
+1. **`/api/startgg`**: `Q_LIVE_SETS` に `games { winnerId orderNum }` を追加
+   - `mapSet()` で `liveScore { p1, p2 }` を算出（state=2/6 のみ）
+   - games 配列が空（TO 未入力）の場合は `liveScore = null`
+
+2. **`useStartggPolling`**: live セット検出時にポーリング間隔を短縮
+   - `match.status === 'live'` が存在する場合: 15s → 10s
+   - live セットなし時: 15s に戻す
+
+3. **`useAutoDetect`**: `liveScore` を返り値に追加
+   - ポーリング毎に live セットの `liveScore` を追跡（key 重複除外とは独立した effect）
+   - 同一選手ペアでもスコアが更新される
+
+4. **`StreamCenter`**: `liveScore` prop を受け取り H2H バーに表示
+   - H2H 勝敗バーの上に `GAME  2 - 1` 形式でスコアを大きく表示
+   - リード中の数字を accent 緑でハイライト
+   - スコア変化時に `sc-score-pulse` アニメーション（0.35s）
+   - `liveScore === null` 時は非表示
+
+5. **`page.tsx`**: `useAutoDetect` から `liveScore` を取得し H2H の `StreamCenter` へ渡す
+
+#### コミット
+`a0df7c7` feat(live): real-time game score display in H2H StreamCenter
+
+---
+
 ### 2026-05-26 — LiveStandings コンポーネント実装（H2H モード確定順位表示）
 
 **対象:** `src/components/live/LiveStandings.tsx` (NEW), `src/app/live/[tournamentId]/page.tsx`
