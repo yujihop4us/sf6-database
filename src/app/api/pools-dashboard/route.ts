@@ -57,6 +57,10 @@ interface SetRow {
   winner_character: string | null
   loser_character: string | null
   created_at: string
+  // 20260526: pool + seed columns
+  pool_identifier: string | null
+  winner_seed: number | null
+  loser_seed: number | null
 }
 
 // ── Round ranking ─────────────────────────────────────────────────────────────
@@ -137,7 +141,7 @@ async function fetchPoolsData(tournamentId: number) {
     const { data, error } = await supabase
       .from('tournament_sets')
       .select(
-        'id, round_text, display_score, winner_id, loser_id, winner_score, loser_score, winner_character, loser_character, created_at',
+        'id, round_text, display_score, winner_id, loser_id, winner_score, loser_score, winner_character, loser_character, created_at, pool_identifier, winner_seed, loser_seed',
       )
       .eq('tournament_id', tournamentId)
       .not('winner_id', 'is', null)
@@ -152,13 +156,31 @@ async function fetchPoolsData(tournamentId: number) {
     from += batchSize
   }
 
-  // 2. Fetch total set count (completed + in-progress) for progress %
+  // 2. Pool-level stats: lightweight fetch of all sets (pool_identifier + winner_id)
+  //    Used to compute per-pool completed/total for the pool-dot grid
+  const { data: poolStatsRaw } = await supabase
+    .from('tournament_sets')
+    .select('pool_identifier, winner_id')
+    .eq('tournament_id', tournamentId)
+
+  // Build per-pool stats map (pool_identifier → { completed, total })
+  const poolStatsMap = new Map<string, { completed: number; total: number }>()
+  for (const s of poolStatsRaw ?? []) {
+    const pid = s.pool_identifier ?? '__unknown__'
+    const entry = poolStatsMap.get(pid) ?? { completed: 0, total: 0 }
+    entry.total++
+    if (s.winner_id != null) entry.completed++
+    poolStatsMap.set(pid, entry)
+  }
+  const hasPoolData = poolStatsMap.size > 1 || (poolStatsMap.size === 1 && !poolStatsMap.has('__unknown__'))
+
+  // 3. Fetch total set count (completed + in-progress) for overall progress %
   const { count: totalCount } = await supabase
     .from('tournament_sets')
     .select('*', { count: 'exact', head: true })
     .eq('tournament_id', tournamentId)
 
-  // 3. Collect unique player IDs and resolve handles
+  // 4. Collect unique player IDs and resolve handles
   const playerIds = new Set<number>()
   for (const s of allSets) {
     if (s.winner_id) playerIds.add(s.winner_id)
@@ -183,7 +205,7 @@ async function fetchPoolsData(tournamentId: number) {
     }
   }
 
-  // 4. Determine the "qualifying" round for each bracket side
+  // 5. Determine the "qualifying" round for each bracket side
   // The deepest (highest-ranked) round = qualifying final
   const winnerRoundRanks = new Map<string, number>()
   const loserRoundRanks  = new Map<string, number>()
@@ -208,7 +230,7 @@ async function fetchPoolsData(tournamentId: number) {
     ? [...loserRoundRanks.entries()].reduce((a, b) => (a[1] > b[1] ? a : b))[0]
     : null
 
-  // 5. Build feed events, qualified list
+  // 6. Build feed events, qualified list
   const feedEvents: FeedEvent[] = []
   const qualified: QualifiedPlayer[] = []
   const qualifiedSet = new Set<string>()  // deduplicate by "side::playerId"
@@ -224,32 +246,77 @@ async function fetchPoolsData(tournamentId: number) {
     const scoreStr    = `${wScore}-${lScore}`
     const ts          = Math.floor(new Date(s.created_at).getTime() / 1000)
 
+    // Pool identifier and seeds from new columns (null-safe for old rows)
+    const poolId     = s.pool_identifier ?? ''
+    const wSeed      = s.winner_seed ?? null
+    const lSeed      = s.loser_seed  ?? null
+
     const base = {
-      pool:      '',
+      pool:      poolId,
       phase:     'Pools',
       round:     rt,
       timestamp: ts,
       score:     scoreStr,
       players: [
-        { name: winnerHandle, handle: winnerHandle, seed: null },
-        { name: loserHandle,  handle: loserHandle,  seed: null },
+        { name: winnerHandle, handle: winnerHandle, seed: wSeed },
+        { name: loserHandle,  handle: loserHandle,  seed: lSeed },
       ],
     }
 
-    // ── QUALIFIED_W ──────────────────────────────────────────────────────────
-    if (topWinnersRound && rt === topWinnersRound) {
+    // ── UPSET 検知 ───────────────────────────────────────────────────────────
+    // winner の seed が loser の seed より 20 以上大きい場合 (数値が大きい = シード低い)
+    const isUpset =
+      wSeed != null && lSeed != null &&
+      wSeed > lSeed &&
+      (wSeed - lSeed) >= 20
+
+    // ── Qualified list への追加 (UPSET 有無に関わらず) ────────────────────────
+    const isWinnersQual = !!(topWinnersRound && rt === topWinnersRound)
+    const isLosersQual  = !!(topLosersRound  && rt === topLosersRound)
+
+    if (isWinnersQual) {
       const key = `W::${winnerId}`
       if (!qualifiedSet.has(key)) {
         qualifiedSet.add(key)
         qualified.push({
           name:   winnerHandle,
           handle: winnerHandle,
-          seed:   null,
+          seed:   wSeed,
           side:   'winners',
-          pool:   '',
+          pool:   poolId,
           phase:  'Pools',
         })
       }
+    }
+    if (isLosersQual) {
+      const key = `L::${winnerId}`
+      if (!qualifiedSet.has(key)) {
+        qualifiedSet.add(key)
+        qualified.push({
+          name:   winnerHandle,
+          handle: winnerHandle,
+          seed:   wSeed,
+          side:   'losers',
+          pool:   poolId,
+          phase:  'Pools',
+        })
+      }
+    }
+
+    // ── UPSET → 専用イベントを push して終了 ─────────────────────────────────
+    if (isUpset) {
+      const qSuffix = isWinnersQual ? ' → TOP CUT!' : isLosersQual ? ' → TOP CUT (L)!' : ''
+      feedEvents.push({
+        ...base,
+        type:     'UPSET',
+        priority: 'HIGH',
+        message:  `🔥 UPSET! #${wSeed} ${winnerHandle} def. #${lSeed} ${loserHandle} ${scoreStr}${qSuffix}`,
+      })
+      continue
+    }
+
+    // ── 通常 QUALIFIED_W ─────────────────────────────────────────────────────
+    if (isWinnersQual) {
       feedEvents.push({
         ...base,
         type:     'QUALIFIED_W',
@@ -259,21 +326,8 @@ async function fetchPoolsData(tournamentId: number) {
       continue
     }
 
-    // ── QUALIFIED_L ──────────────────────────────────────────────────────────
-    if (topLosersRound && rt === topLosersRound) {
-      const key = `L::${winnerId}`
-      if (!qualifiedSet.has(key)) {
-        qualifiedSet.add(key)
-        qualified.push({
-          name:   winnerHandle,
-          handle: winnerHandle,
-          seed:   null,
-          side:   'losers',
-          pool:   '',
-          phase:  'Pools',
-        })
-      }
-      // Loser of the LB final = ELIMINATED
+    // ── 通常 QUALIFIED_L ─────────────────────────────────────────────────────
+    if (isLosersQual) {
       feedEvents.push({
         ...base,
         type:     'QUALIFIED_L',
@@ -283,7 +337,7 @@ async function fetchPoolsData(tournamentId: number) {
       continue
     }
 
-    // ── ELIMINATED (lost in any Losers match) ────────────────────────────────
+    // ── ELIMINATED (Losers bracket での敗退) ─────────────────────────────────
     if (isLosersBracket(rt)) {
       feedEvents.push({
         ...base,
@@ -294,8 +348,7 @@ async function fetchPoolsData(tournamentId: number) {
       continue
     }
 
-    // ── RESULT (won in Winners bracket non-final) ─────────────────────────────
-    // Only add for semi-final/quarter-final (notable rounds)
+    // ── MARQUEE_RESULT (Winners bracket の準決勝以上) ─────────────────────────
     if (isWinnersBracket(rt) && roundRank(rt) >= 1400) {
       feedEvents.push({
         ...base,
@@ -310,7 +363,7 @@ async function fetchPoolsData(tournamentId: number) {
   feedEvents.sort((a, b) => {
     if (b.timestamp !== a.timestamp) return b.timestamp - a.timestamp
     // 同一秒内: QUALIFIED > MARQUEE > ELIMINATED の優先度で見せる
-    const typePrio: Record<string, number> = { QUALIFIED_W: 3, QUALIFIED_L: 3, MARQUEE_RESULT: 2, UPSET: 2, ELIMINATED: 1 }
+    const typePrio: Record<string, number> = { UPSET: 4, QUALIFIED_W: 3, QUALIFIED_L: 3, MARQUEE_RESULT: 2, ELIMINATED: 1 }
     return (typePrio[b.type] ?? 0) - (typePrio[a.type] ?? 0)
   })
   const feed = feedEvents.slice(0, 150)
@@ -321,20 +374,36 @@ async function fetchPoolsData(tournamentId: number) {
     return a.handle.localeCompare(b.handle)
   })
 
-  // 6. Pool progress (single "Pools" phase since phase_name is null)
-  const completed = allSets.length
-  const total     = totalCount ?? completed
-  const percent   = total > 0 ? Math.round(completed / total * 100) : 0
+  // 7. Pool progress
+  const completedOverall = allSets.length
+  const totalOverall     = totalCount ?? completedOverall
+  const percentOverall   = totalOverall > 0 ? Math.round(completedOverall / totalOverall * 100) : 0
 
-  const pools: PoolProgress[] = [
-    { id: 'Pools', phase: 'Pools', completed, total, percent },
-  ]
-
-  const overallProgress: Record<string, { completed: number; total: number; percent: number }> = {
-    Pools: { completed, total, percent },
+  // Per-pool breakdown (when pool_identifier data is available)
+  let pools: PoolProgress[]
+  if (hasPoolData) {
+    pools = [...poolStatsMap.entries()]
+      .filter(([id]) => id !== '__unknown__')
+      .map(([id, stats]) => ({
+        id,
+        phase:     'Pools',
+        completed: stats.completed,
+        total:     stats.total,
+        percent:   stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0,
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
+  } else {
+    // Fallback: single "Pools" entry when no pool data yet
+    pools = [
+      { id: 'Pools', phase: 'Pools', completed: completedOverall, total: totalOverall, percent: percentOverall },
+    ]
   }
 
-  // 7. Current phase = the most recent round_text
+  const overallProgress: Record<string, { completed: number; total: number; percent: number }> = {
+    Pools: { completed: completedOverall, total: totalOverall, percent: percentOverall },
+  }
+
+  // 8. Current phase = the most recent round_text
   const currentPhase = allSets.length > 0 ? allSets[0].round_text : 'Unknown'
 
   const newestEventTs = feed.length > 0 ? feed[0].timestamp : null

@@ -188,9 +188,10 @@ query EventSetsUpdated($eventId: ID!, $page: Int!, $perPage: Int!, $updatedAfter
       nodes {
         id state completedAt updatedAt startedAt
         fullRoundText round winnerId displayScore totalGames
+        phaseGroup { displayIdentifier }
         slots {
           entrant {
-            id name
+            id name initialSeedNum
             participants { gamerTag player { id } }
           }
           standing { placement stats { score { value } } }
@@ -208,6 +209,7 @@ query EventSetsUpdated($eventId: ID!, $page: Int!, $perPage: Int!, $updatedAfter
 
 // initial-fetch 用: games は含めない (complexity limit 対策)
 // キャラクターは Q_SETS_UPDATED の差分ポーリングで補完される
+// phaseGroup.displayIdentifier と initialSeedNum は pool/seed 集計に必要
 const Q_SETS_ALL = `
 query EventSetsAll($eventId: ID!, $page: Int!, $perPage: Int!) {
   event(id: $eventId) {
@@ -220,9 +222,10 @@ query EventSetsAll($eventId: ID!, $page: Int!, $perPage: Int!) {
       nodes {
         id state fullRoundText round displayScore winnerId
         completedAt updatedAt startedAt
+        phaseGroup { displayIdentifier }
         slots {
           entrant {
-            id name
+            id name initialSeedNum
             participants { gamerTag player { id } }
           }
           standing { placement stats { score { value } } }
@@ -408,6 +411,10 @@ async function upsertSet(set) {
     p2_player_id:    p1pid ? (playerCache.get(String(p1pid)) ?? null) : null,
     p1_name:         s0?.entrant?.name ?? null,
     p2_name:         s1?.entrant?.name ?? null,
+    // 20260526 migration: pools_seed
+    pool_identifier: set.phaseGroup?.displayIdentifier ?? null,
+    winner_seed:     winnerSlot?.entrant?.initialSeedNum ?? null,
+    loser_seed:      loserSlot?.entrant?.initialSeedNum  ?? null,
   }
 
   const fullRow = v2MigrationApplied ? { ...legacyRow, ...v2Row } : legacyRow
