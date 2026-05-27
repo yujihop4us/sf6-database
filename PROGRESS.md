@@ -17,6 +17,56 @@
 
 ## 最新の作業ログ
 
+### 2026-05-27 — ブラケットタブ: タイムライン表示リニューアル
+
+**対象:** `src/app/tournament/[id]/TournamentClient.tsx`
+
+#### 実装
+
+**`BracketTimeline`** — phase_name=null 大会（CB2026）向け新コンポーネント
+
+- `detectFinalPhases()` で Top 8 (5 sets) + Top 24 (20 sets) を統合
+- フェーズ切替ボタン不要（全体を1タイムラインで表示）
+- `TIMELINE_ORDER` (10 ラウンド) で大会進行の時系列順にソート
+- 不明ラウンドは Top 24 先頭に `getBracketSortOrder` 昇順で配置
+
+**カラーコーディング + セクション区切り**
+- Winners ラウンド: 左ボーダー `#3B82F6`（青）＋🔵
+- Losers ラウンド: 左ボーダー `#EF4444`（赤）＋🔴
+- Grand Final: 左ボーダー `#F59E0B`（金）＋🏆＋背景強調
+- `SectionDivider`: 「━ TOP 24 ━」「━ TOP 8 ━」全幅区切り線
+
+**`FLOW_NOTES`** — Losers ラウンドのフロー注釈
+- Losers Round 3: `← WQF losers drop here`
+- Losers Round 4: `← WSF losers drop here`
+- Losers Quarter-Final: `← Previous round losers`
+- Losers Semi-Final: `← WF loser drops here`
+- Losers Final: `← LSF winner vs WF loser`
+
+**`BracketViewPhased`** — phase_name あり大会（CC11, EVO）向けに旧 UI を分離・維持
+
+#### CB2026 実測結果
+```
+━━━ TOP 24 ━━━
+🔵 Winners Quarter-Final (6)
+🔴 Losers Round 3 (2)       ← WQF losers drop here
+🔵 Winners Semi-Final (5)
+🔴 Losers Round 4 (4)       ← WSF losers drop here
+🔴 Losers Quarter-Final (3) ← Previous round losers
+
+━━━ TOP 8 ━━━
+🔵 Winners Final (1)
+🔴 Losers Semi-Final (1)    ← WF loser drops here
+🔴 Losers Final (1)         ← LSF winner vs WF loser
+🏆 Grand Final (1)
+🏆 Grand Final Reset (1)
+```
+
+#### コミット
+`62df858` feat(bracket): timeline view with Winners/Losers color coding and flow notes
+
+---
+
 ### 2026-05-27 — ブラケットタブ: プールセット除外 + Top 8/Top 24 フェーズ自動検出
 
 **対象:** `src/app/tournament/[id]/TournamentClient.tsx`
