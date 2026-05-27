@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useLocale } from '@/lib/locale-context'
 import SiteNavbar from '@/components/SiteNavbar'
@@ -514,6 +514,68 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
 // ラウンドの表示順定義（ブラケット進行順）
 // getBracketSortOrder は src/lib/bracketOrder.ts に移管済み
 
+/**
+ * phase_name = null のトーナメント（CB2026 など）向け
+ * ラウンドテキストの出現頻度と ID クラスター検出で
+ * 「Top 8」「Top 24」フェーズを自動識別する。
+ *
+ * 戦略:
+ *   1. GF / WF / LF などの "最終ラウンド" は大会中に 1〜2 回しか登場しない。
+ *      出現数 ≤ MAX_FINAL_COUNT かつ getBracketSortOrder ≤ 5 → Top 8
+ *   2. Top 8 最大 ID の直上にある最初の密集クラスターを Top 24 とみなす。
+ */
+function detectFinalPhases(sets: SetRow[]): Array<{ name: string; sets: SetRow[] }> {
+  // ラウンドテキストの全体出現数を集計
+  const roundCount: Record<string, number> = {}
+  for (const s of sets) {
+    if (s.roundText) roundCount[s.roundText] = (roundCount[s.roundText] ?? 0) + 1
+  }
+
+  // Top 8: score ≤ 5 (GF Reset〜LSF) かつ出現数 ≤ 2 → 最終ブラケット確定ラウンド
+  // GF / GF Reset / WF / LF は必ず 1 回のみ登場。LSF は 1〜2 回。
+  // プール WSF はトーナメント全体で 30+ 回登場するため除外される。
+  const MAX_FINAL_COUNT = 2
+  const top8Sets = sets.filter(s => {
+    const score = getBracketSortOrder(s.roundText)
+    return score <= 5 && (roundCount[s.roundText] ?? 99) <= MAX_FINAL_COUNT
+  })
+
+  if (top8Sets.length === 0) {
+    return [{ name: 'ブラケット', sets }]
+  }
+
+  const top8MaxId = Math.max(...top8Sets.map(s => s.id))
+
+  // Top 24: Top 8 の最大 ID 直上にある最初の密集クラスター
+  // SEARCH_GAP: Top 8 から検索を開始する最大距離
+  // CLUSTER_GAP: Top 24 クラスター内部の最大 ID ギャップ
+  const SEARCH_GAP  = 800
+  const CLUSTER_GAP = 300
+
+  const aboveSets = [...sets]
+    .filter(s => s.id > top8MaxId && s.id <= top8MaxId + SEARCH_GAP + CLUSTER_GAP)
+    .sort((a, b) => a.id - b.id)
+
+  let top24Sets: SetRow[] = []
+  if (aboveSets.length > 0) {
+    // 最初の密集クラスターを取得（ギャップが CLUSTER_GAP を超えた時点で終了）
+    const cluster: SetRow[] = [aboveSets[0]]
+    for (let i = 1; i < aboveSets.length; i++) {
+      if (aboveSets[i].id - aboveSets[i - 1].id <= CLUSTER_GAP) {
+        cluster.push(aboveSets[i])
+      } else {
+        break
+      }
+    }
+    top24Sets = cluster
+  }
+
+  const result: Array<{ name: string; sets: SetRow[] }> = []
+  if (top24Sets.length > 0) result.push({ name: 'Top 24', sets: top24Sets })
+  result.push({ name: 'Top 8', sets: top8Sets })
+  return result
+}
+
 function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
   return (
     <div style={{
@@ -601,38 +663,53 @@ function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
 }
 
 function BracketView({ sets }: { sets: SetRow[] }) {
-  // 全フェーズ（Pools → Top 32 → Top 8 の順）
-  const allPhases = Array.from(new Set(sets.map(s => s.phase).filter(Boolean)))
-  // フェーズをブラケット進行順にソート（Top 8 が最後）
-  const phaseOrder = ['Pools', 'Pool', 'Group', 'Top 64', 'Top 32', 'Top 16', 'Top 8', 'Top 4']
-  const sortedPhases = [...allPhases].sort((a, b) => {
-    const ai = phaseOrder.findIndex(p => a.toLowerCase().includes(p.toLowerCase()))
-    const bi = phaseOrder.findIndex(p => b.toLowerCase().includes(p.toLowerCase()))
-    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
-  })
+  // phase_name が入っている大会（CC11, EVO など）ではフェーズ名で分類、
+  // 入っていない大会（CB2026 など）ではラウンド出現頻度+ID クラスターで自動検出
+  const hasPhaseNames = sets.some(s => s.phase !== '')
 
+  const phases = useMemo<Array<{ name: string; sets: SetRow[] }>>(() => {
+    if (hasPhaseNames) {
+      // phase_name ベースのグループ化
+      const phaseMap = new Map<string, SetRow[]>()
+      for (const s of sets) {
+        const ph = s.phase || 'その他'
+        if (!phaseMap.has(ph)) phaseMap.set(ph, [])
+        phaseMap.get(ph)!.push(s)
+      }
+      const phaseOrder = ['Pool', 'Group', 'Top 64', 'Top 32', 'Top 24', 'Top 16', 'Top 8', 'Top 4']
+      return [...phaseMap.entries()]
+        .sort(([a], [b]) => {
+          const ai = phaseOrder.findIndex(p => a.toLowerCase().includes(p.toLowerCase()))
+          const bi = phaseOrder.findIndex(p => b.toLowerCase().includes(p.toLowerCase()))
+          return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
+        })
+        .map(([name, psets]) => ({ name, sets: psets }))
+    }
+    // phase_name なし → クラスター検出
+    return detectFinalPhases(sets)
+  }, [sets, hasPhaseNames])
+
+  // デフォルトは最後のフェーズ（最も深い = Top 8 / 決勝ブラケット）
   const [activePhase, setActivePhase] = useState(
-    sortedPhases.find(p => p.toLowerCase().includes('top 8') || p.toLowerCase().includes('top 4')) ?? sortedPhases[sortedPhases.length - 1] ?? ''
+    () => phases[phases.length - 1]?.name ?? ''
   )
 
-  // 選択フェーズのセットをラウンド順に整理
-  // 両プレイヤー未確定のプレースホルダーセットを除外（page.tsx でも除外済みだが防御的に）
-  const phaseSets = sets.filter(s =>
-    s.phase === activePhase &&
-    (s.winnerId !== null || s.loserId !== null)
-  )
+  // 選択フェーズのセットを取得（プレースホルダー除外）
+  const phaseSets = (phases.find(p => p.name === activePhase)?.sets ?? [])
+    .filter(s => s.winnerId !== null || s.loserId !== null)
+
+  // ラウンドごとにグループ化
   const roundGroups = new Map<string, SetRow[]>()
   for (const s of phaseSets) {
     const r = s.roundText || '—'
     if (!roundGroups.has(r)) roundGroups.set(r, [])
     roundGroups.get(r)!.push(s)
   }
-  // 同ラウンド内は ID 降順（最新のセット＝より深いブラケット位置が上）
+  // 同ラウンド内は ID 降順
   for (const matches of roundGroups.values()) {
     matches.sort((a, b) => b.id - a.id)
   }
-  // ラウンドを getBracketSortOrder で昇順ソート（値が小さい＝重要なラウンドが上）
-  // グループ内が 0 件のラウンドは自動的に含まれないため別途除外不要
+  // getBracketSortOrder で昇順ソート（値が小さい = 重要なラウンドが上）
   const sortedRounds = [...roundGroups.entries()]
     .sort(([a], [b]) => getBracketSortOrder(a) - getBracketSortOrder(b))
 
@@ -656,12 +733,15 @@ function BracketView({ sets }: { sets: SetRow[] }) {
 
   return (
     <div>
-      {/* フェーズ選択 */}
-      {sortedPhases.length > 1 && (
+      {/* フェーズ選択ボタン（Top 8 / Top 24 / Pool など） */}
+      {phases.length > 1 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
-          {sortedPhases.map(ph => (
-            <button key={ph} onClick={() => setActivePhase(ph)} style={btnStyle(activePhase === ph)}>
-              {ph}
+          {phases.map(ph => (
+            <button key={ph.name} onClick={() => setActivePhase(ph.name)} style={btnStyle(activePhase === ph.name)}>
+              {ph.name}
+              <span style={{ marginLeft: 5, fontSize: 10, opacity: 0.65, fontWeight: 600 }}>
+                ({ph.sets.filter(s => s.winnerId !== null || s.loserId !== null).length})
+              </span>
             </button>
           ))}
         </div>
@@ -674,22 +754,15 @@ function BracketView({ sets }: { sets: SetRow[] }) {
           return (
             <div key={round}>
               {/* ラウンドヘッダー */}
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10,
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                 {isGrandFinal && <span style={{ fontSize: 18 }}>🏆</span>}
                 <div style={{
                   fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
                   letterSpacing: '0.16em', textTransform: 'uppercase',
                   color: isGrandFinal ? T.accent : T.dim,
                 }}>{round}</div>
-                <div style={{
-                  flex: 1, height: 1,
-                  background: isGrandFinal ? `${T.accent}30` : T.border,
-                }} />
-                <div style={{
-                  fontFamily: T.fDisplay, fontSize: 10, color: T.dim,
-                }}>{matches.length}試合</div>
+                <div style={{ flex: 1, height: 1, background: isGrandFinal ? `${T.accent}30` : T.border }} />
+                <div style={{ fontFamily: T.fDisplay, fontSize: 10, color: T.dim }}>{matches.length}試合</div>
               </div>
 
               {/* マッチカード群 */}
