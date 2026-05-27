@@ -17,6 +17,83 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — 選手名正規化（スポンサータグ除去 + 表記揺れ対応）
+
+**対象:** `src/lib/normalizePlayerName.ts`, `src/app/api/players/search/route.ts`, `src/app/api/startgg/route.ts`, `src/hooks/useAutoDetect.ts`, `src/components/live/FeaturedMatchesPanel.tsx`, `src/app/live/[tournamentId]/page.tsx`
+
+#### 問題
+CB2026 の H2H が表示されない: start.gg のハンドルが `"REJECT ひなお"` や `"FALCONS | Xiaohai"` で、DB の `players.handle` と一致しなかった。
+
+#### 実装内容
+1. **`src/lib/normalizePlayerName.ts`** 新規作成
+   - `normalizePlayerName(raw)`: スポンサータグ除去（パイプ区切り / 既知タグ + スペース）
+   - `playerSearchVariants(raw)`: CamelCase 分割含む複数バリアント生成（例: `OilKing` → `Oil King`）
+
+2. **`src/app/api/players/search/route.ts`** 更新
+   - 3段階検索: (1) バリアント完全一致 → (2) 正規化後の部分一致 → (3) 元クエリ部分一致
+   - `?startggId=` パラメータ追加: `startgg_player_ids` 配列による直接 ID 検索
+
+3. **`src/app/api/startgg/route.ts`** 更新
+   - GraphQL クエリに `player { id }` を追加
+   - `player1_startggId` / `player2_startggId` をマッチデータに含める
+
+4. **`src/hooks/useAutoDetect.ts`** 更新
+   - `onNewPlayers` コールバックに startgg player ID を追加渡し
+
+5. **`src/app/live/[tournamentId]/page.tsx`** 更新
+   - `handleMatchClick` が startgg ID を受け取り、検索 API に渡す
+   - `normalizePlayerName` による handle 照合
+
+6. **`src/components/live/FeaturedMatchesPanel.tsx`** 更新
+   - `onMatchClick` 型に startgg ID 引数を追加
+
+#### テスト結果 (scripts/test-normalize.js)
+| 入力 | 正規化後 | DB検索結果 |
+|------|----------|------------|
+| `REJECT ひなお` | `ひなお` | `REJECT ひなお` (id=25790) |
+| `FALCONS \| Xiaohai` | `Xiaohai` | Fuzzy → DB未登録 |
+| `SR NuckleDu` | `NuckleDu` | `NuckleDu` (id=17) |
+| `Saishunkan Kobayan` | `Kobayan` | `Kobayan` (id=30) |
+| `T1 OilKing` | `OilKing` → CamelSplit `Oil King` | `Oil King` (id=356) |
+| `EndingWalker` | `EndingWalker` | `EndingWalker` (id=56) |
+
+#### コミット
+`bedff99` feat: player name normalization
+
+---
+
+### 2026-05-26 — inferPlacements() 順位計算ロジック全面修正
+
+**対象:** `src/app/tournament/[id]/page.tsx`
+
+#### 問題
+CB2026 (tournament_id=48) の大会結果ページで Top 8 順位が正しく表示されなかった。  
+Micky・Vxbao が 7th になるべきところ 575th と誤計算されていた。
+
+#### 原因
+旧ロジック（BFS による位相的深さ伝播）の問題:
+1. `round_text` が同じラウンド名（例: `Losers Round 1`）がプールフェーズと Top 8 フェーズの両方に存在する多フェーズ大会で、深さの計算が混線
+2. BFS で `Losers Round 1` の depth が 89（LSF-2 相当）に誤算され、`Losers Quarter-Final`（depth=80）より深くなってしまう
+3. Top 8 の `Losers Round 1`（Winners QF から落ちた選手が参加する後半ラウンド）と、同名の早いラウンドが同一クラスターに統合され区別不能
+
+#### 修正（クラスター最大セット ID による順位付け）
+`inferPlacements()` を全面書き直し:
+- **固定ラウンド** (`Losers Final`, `Losers Semi-Final`): `depth × 10_000_000` の大きなスコアで常に上位
+- **その他** (`Losers Quarter-Final`, `Losers Round N`): セット ID の近接性（CLUSTER_GAP=20）でクラスタリング
+- グループのソートキー = **そのクラスター内の最大セット ID**（降順）
+- 後のセット = より最終ブラケットに近い = 上位順位
+
+#### 確認（EventHubs 正解と一致）
+```
+1st: Xiao Hai  2nd: Hinao  3rd: Jr.  4th: Kobayan
+5th: Fuudo, Oil King (tie)  7th: Micky, Vxbao (tie)
+```
+
+- `npm run build` — ✅ エラーなし
+- `git push origin main` — ✅ コミット b77ce73
+
+---
+
 ### 2026-05-26 — CB2026 (id=48) Xiao Hai 表示バグ修正
 
 **対象:** `src/app/tournament/[id]/page.tsx`
