@@ -17,6 +17,61 @@
 
 ## 最新の作業ログ
 
+### 2026-05-26 — Pools Dashboard: pool_identifier / seed / UPSET 検知実装
+
+**対象:** `supabase/migrations/20260526_pools_seed.sql` (NEW), `scripts/live-fetch-v2.js`, `src/app/api/pools-dashboard/route.ts`
+
+#### 問題
+- `/api/pools-dashboard` の feed に pool 番号が表示されない（`pool: ''` ハードコード）
+- UPSET 検知ができない（`seed: null` ハードコード）
+
+#### 原因
+- `tournament_sets` に `pool_identifier`, `winner_seed`, `loser_seed` カラムがなかった
+- `live-fetch-v2.js` の GQL クエリに `phaseGroup.displayIdentifier` と `initialSeedNum` がなかった
+
+#### 実装
+
+1. **マイグレーション** (`20260526_pools_seed.sql`)
+   - `pool_identifier TEXT` — phaseGroup.displayIdentifier (例: "A101")
+   - `winner_seed INTEGER` — 試合勝者の initialSeedNum
+   - `loser_seed INTEGER` — 試合敗者の initialSeedNum
+   - インデックス: `idx_ts_pool`, `idx_ts_seeds`
+   - ※ `player1/2_seed` でなく `winner/loser_seed` を採用（UPSET 検知でのマッピング不要）
+
+2. **`live-fetch-v2.js`**
+   - `Q_SETS_UPDATED`, `Q_SETS_ALL`: `phaseGroup { displayIdentifier }` と `initialSeedNum` を追加
+   - `upsertSet()` v2Row: `pool_identifier`, `winner_seed`, `loser_seed` を追記
+
+3. **`/api/pools-dashboard`**
+   - `SetRow` 型に新カラム追加
+   - Supabase クエリで新カラム取得
+   - 軽量 pool-stats クエリを追加（全 sets の pool_identifier + winner_id → per-pool 進捗計算）
+   - `base.pool` = `s.pool_identifier ?? ''` に修正（`'POOL A101'` として表示）
+   - `players[].seed` = `winner_seed` / `loser_seed` に修正
+   - **UPSET 検知**: `wSeed > lSeed && (wSeed - lSeed) >= 20` → `type: 'UPSET', priority: 'HIGH'`
+     - UPSET 時も qualified[] には追加（qualified 選手の場合 → メッセージに "→ TOP CUT!" を付加）
+     - UPSET が qualified イベントを上書き（feed 上では UPSET 単独で表示）
+   - `qualified[].seed` = `wSeed`（実際の seed を表示）
+   - Pool progress: `pool_identifier` データがある場合は per-pool PoolProgress[] を構築、なければ単一 "Pools" にフォールバック
+   - sort: UPSET=4（最高優先度）
+
+4. **`PoolsDashboard.tsx`**: 変更なし
+   - UPSET 表示、seed バッジ、UPSET フィルタータブ、pool 表示は実装済みだったため
+
+#### CB2026 バックフィル手順
+既存データ（pool/seed が null）を埋めるには：
+```
+node scripts/live-fetch-v2.js \
+  --tournament-id=865009 --event-id=1528962 \
+  --tournament-slug=combo-breaker-2026 \
+  --db-tournament-id=48 --initial-fetch
+```
+
+#### コミット
+`f548b24` feat(pools): add pool_identifier and seed to tournament_sets, enable UPSET detection
+
+---
+
 ### 2026-05-26 — リアルタイムゲームスコア表示（H2H StreamCenter）
 
 **対象:** `src/app/api/startgg/route.ts`, `src/hooks/useStartggPolling.ts`, `src/hooks/useAutoDetect.ts`, `src/components/live/StreamCenter.tsx`, `src/app/live/[tournamentId]/page.tsx`
