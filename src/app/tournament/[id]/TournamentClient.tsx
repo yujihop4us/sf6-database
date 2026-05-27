@@ -616,7 +616,11 @@ function BracketView({ sets }: { sets: SetRow[] }) {
   )
 
   // 選択フェーズのセットをラウンド順に整理
-  const phaseSets = sets.filter(s => s.phase === activePhase)
+  // 両プレイヤー未確定のプレースホルダーセットを除外（page.tsx でも除外済みだが防御的に）
+  const phaseSets = sets.filter(s =>
+    s.phase === activePhase &&
+    (s.winnerId !== null || s.loserId !== null)
+  )
   const roundGroups = new Map<string, SetRow[]>()
   for (const s of phaseSets) {
     const r = s.roundText || '—'
@@ -628,6 +632,7 @@ function BracketView({ sets }: { sets: SetRow[] }) {
     matches.sort((a, b) => b.id - a.id)
   }
   // ラウンドを getBracketSortOrder で昇順ソート（値が小さい＝重要なラウンドが上）
+  // グループ内が 0 件のラウンドは自動的に含まれないため別途除外不要
   const sortedRounds = [...roundGroups.entries()]
     .sort(([a], [b]) => getBracketSortOrder(a) - getBracketSortOrder(b))
 

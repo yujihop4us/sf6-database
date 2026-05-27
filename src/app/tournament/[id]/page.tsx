@@ -401,7 +401,10 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
     }
   }).filter(e => e.player && !e.player.handle.startsWith('Bye'))
 
-  const sets = [...setList].sort((a, b) => b.id - a.id).map(s => {
+  const sets = [...setList]
+    // 両プレイヤー未確定のプレースホルダーセットを除外
+    .filter(s => s.winner_id !== null || s.loser_id !== null)
+    .sort((a, b) => b.id - a.id).map(s => {
     const w = s.winner_id ? playerMap.get(s.winner_id) ?? null : null
     const l = s.loser_id  ? playerMap.get(s.loser_id)  ?? null : null
     const ph = s.phase_name ?? ''
