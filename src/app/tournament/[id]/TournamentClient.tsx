@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useLocale } from '@/lib/locale-context'
 import SiteNavbar from '@/components/SiteNavbar'
 import type { TournamentData, EntrantRow, SetRow } from './types'
+import { getBracketSortOrder } from '@/lib/bracketOrder'
 
 // ─── Design tokens (CSS vars defined in globals.css) ──────────────
 const T = {
@@ -511,18 +512,7 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
 // ─── Bracket view ────────────────────────────────────────────────
 
 // ラウンドの表示順定義（ブラケット進行順）
-const ROUND_ORDER = [
-  'Winners Round 1', 'Winners Round 2', 'Winners Round 3',
-  'Winners Quarter-Final', 'Winners Semi-Final', 'Winners Final',
-  'Losers Round 1', 'Losers Round 2', 'Losers Round 3', 'Losers Round 4',
-  'Losers Quarter-Final', 'Losers Semi-Final', 'Losers Final',
-  'Grand Final', 'Grand Final Reset',
-]
-
-function roundSortKey(roundText: string): number {
-  const idx = ROUND_ORDER.findIndex(r => roundText.includes(r) || r === roundText)
-  return idx >= 0 ? idx : 99
-}
+// getBracketSortOrder は src/lib/bracketOrder.ts に移管済み
 
 function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
   return (
@@ -633,8 +623,13 @@ function BracketView({ sets }: { sets: SetRow[] }) {
     if (!roundGroups.has(r)) roundGroups.set(r, [])
     roundGroups.get(r)!.push(s)
   }
-  // ラウンドをブラケット進行順の逆順にソート（Grand Final → … → Round 1）
-  const sortedRounds = [...roundGroups.entries()].sort(([a], [b]) => roundSortKey(b) - roundSortKey(a))
+  // 同ラウンド内は ID 降順（最新のセット＝より深いブラケット位置が上）
+  for (const matches of roundGroups.values()) {
+    matches.sort((a, b) => b.id - a.id)
+  }
+  // ラウンドを getBracketSortOrder で昇順ソート（値が小さい＝重要なラウンドが上）
+  const sortedRounds = [...roundGroups.entries()]
+    .sort(([a], [b]) => getBracketSortOrder(a) - getBracketSortOrder(b))
 
   const btnStyle = (active: boolean): React.CSSProperties => ({
     background: active ? T.accentDim : T.surface2,
