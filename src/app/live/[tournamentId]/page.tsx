@@ -139,7 +139,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   }
 
   // ── start.gg 自動検知 ────────────────────────────────────────────────────
-  const { autoDetected, setManualMode } = useAutoDetect(
+  const { autoDetected, liveScore, setManualMode } = useAutoDetect(
     startggMatches,
     config.startggEventId,
     (p1, p2, p1Id, p2Id) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2, p1Id, p2Id) },
@@ -357,6 +357,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 tournamentSlug={effectiveTournamentSlug}
                 onStreamQueueMatch={(p1h, p2h, p1Id, p2Id) => handleMatchClick(p1h, p2h, p1Id, p2Id)}
                 streamToast={null}
+                liveScore={liveScore}
               />
               <PlayerBand
                 player={player2} score={score.p2} side="right"

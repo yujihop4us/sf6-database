@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { StreamToast, type ToastEvent } from './PoolsDashboard'
 import { V, type Player, type H2HData } from './tokens'
 import { LiveSetsTable } from './LiveSetsTable'
@@ -19,6 +19,7 @@ export function StreamCenter({
   onMatchClick, onStreamQueueMatch,
   streamToast,
   poolsMode,
+  liveScore = null,
 }: {
   score: { p1: number; p2: number }
   centerTab: 'stream' | 'bracket'
@@ -50,6 +51,8 @@ export function StreamCenter({
   onStreamQueueMatch?: (p1Handle: string, p2Handle: string, p1PlayerId?: number, p2PlayerId?: number) => void
   streamToast?: ToastEvent | null
   poolsMode?: boolean
+  /** start.gg games データから算出したリアルタイムゲームスコア */
+  liveScore?: { p1: number; p2: number } | null
 }) {
   // マルチチャンネル: 選択中のチャンネルインデックス
   const [activeChanIdx, setActiveChanIdx] = useState(0)
@@ -156,6 +159,18 @@ export function StreamCenter({
     const id = setInterval(poll, 10_000)
     return () => clearInterval(id)
   }, [tournamentSlug, onStreamQueueMatch])
+
+  // ── liveScore 変更時のパルスアニメーション ────────────────────────────────
+  // key を変えることで CSS animation を再トリガー
+  const prevScoreRef = useRef<string>('')
+  const [scoreAnimKey, setScoreAnimKey] = useState(0)
+  const scoreStr = liveScore ? `${liveScore.p1}-${liveScore.p2}` : ''
+  useEffect(() => {
+    if (scoreStr && scoreStr !== prevScoreRef.current) {
+      prevScoreRef.current = scoreStr
+      setScoreAnimKey(k => k + 1)
+    }
+  }, [scoreStr])
 
   // H2H バーは P1/P2 固定カラーで統一（キャラカラーではなく）
   const p1color = V.P1   // マゼンタ
@@ -459,6 +474,67 @@ export function StreamCenter({
             borderTop: 'none', borderRadius: '0 0 10px 10px',
             padding: '14px 20px',
           }}>
+            {/* ── リアルタイムゲームスコア (liveScore がある場合のみ表示) ── */}
+            {liveScore !== null && (
+              <>
+                <style>{`
+                  @keyframes sc-score-pulse {
+                    0%   { transform: scale(1.22); opacity: 0.6; }
+                    60%  { transform: scale(1.05); opacity: 1; }
+                    100% { transform: scale(1);    opacity: 1; }
+                  }
+                  .sc-score-pulse { animation: sc-score-pulse 0.35s ease-out; }
+                `}</style>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  gap: 0, marginBottom: 14,
+                }}>
+                  {/* ゲームスコアブロック */}
+                  <div
+                    key={scoreAnimKey}
+                    className="sc-score-pulse"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: V.surface2, border: `1px solid ${V.border2}`,
+                      borderRadius: 10, padding: '6px 18px',
+                    }}
+                  >
+                    {/* ラベル */}
+                    <div style={{
+                      fontFamily: V.FD, fontSize: 9, fontWeight: 800,
+                      letterSpacing: '0.18em', textTransform: 'uppercase' as const,
+                      color: V.dim, marginRight: 10,
+                    }}>GAME</div>
+
+                    {/* P1 score */}
+                    <span style={{
+                      fontFamily: V.FD, fontSize: 32, fontWeight: 900,
+                      lineHeight: 1,
+                      color: liveScore.p1 > liveScore.p2 ? V.accent
+                           : liveScore.p1 === liveScore.p2 ? V.text
+                           : V.dim,
+                      minWidth: 22, textAlign: 'center' as const,
+                    }}>{liveScore.p1}</span>
+
+                    <span style={{
+                      fontFamily: V.FD, fontSize: 20, fontWeight: 700,
+                      color: V.dim, margin: '0 6px', lineHeight: 1,
+                    }}>-</span>
+
+                    {/* P2 score */}
+                    <span style={{
+                      fontFamily: V.FD, fontSize: 32, fontWeight: 900,
+                      lineHeight: 1,
+                      color: liveScore.p2 > liveScore.p1 ? V.accent
+                           : liveScore.p2 === liveScore.p1 ? V.text
+                           : V.dim,
+                      minWidth: 22, textAlign: 'center' as const,
+                    }}>{liveScore.p2}</span>
+                  </div>
+                </div>
+              </>
+            )}
+
             {summary && total > 0 ? (
               <>
                 {/* 勝敗数 */}

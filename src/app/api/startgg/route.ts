@@ -41,6 +41,7 @@ query EventSetsRecent($eventId: ID!, $page: Int!, $perPage: Int!) {
 
 // Live / called sets のみ (state 2 or 6)
 // perPage: 20 で十分 (同時進行セットは通常10件以下)
+// games フィールド: winnerId で各ゲームの勝者を取得 (live score 算出用)
 const Q_LIVE_SETS = `
 query EventSetsLive($eventId: ID!, $perPage: Int!) {
   event(id: $eventId) {
@@ -56,6 +57,7 @@ query EventSetsLive($eventId: ID!, $perPage: Int!) {
           }
           standing { stats { score { value } } }
         }
+        games { winnerId orderNum }
       }
     }
   }
@@ -118,6 +120,21 @@ function mapSet(set: any) {
   const phaseName = set.phaseGroup?.phase?.name || 'Unknown'
   const poolId    = set.phaseGroup?.displayIdentifier || ''
 
+  // ── liveScore: games データから各選手のゲーム勝数を算出 (state=2/6 のみ) ──
+  let liveScore: { p1: number; p2: number } | null = null
+  if ((set.state === 2 || set.state === 6) && Array.isArray(set.games) && set.games.length > 0) {
+    const p1eid = s0?.entrant?.id ?? null
+    const p2eid = s1?.entrant?.id ?? null
+    if (p1eid && p2eid) {
+      let p1wins = 0, p2wins = 0
+      for (const g of set.games) {
+        if (g.winnerId === p1eid) p1wins++
+        else if (g.winnerId === p2eid) p2wins++
+      }
+      liveScore = { p1: p1wins, p2: p2wins }
+    }
+  }
+
   return {
     group:            phaseName + (poolId ? ' - ' + poolId : ''),
     phase:            phaseName,
@@ -136,6 +153,7 @@ function mapSet(set: any) {
     displayScore:     set.displayScore ?? null,
     score, winner, status,
     completedAt:      set.completedAt ?? null,
+    liveScore,
     maps: [],
   }
 }

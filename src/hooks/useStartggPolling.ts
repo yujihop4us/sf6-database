@@ -31,6 +31,8 @@ export function useStartggPolling({
   const [startggMatches,  setStartggMatches]  = useState<any[]>([])
   const [cc12Matches,     setCc12Matches]     = useState<any[]>([])
   const [cc12LastUpdated, setCc12LastUpdated] = useState('')
+  // live セット検出時は 10s、通常は 15s ポーリング
+  const [pollInterval, setPollInterval] = useState(15_000)
 
   // ── CC12 Liquipedia ポーリング (60秒) ────────────────────────────────────
   useEffect(() => {
@@ -50,7 +52,7 @@ export function useStartggPolling({
     return () => clearInterval(id)
   }, [hasStream])
 
-  // ── start.gg ポーリング (15秒) ─────────────────────────────────────────
+  // ── start.gg ポーリング (live セット検出時 10s / 通常 15s) ─────────────
   useEffect(() => {
     if (!startggEventId) return
     const ended = endDate && new Date() > new Date(endDate + 'T23:59:59')
@@ -58,17 +60,22 @@ export function useStartggPolling({
       try {
         const res  = await fetch('/api/startgg?eventId=' + startggEventId + '&fresh=1')
         const data = await res.json()
-        if (data.matches)     setStartggMatches(data.matches)
+        if (data.matches) {
+          setStartggMatches(data.matches)
+          // live セットがある場合はポーリングを 10s に短縮
+          const hasLive = data.matches.some((m: any) => m.status === 'live')
+          setPollInterval(hasLive ? 10_000 : 15_000)
+        }
         if (data.lastUpdated) setCc12LastUpdated(data.lastUpdated)
       } catch (e) { console.error('[startgg]', e) }
     }
     fetchStartgg()
     if (!ended) {
-      const id = setInterval(fetchStartgg, 15000)
+      const id = setInterval(fetchStartgg, pollInterval)
       return () => clearInterval(id)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startggEventId, hasStream, searchQuery])
+  }, [startggEventId, hasStream, searchQuery, pollInterval])
 
   // ── mergedPhases ──────────────────────────────────────────────────────────
   // フェーズ名が一致しない場合のフォールバック判定

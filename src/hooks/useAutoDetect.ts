@@ -6,6 +6,8 @@ export interface UseAutoDetectReturn {
   autoDetected:  boolean
   /** AUTO バッジ ✕ ボタンや手動操作時に呼ぶ。以降の自動上書きを止める */
   setManualMode: () => void
+  /** start.gg games データから算出したリアルタイムゲームスコア。データなし時は null */
+  liveScore: { p1: number; p2: number } | null
 }
 
 /**
@@ -22,12 +24,22 @@ export function useAutoDetect(
   onNewPlayers: (p1: string, p2: string, p1StartggId?: number | null, p2StartggId?: number | null) => void,
 ): UseAutoDetectReturn {
   const [autoDetected,  setAutoDetected]  = useState(false)
+  const [liveScore, setLiveScore] = useState<{ p1: number; p2: number } | null>(null)
   const autoDetectKeyRef = useRef<string>('')
 
   // onNewPlayers が毎レンダーで新しい参照になっても stale closure にならないよう ref 経由で呼ぶ
   const onNewPlayersRef = useRef(onNewPlayers)
   useEffect(() => { onNewPlayersRef.current = onNewPlayers }, [onNewPlayers])
 
+  // ── liveScore: ポーリング毎に live セットのゲームスコアを更新 ─────────────
+  // autoDetectKey に依存しないため別 effect で追跡
+  useEffect(() => {
+    if (!eventId) return
+    const liveSet = startggMatches.find((m: any) => m.status === 'live')
+    setLiveScore(liveSet?.liveScore ?? null)
+  }, [startggMatches, eventId])
+
+  // ── 自動検知: 選手ペア変更時のみ onNewPlayers を呼び出す ───────────────────
   useEffect(() => {
     if (!eventId || startggMatches.length === 0) return
     if (autoDetectKeyRef.current === '__manual__') return
@@ -86,6 +98,7 @@ export function useAutoDetect(
 
   return {
     autoDetected,
+    liveScore,
     setManualMode: () => {
       autoDetectKeyRef.current = '__manual__'
       setAutoDetected(false)
