@@ -17,6 +17,39 @@
 
 ## 最新の作業ログ
 
+### 2026-05-27 — ブラケットタブ: プールセット除外 + Top 8/Top 24 フェーズ自動検出
+
+**対象:** `src/app/tournament/[id]/TournamentClient.tsx`
+
+#### 問題
+- CB2026（`phase_name = null`）ではブラケットタブに全 2900+ sets（プールセット含む）が表示されていた
+- pool sets と bracket sets の ID が混在しており、単純な ID 範囲フィルタでは分離不可
+
+#### 実装
+
+**`detectFinalPhases(sets: SetRow[])`** — 新規関数（`BracketView` 上部に追加）
+
+1. **Top 8 検出**: `getBracketSortOrder(roundText) ≤ 5` かつ出現数 ≤ 2 → GF/GF Reset/WF/LF/LSF だけが該当
+   - プール WSF は全体で 30+ 回出現 → 除外
+   - CB2026 結果: id 26574–26578 の 5 sets のみ ✓
+2. **Top 24 検出**: Top 8 最大ID直上の最初の密集クラスター
+   - `SEARCH_GAP = 800`, `CLUSTER_GAP = 300`
+   - CB2026: Top 8 (id 26578) から gap=87 → id 26665–27603 の 20 sets ✓
+   - WQF(6), WSF(5), LR4(4), LQF(3), LR3(2)
+
+**`BracketView`** 改修
+- `hasPhaseNames = sets.some(s => s.phase !== '')` で分岐
+  - `true`（CC11, EVO など）: 既存の phase_name ベース分類
+  - `false`（CB2026）: `detectFinalPhases()` でクラスター検出
+- `useMemo` で phases を安定化
+- フェーズボタンにセット数バッジ表示
+- デフォルト選択: 最後のフェーズ（最も深い = Top 8）
+
+#### コミット
+`dd5cad7` fix(bracket): show only Top 8/Top 24 sets using cluster detection, exclude pool phases
+
+---
+
 ### 2026-05-27 — キャラ・国情報の構造的問題修正 + バックフィルスクリプト群
 
 **対象:** `scripts/backfill-characters.js` (NEW), `scripts/update-player-profiles.js` (NEW), `scripts/live-fetch-v2.js`
