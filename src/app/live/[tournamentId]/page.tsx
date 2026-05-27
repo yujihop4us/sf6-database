@@ -11,6 +11,7 @@ import { useAutoDetect }      from '@/hooks/useAutoDetect'
 import { V, type Player, type H2HData } from '@/components/live/tokens'
 import { PlayerBand } from '@/components/live/PlayerBand'
 import { FeaturedMatchesPanel } from '@/components/live/FeaturedMatchesPanel'
+import { LiveStandings } from '@/components/live/LiveStandings'
 import { SearchModal } from '@/components/live/SearchModal'
 import { StreamCenter } from '@/components/live/StreamCenter'
 import { SidePanelLeft } from '@/components/live/SidePanelLeft'
@@ -375,12 +376,12 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 player1={player1} player2={player2}
                 twitchChatChannels={config.twitchChatChannels}
               />
-              <FeaturedMatchesPanel
-                matches={upNextMatches}
-                mode={featuredMode}
-                onMatchClick={(p1, p2) => {
+              <LiveStandings
+                startggMatches={startggMatches}
+                upNextMatches={upNextMatches}
+                onMatchClick={(p1, p2, p1Id, p2Id) => {
                   setManualMode()
-                  handleMatchClick(p1, p2)
+                  handleMatchClick(p1, p2, p1Id, p2Id)
                 }}
               />
             </div>
