@@ -30,7 +30,7 @@ const TOURNAMENT_META: Record<number, {
   top24PoolIdentifier: string | null
 }> = {
   48: {
-    logoUrl:              'https://images.start.gg/images/tournament/865009/image-90c9ca5c83b44e166923f4864c43d731.jpg',
+    logoUrl:              '/images/tournaments/cb2026.jpg',  // ローカルキャッシュ
     cptEventType:         'premier',
     finalPoolIdentifier:  'VVX15',
     top24PoolIdentifier:  'PX133',

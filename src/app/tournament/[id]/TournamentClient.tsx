@@ -32,6 +32,7 @@ const T = {
   rowHover:   'var(--sf6-row-hover)',
   fDisplay:   'var(--font-barlow-condensed, "Barlow Condensed", sans-serif)',
   fBody:      'var(--font-barlow, "Barlow", sans-serif)',
+  fTitle:     'var(--font-archivo-black, "Archivo Black", sans-serif)',
 } as const
 
 const CHAR_COLORS: Record<string, string> = {
@@ -125,6 +126,63 @@ function placementColor(p: number | null): string {
   return T.muted
 }
 
+// ─── Concept C design atoms ───────────────────────────────────────
+
+/** SVG "CB" monogram — used as hero watermark when no logo is available */
+function CBMark({ size = 200, opacity = 1 }: { size?: number; opacity?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 200 200" style={{ opacity, display: 'block' }}>
+      <circle cx="100" cy="100" r="90" fill="none" stroke="#ffffff" strokeWidth={4} />
+      <circle cx="100" cy="100" r="78" fill="none" stroke="#ffffff" strokeWidth={1.6} opacity={0.5} />
+      <text
+        x="100" y="106" textAnchor="middle" dominantBaseline="central"
+        fontFamily="'Archivo Black', sans-serif" fontStyle="italic"
+        fontSize="88" letterSpacing="-4" fill="#ffffff"
+      >CB</text>
+    </svg>
+  )
+}
+
+/** Three diagonal accent stripes — top-right decorative element */
+function Stripes({ style }: { style?: React.CSSProperties }) {
+  const bar = (right: number, w: number, color: string, opa: number): React.CSSProperties => ({
+    position: 'absolute', top: '-40%', height: '180%',
+    right, width: w, background: color, opacity: opa, transform: 'rotate(22deg)',
+  })
+  return (
+    <div style={{ position: 'absolute', pointerEvents: 'none', overflow: 'hidden', ...style }}>
+      <div style={bar(-60, 18, T.accent, 0.50)} />
+      <div style={bar(8,   6,  T.accent, 0.30)} />
+      <div style={bar(48,  10, T.gold,   0.25)} />
+    </div>
+  )
+}
+
+/** Skewed stripe + Archivo Black italic section heading */
+function SectionHead({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 22 }}>
+      <span style={{
+        width: 6, height: 26, flexShrink: 0, display: 'inline-block',
+        background: T.accent, transform: 'skewX(-12deg)',
+        boxShadow: '8px 0 0 -1px rgba(0,212,170,0.35), 16px 0 0 -2px rgba(245,200,66,0.3)',
+      }} />
+      <h2 style={{
+        fontFamily: T.fTitle, fontStyle: 'italic', margin: 0,
+        fontSize: 26, letterSpacing: '-0.01em', textTransform: 'uppercase',
+        color: T.text,
+      }}>{title}</h2>
+      {sub && (
+        <span style={{
+          fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600,
+          letterSpacing: '0.1em', textTransform: 'uppercase',
+          color: T.dim, marginLeft: 'auto',
+        }}>{sub}</span>
+      )}
+    </div>
+  )
+}
+
 // ─── Shared UI atoms ──────────────────────────────────────────────
 
 function CharPill({ name }: { name: string | null }) {
@@ -197,109 +255,120 @@ function StatCard({ value, label }: { value: string | number; label: string }) {
 
 function HeroSection({ data }: { data: TournamentData }) {
   const { tournament, entrants, totalMatches } = data
-  // 実際の参加者数・試合数（start.gg 正式値があればそちらを優先）
   const displayEntrants = tournament.numEntrantsOverride ?? entrants.length
   const displayMatches  = tournament.totalSetsOverride  ?? totalMatches
+
+  // Split trailing 4-digit year for outlined accent treatment
+  const yearMatch = tournament.name.match(/\s(\d{4})$/)
+  const nameBase  = yearMatch ? tournament.name.slice(0, -5) : tournament.name
+  const nameYear  = yearMatch?.[1] ?? null
 
   return (
     <div style={{
       position: 'relative', overflow: 'hidden',
-      background: 'linear-gradient(135deg, #060d1a 0%, #0d1f35 40%, #0a1628 100%)',
-      padding: '64px 32px 56px',
+      background: 'linear-gradient(160deg, #0e1f24 0%, #080c10 62%)',
+      padding: '52px 32px 48px',
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* Scanline texture */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px)',
-      }} />
-      {/* Tournament logo watermark */}
-      {tournament.logoUrl && (
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-          backgroundImage: `url(${tournament.logoUrl})`,
-          backgroundSize: 'contain',
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'right center',
-          opacity: 0.11,
-        }} />
-      )}
-      {/* Left-to-right depth gradient (ensures text readability over logo) */}
-      <div style={{
-        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-        background: 'linear-gradient(to right, rgba(6,13,26,0.92) 0%, rgba(16,24,40,0.70) 55%, rgba(16,24,40,0.20) 100%)',
-      }} />
-      {/* Accent glow */}
-      <div style={{
-        position: 'absolute', top: -100, right: 80, width: 480, height: 480,
-        background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 65%)',
-        borderRadius: '50%', pointerEvents: 'none', zIndex: 1,
+        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px)',
       }} />
 
-      <div style={{ position: 'relative', zIndex: 2, maxWidth: 1200, margin: '0 auto' }}>
+      {/* Diagonal accent stripes — top-right */}
+      <Stripes style={{ top: 0, right: 0, bottom: 0, width: '42%', zIndex: 1 }} />
+
+      {/* Watermark: real logo image (priority) or CB monogram fallback */}
+      {tournament.logoUrl ? (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
+          backgroundImage: `url(${tournament.logoUrl})`,
+          backgroundSize: 'contain', backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right center', opacity: 0.08,
+        }} />
+      ) : (
+        <div style={{ position: 'absolute', top: '50%', right: '7%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
+          <CBMark size={320} opacity={0.05} />
+        </div>
+      )}
+
+      {/* Text readability scrim (left→right) */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
+        background: 'linear-gradient(to right, rgba(8,12,16,0.95) 0%, rgba(14,31,36,0.75) 52%, rgba(14,31,36,0.10) 100%)',
+      }} />
+      {/* Accent glow blob */}
+      <div style={{
+        position: 'absolute', top: -70, right: 120, width: 320, height: 320,
+        background: 'radial-gradient(circle, rgba(0,212,170,0.15) 0%, transparent 70%)',
+        borderRadius: '50%', pointerEvents: 'none', zIndex: 2,
+      }} />
+
+      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto' }}>
         {/* Status + location row */}
-        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 7,
-            background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)',
-            borderRadius: 20, padding: '5px 16px',
-            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
-            letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(0,0,0,0.5)', border: `1px solid ${T.border2}`,
+            borderRadius: 20, padding: '4px 12px',
+            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
+            letterSpacing: '0.12em', textTransform: 'uppercase', color: T.accent,
           }}>
             <span style={{
-              width: 7, height: 7, borderRadius: '50%', background: '#ef4444',
-              display: 'inline-block', flexShrink: 0,
-              boxShadow: '0 0 6px rgba(239,68,68,0.8)',
+              width: 6, height: 6, borderRadius: '50%', background: T.red,
+              display: 'inline-block', animation: 'sf6-pulse-dot 1.5s ease-in-out infinite',
             }} />
             CONCLUDED
           </span>
           {tournament.cptEventType === 'premier' && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
-              background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.35)',
-              borderRadius: 20, padding: '5px 14px',
+              background: 'rgba(245,200,66,0.12)', border: '1px solid rgba(245,200,66,0.4)',
+              borderRadius: 20, padding: '4px 12px',
               fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
-              letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fbbf24',
-            }}>
-              ★ CPT PREMIER
-            </span>
+              letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gold,
+            }}>★ CPT PREMIER</span>
           )}
           {tournament.location && (
-            <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.05em' }}>
+            <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.muted, letterSpacing: '0.06em' }}>
               {tournament.location}
             </span>
           )}
         </div>
 
-        {/* Title */}
-        <div style={{ marginBottom: 12 }}>
-          <h1 style={{
-            fontFamily: T.fDisplay, fontWeight: 900,
-            fontSize: 'clamp(56px, 9vw, 96px)',
-            lineHeight: 0.95, letterSpacing: '-0.02em',
-            color: '#ffffff', margin: '0 0 14px',
-            textShadow: '0 2px 20px rgba(0,0,0,0.5)',
-          }}>
-            {tournament.name}
-          </h1>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(16,185,129,0.15)',
-            border: '1px solid rgba(16,185,129,0.40)',
-            borderRadius: 6, padding: '4px 12px',
-            fontFamily: T.fDisplay, fontWeight: 700, fontSize: 13,
-            color: '#10B981', letterSpacing: '0.10em', textTransform: 'uppercase',
-          }}>
-            Street Fighter 6
-          </span>
-        </div>
+        {/* Title — Archivo Black italic, trailing year as outline */}
+        <h1 style={{
+          fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+          fontSize: 'clamp(52px, 8vw, 88px)',
+          lineHeight: 0.96, letterSpacing: '-0.02em',
+          color: T.text, margin: '0 0 14px',
+          textShadow: '0 6px 28px rgba(0,0,0,0.55)',
+        }}>
+          {nameBase}
+          {nameYear && (
+            <span style={{
+              WebkitTextStroke: `2px ${T.accent}`,
+              WebkitTextFillColor: 'transparent',
+              color: 'transparent',
+            }}> {nameYear}</span>
+          )}
+        </h1>
+
+        {/* Game pill */}
+        <span style={{
+          display: 'inline-block',
+          background: T.accentDim, border: `1px solid ${T.border2}`,
+          borderRadius: 5, padding: '3px 12px',
+          fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
+          letterSpacing: '0.16em', color: T.accent, textTransform: 'uppercase',
+        }}>Street Fighter 6</span>
 
         {/* Date */}
         {(tournament.startDate || tournament.endDate) && (
           <p style={{
-            fontFamily: T.fDisplay, fontSize: 16, fontWeight: 500,
-            color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em',
-            marginBottom: 44, marginTop: 10,
+            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 500,
+            color: T.muted, letterSpacing: '0.04em', margin: '16px 0 36px',
           }}>
             {fmtDate(tournament.startDate)}
             {tournament.endDate && tournament.endDate !== tournament.startDate && ` – ${fmtDate(tournament.endDate)}`}
@@ -307,7 +376,7 @@ function HeroSection({ data }: { data: TournamentData }) {
         )}
 
         {/* Stat boxes */}
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <StatCard value={displayEntrants}                label="参加者数" />
           <StatCard value={displayMatches}                 label="総試合数" />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
@@ -337,21 +406,151 @@ function TabBar({ active, setActive, counts }: {
       position: 'sticky', top: 52, zIndex: 40,
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', display: 'flex' }}>
-        {TABS.map(tab => (
-          <button key={tab.id} onClick={() => setActive(tab.id)} style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '16px 22px',
-            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
-            letterSpacing: '0.08em', textTransform: 'uppercase',
-            color: active === tab.id ? T.accent : T.muted,
-            borderBottom: `3px solid ${active === tab.id ? T.accent : 'transparent'}`,
-            transition: 'color 0.15s, border-color 0.15s',
-            marginBottom: -1,
-          }}>
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map(tab => {
+          const on = active === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActive(tab.id)}
+              style={{
+                position: 'relative',
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '16px 18px',
+                fontFamily: on ? T.fTitle : T.fDisplay,
+                fontStyle: on ? 'italic' : 'normal',
+                fontSize: on ? 16 : 15,
+                fontWeight: on ? 400 : 700,
+                letterSpacing: on ? '0' : '0.08em',
+                textTransform: 'uppercase',
+                color: on ? T.text : T.muted,
+                transition: 'color 0.15s',
+                marginBottom: -1,
+              }}
+            >
+              {tab.label}
+              {on && (
+                <span style={{
+                  position: 'absolute', left: 14, right: 14, bottom: -1, height: 3,
+                  background: T.accent, transform: 'skewX(-16deg)',
+                  boxShadow: '0 0 10px rgba(0,212,170,0.5)',
+                  display: 'block',
+                }} />
+              )}
+            </button>
+          )
+        })}
       </div>
+    </div>
+  )
+}
+
+// ─── Podium (Top 3 independent section) ──────────────────────────
+
+interface PodiumEntry {
+  rank: number
+  handle: string
+  countryCode: string | null
+  char: string | null
+  prize: string
+  cptPts: number | null
+}
+
+function PodiumChampion({ p }: { p: PodiumEntry }) {
+  return (
+    <div style={{
+      position: 'relative', overflow: 'hidden', borderRadius: 12,
+      border: '1px solid rgba(245,200,66,0.45)',
+      background: 'linear-gradient(120deg, rgba(245,200,66,0.15) 0%, rgba(245,200,66,0.03) 46%, rgba(14,20,25,1) 78%)',
+      padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 26,
+    }}>
+      <Stripes style={{ top: 0, right: 0, bottom: 0, width: '30%', zIndex: 0 }} />
+      {/* Ghost rank numeral */}
+      <div style={{
+        position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)',
+        pointerEvents: 'none', zIndex: 0,
+        fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 170, lineHeight: 1,
+        color: 'transparent', WebkitTextStroke: '2px rgba(245,200,66,0.16)',
+      }}>1</div>
+      {/* Trophy */}
+      <div style={{ position: 'relative', zIndex: 1, flexShrink: 0, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, lineHeight: 1 }}>🏆</div>
+        <div style={{ fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', color: T.gold, marginTop: 6 }}>
+          CHAMPION
+        </div>
+      </div>
+      {/* Identity */}
+      <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+          <span style={{ fontSize: 28 }}>{flag(p.countryCode)}</span>
+          <h3 style={{
+            fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+            fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
+          }}>{p.handle}</h3>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <CharPill name={p.char} />
+        </div>
+      </div>
+      {/* Prize + points */}
+      <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
+        <div style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
+          {p.prize}
+        </div>
+        {p.cptPts !== null && (
+          <div style={{ fontFamily: T.fDisplay, fontSize: 14, fontWeight: 700, color: T.accent, letterSpacing: '0.06em', marginTop: 5 }}>
+            CC確定 🏆
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PodiumRunner({ p }: { p: PodiumEntry }) {
+  const isSilver  = p.rank === 2
+  const medalColor = isSilver ? T.silver : T.bronze
+  const medal      = isSilver ? '🥈' : '🥉'
+  return (
+    <div style={{
+      position: 'relative', overflow: 'hidden',
+      flex: '1 1 240px', minWidth: 0, borderRadius: 10,
+      border: `1px solid ${medalColor}55`,
+      background: isSilver
+        ? 'linear-gradient(120deg, rgba(160,176,191,0.13) 0%, rgba(14,20,25,1) 62%)'
+        : 'linear-gradient(120deg, rgba(205,140,82,0.13) 0%, rgba(14,20,25,1) 62%)',
+      boxShadow: `inset 3px 0 0 ${medalColor}`,
+      padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16,
+    }}>
+      {/* Outlined rank numeral */}
+      <div style={{
+        flexShrink: 0, fontFamily: T.fTitle, fontStyle: 'italic',
+        fontSize: 44, lineHeight: 1,
+        color: 'transparent', WebkitTextStroke: `2px ${medalColor}`,
+      }}>{p.rank}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 18 }}>{flag(p.countryCode)}</span>
+          <span style={{
+            fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+            fontSize: 22, color: T.text,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{p.handle}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <CharPill name={p.char} />
+          {p.prize !== '—' && (
+            <span style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
+              {p.prize}
+            </span>
+          )}
+          {p.cptPts != null && (
+            <span style={{ fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700, color: T.accent }}>
+              {p.cptPts.toLocaleString()} PTS
+            </span>
+          )}
+        </div>
+      </div>
+      <div style={{ fontSize: 22, flexShrink: 0 }}>{medal}</div>
     </div>
   )
 }
@@ -377,12 +576,28 @@ function StandingsTable({
 
   const prizeMap = TOURNAMENT_PRIZE_MAP[tournamentId] ?? {}
 
+  // Build PodiumEntry for an entrant
+  const toPodiumEntry = (e: EntrantRow): PodiumEntry => {
+    const p   = e.player!
+    const eff = effectivePlacement(e)!
+    const rawPrize = eff ? prizeMap[eff] ?? null : null
+    return {
+      rank:        eff,
+      handle:      p.handle,
+      countryCode: p.countryCode,
+      char:        p.usedCharacters ? p.usedCharacters.split('/')[0] : p.character,
+      prize:       rawPrize != null ? `$${Math.round(rawPrize).toLocaleString()}` : '—',
+      cptPts:      isCptPremier && eff === 1 ? 0 : (isCptPremier && eff ? CPT_PREMIER_POINTS[eff] ?? 0 : null),
+    }
+  }
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setAsc(a => !a)
     else { setSortKey(key); setAsc(key === 'placement') }
   }
 
   const hasAnyPlacement = entrants.some(e => e.placement !== null || e.inferredPlacement !== null)
+  const isSearching     = search.trim() !== ''
 
   const allSorted = [...entrants]
     .filter(e => e.player && e.player.handle.toLowerCase().includes(search.toLowerCase()))
@@ -395,13 +610,28 @@ function StandingsTable({
       return asc ? diff : -diff
     })
 
+  // Podium: Top 3 entries shown as independent cards (when not searching)
+  const podiumEntrants = !isSearching
+    ? allSorted.filter(e => {
+        const eff = effectivePlacement(e)
+        return eff !== null && eff <= 3
+      })
+    : []
+  const podiumRanks = new Set(podiumEntrants.map(e => effectivePlacement(e)))
+
   // CPT Premier: limit to top 32 by default (CPT point range)
   const CPT_LIMIT = 32
-  const cappedForCpt = isCptPremier && !showAll && search === ''
-  const sorted = cappedForCpt
-    ? allSorted.filter(e => (effectivePlacement(e) ?? 9999) <= CPT_LIMIT)
-    : allSorted
-  const hiddenCount = cappedForCpt ? allSorted.length - sorted.length : 0
+  const cappedForCpt = isCptPremier && !showAll && !isSearching
+  const sorted = (() => {
+    // When not searching: exclude top 3 from table (shown in Podium above)
+    const base = isSearching ? allSorted : allSorted.filter(e => !podiumRanks.has(effectivePlacement(e)))
+    return cappedForCpt
+      ? base.filter(e => (effectivePlacement(e) ?? 9999) <= CPT_LIMIT)
+      : base
+  })()
+  const hiddenCount = cappedForCpt
+    ? allSorted.filter(e => !podiumRanks.has(effectivePlacement(e))).length - sorted.length
+    : 0
 
   const SortTh = ({ id, label, align = 'left' }: { id: SortKey; label: string; align?: string }) => (
     <th onClick={() => handleSort(id)} style={{
@@ -427,7 +657,36 @@ function StandingsTable({
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      {/* ── Podium: Top 3 independent cards ── */}
+      {podiumEntrants.length > 0 && !isSearching && (
+        <div style={{ marginBottom: 28 }}>
+          {(() => {
+            const champ   = podiumEntrants.find(e => effectivePlacement(e) === 1)
+            const runners = podiumEntrants.filter(e => effectivePlacement(e) !== 1)
+                                          .sort((a, b) => (effectivePlacement(a) ?? 9) - (effectivePlacement(b) ?? 9))
+            return (
+              <>
+                {champ && <PodiumChampion p={toPodiumEntry(champ)} />}
+                {runners.length > 0 && (
+                  <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                    {runners.map(e => <PodiumRunner key={e.entrantId} p={toPodiumEntry(e)} />)}
+                  </div>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {/* ── Search + 4位以降 label ── */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+        {!isSearching && podiumEntrants.length > 0 && (
+          <span style={{
+            fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+            fontSize: 16, color: T.text, letterSpacing: '-0.01em',
+          }}>4位以降</span>
+        )}
+        <div style={{ marginLeft: 'auto' }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="選手名で検索..."
@@ -440,6 +699,7 @@ function StandingsTable({
           onFocus={e => (e.target.style.borderColor = T.border2)}
           onBlur={e => (e.target.style.borderColor = T.border)}
         />
+        </div>
       </div>
 
       <div style={{ borderRadius: 10, border: `1px solid ${T.border}`, overflow: 'hidden', background: T.card }}>
@@ -1541,19 +1801,30 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 32px 100px' }}>
         {activeTab === 'standings' && (
-          <StandingsTable
-            entrants={data.entrants}
-            tournamentId={data.tournament.id}
-            isCptPremier={CPT_PREMIER_IDS.has(data.tournament.id)}
-          />
+          <>
+            <SectionHead title="順位表" sub={`${data.entrants.length} ENTRANTS`} />
+            <StandingsTable
+              entrants={data.entrants}
+              tournamentId={data.tournament.id}
+              isCptPremier={CPT_PREMIER_IDS.has(data.tournament.id)}
+            />
+          </>
         )}
-        {activeTab === 'bracket'   && <BracketView sets={data.sets} />}
-        {activeTab === 'chars'     && (
-          <CharStats
-            sets={data.sets}
-            entrants={data.entrants}
-            tournament={data.tournament}
-          />
+        {activeTab === 'bracket' && (
+          <>
+            <SectionHead title="ブラケット" sub="DOUBLE ELIM" />
+            <BracketView sets={data.sets} />
+          </>
+        )}
+        {activeTab === 'chars' && (
+          <>
+            <SectionHead title="Top 24 キャラ統計" sub="USAGE · TOP BRACKET" />
+            <CharStats
+              sets={data.sets}
+              entrants={data.entrants}
+              tournament={data.tournament}
+            />
+          </>
         )}
       </div>
     </div>

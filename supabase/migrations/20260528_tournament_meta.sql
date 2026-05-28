@@ -26,3 +26,6 @@ UPDATE tournaments SET
   final_pool_identifier = 'VVX15',
   top24_pool_identifier = 'PX133'
 WHERE id = 48;
+
+-- ロゴURLをローカルパスに更新（public/images/tournaments/ にキャッシュ済み）
+UPDATE tournaments SET logo_url = '/images/tournaments/cb2026.jpg' WHERE id = 48;
