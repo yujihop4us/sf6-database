@@ -258,16 +258,20 @@ function HeroSection({ data }: { data: TournamentData }) {
   const displayEntrants = tournament.numEntrantsOverride ?? entrants.length
   const displayMatches  = tournament.totalSetsOverride  ?? totalMatches
 
-  // Split trailing 4-digit year for outlined accent treatment
-  const yearMatch = tournament.name.match(/\s(\d{4})$/)
-  const nameBase  = yearMatch ? tournament.name.slice(0, -5) : tournament.name
-  const nameYear  = yearMatch?.[1] ?? null
+  // Split on first word for 2-line title: "COMBO" / "BREAKER 2026"
+  // Then detect trailing year for outline treatment on 2nd line
+  const words     = tournament.name.split(' ')
+  const line1     = words[0]                     // e.g. "COMBO" | "EVO" | "CAPCOM"
+  const line2Rest = words.slice(1).join(' ')      // e.g. "BREAKER 2026" | "JAPAN 2026"
+  const yearMatch = line2Rest.match(/\s(\d{4})$/)
+  const line2Base = yearMatch ? line2Rest.slice(0, -5) : line2Rest   // "BREAKER"
+  const nameYear  = yearMatch?.[1] ?? null                            // "2026"
 
   return (
     <div style={{
       position: 'relative', overflow: 'hidden',
       background: 'linear-gradient(160deg, #0e1f24 0%, #080c10 62%)',
-      padding: '52px 6% 48px',
+      padding: '52px 4% 48px 4%',
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* Scanline texture */}
@@ -285,7 +289,7 @@ function HeroSection({ data }: { data: TournamentData }) {
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           backgroundImage: `url(${tournament.logoUrl})`,
           backgroundSize: 'contain', backgroundRepeat: 'no-repeat',
-          backgroundPosition: 'right center', opacity: 0.08,
+          backgroundPosition: '92% center', opacity: 0.08,
         }} />
       ) : (
         <div style={{ position: 'absolute', top: '50%', right: '7%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
@@ -338,7 +342,7 @@ function HeroSection({ data }: { data: TournamentData }) {
           )}
         </div>
 
-        {/* Title — Archivo Black italic, 2-line layout (base name / year) */}
+        {/* Title — Archivo Black italic, 2-line: first word / rest+year */}
         <h1 style={{
           fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
           fontSize: 'clamp(52px, 8vw, 92px)',
@@ -346,17 +350,19 @@ function HeroSection({ data }: { data: TournamentData }) {
           color: T.text, margin: '0 0 14px',
           textShadow: '0 6px 28px rgba(0,0,0,0.55)',
         }}>
-          {nameBase}
-          {nameYear && (
-            <>
-              <br />
+          {/* Line 1: first word */}
+          <span style={{ display: 'block' }}>{line1}</span>
+          {/* Line 2: remaining words, trailing year outlined */}
+          <span style={{ display: 'block' }}>
+            {line2Base}
+            {nameYear && (
               <span style={{
                 WebkitTextStroke: `2px ${T.accent}`,
                 WebkitTextFillColor: 'transparent',
                 color: 'transparent',
-              }}>{nameYear}</span>
-            </>
-          )}
+              }}>{line2Base ? ` ${nameYear}` : nameYear}</span>
+            )}
+          </span>
         </h1>
 
         {/* Game pill */}
