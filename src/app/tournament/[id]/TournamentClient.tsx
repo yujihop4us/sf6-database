@@ -267,7 +267,7 @@ function HeroSection({ data }: { data: TournamentData }) {
     <div style={{
       position: 'relative', overflow: 'hidden',
       background: 'linear-gradient(160deg, #0e1f24 0%, #080c10 62%)',
-      padding: '52px 32px 48px',
+      padding: '52px 6% 48px',
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* Scanline texture */}
@@ -293,25 +293,22 @@ function HeroSection({ data }: { data: TournamentData }) {
         </div>
       )}
 
-      {/* Symmetric scrim — readable in center, fades toward edges */}
+      {/* Left-to-right scrim — text on left stays readable over watermark */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
-        background: 'linear-gradient(90deg, rgba(8,12,16,0.65) 0%, rgba(8,12,16,0.25) 50%, rgba(8,12,16,0.60) 100%)',
+        background: 'linear-gradient(to right, rgba(8,12,16,0.92) 0%, rgba(14,31,36,0.65) 50%, rgba(14,31,36,0.10) 100%)',
       }} />
-      {/* Accent glow blob — centered */}
+      {/* Accent glow blob */}
       <div style={{
-        position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)',
-        width: 480, height: 480,
-        background: 'radial-gradient(circle, rgba(0,212,170,0.12) 0%, transparent 70%)',
+        position: 'absolute', top: -70, right: 120, width: 320, height: 320,
+        background: 'radial-gradient(circle, rgba(0,212,170,0.15) 0%, transparent 70%)',
         borderRadius: '50%', pointerEvents: 'none', zIndex: 2,
       }} />
 
-      <div style={{
-        position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto',
-        textAlign: 'center',
-      }}>
-        {/* Status + badges row — centered */}
-        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+      {/* Content — left-aligned, max-width cap prevents overlong lines on ultra-wide */}
+      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1100 }}>
+        {/* Status + badges row */}
+        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'rgba(0,0,0,0.5)', border: `1px solid ${T.border2}`,
@@ -341,21 +338,24 @@ function HeroSection({ data }: { data: TournamentData }) {
           )}
         </div>
 
-        {/* Title — Archivo Black italic, max-width for natural wrap */}
+        {/* Title — Archivo Black italic, 2-line layout (base name / year) */}
         <h1 style={{
           fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
-          fontSize: 'clamp(48px, 8vw, 88px)',
+          fontSize: 'clamp(52px, 8vw, 92px)',
           lineHeight: 0.96, letterSpacing: '-0.02em',
-          color: T.text, margin: '0 auto 14px', maxWidth: 800,
+          color: T.text, margin: '0 0 14px',
           textShadow: '0 6px 28px rgba(0,0,0,0.55)',
         }}>
           {nameBase}
           {nameYear && (
-            <span style={{
-              WebkitTextStroke: `2px ${T.accent}`,
-              WebkitTextFillColor: 'transparent',
-              color: 'transparent',
-            }}> {nameYear}</span>
+            <>
+              <br />
+              <span style={{
+                WebkitTextStroke: `2px ${T.accent}`,
+                WebkitTextFillColor: 'transparent',
+                color: 'transparent',
+              }}>{nameYear}</span>
+            </>
           )}
         </h1>
 
@@ -379,8 +379,8 @@ function HeroSection({ data }: { data: TournamentData }) {
           </p>
         )}
 
-        {/* Stat boxes — centered */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {/* Stat boxes */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <StatCard value={displayEntrants}                label="参加者数" />
           <StatCard value={displayMatches}                 label="総試合数" />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
