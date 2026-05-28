@@ -191,7 +191,6 @@ function StatCard({ value, label }: { value: string | number; label: string }) {
 
 function HeroSection({ data }: { data: TournamentData }) {
   const { tournament, entrants, totalMatches } = data
-  const countries = new Set(entrants.map(e => e.player?.countryCode).filter(Boolean))
   // 実際の参加者数・試合数（start.gg 正式値があればそちらを優先）
   const displayEntrants = tournament.numEntrantsOverride ?? entrants.length
   const displayMatches  = tournament.totalSetsOverride  ?? totalMatches
@@ -267,10 +266,9 @@ function HeroSection({ data }: { data: TournamentData }) {
 
         {/* Stat boxes */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <StatCard value={displayEntrants} label="参加者数" />
-          <StatCard value={displayMatches}  label="総試合数" />
-          <StatCard value={countries.size}                   label="出場国数" />
-          <StatCard value={fmtPrize(tournament.prizeUsd)}    label="総賞金額" />
+          <StatCard value={displayEntrants}                label="参加者数" />
+          <StatCard value={displayMatches}                 label="総試合数" />
+          <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
         </div>
       </div>
     </div>
