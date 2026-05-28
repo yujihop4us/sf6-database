@@ -207,6 +207,17 @@ function HeroSection({ data }: { data: TournamentData }) {
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
         backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px)',
       }} />
+      {/* Tournament logo watermark (right side, very subtle) */}
+      {tournament.logoUrl && (
+        <div style={{
+          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
+          backgroundImage: `url(${tournament.logoUrl})`,
+          backgroundSize: 'contain',
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right center',
+          opacity: 0.10,
+        }} />
+      )}
       {/* Accent glow */}
       <div style={{
         position: 'absolute', top: -80, right: 60, width: 360, height: 360,

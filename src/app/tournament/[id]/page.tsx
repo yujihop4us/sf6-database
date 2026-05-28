@@ -21,6 +21,22 @@ const TOURNAMENT_REAL_STATS: Record<number, { numEntrants: number; totalSets: nu
   48: { numEntrants: 1452, totalSets: 1361  },  // Combo Breaker 2026
 }
 
+// 大会メタデータ（DB migration 適用前のフォールバック兼ソース）
+// Migration: supabase/migrations/20260528_tournament_meta.sql
+const TOURNAMENT_META: Record<number, {
+  logoUrl: string | null
+  cptEventType: string | null
+  finalPoolIdentifier: string | null
+  top24PoolIdentifier: string | null
+}> = {
+  48: {
+    logoUrl:              'https://images.start.gg/images/tournament/865009/image-90c9ca5c83b44e166923f4864c43d731.jpg',
+    cptEventType:         'premier',
+    finalPoolIdentifier:  'VVX15',
+    top24PoolIdentifier:  'PX133',
+  },
+}
+
 async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -30,7 +46,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   const numericId = parseInt(id, 10)
   if (isNaN(numericId)) return null
 
-  // Tournament info
+  // Tournament info (stable columns)
   const { data: tournament, error: tErr } = await supabase
     .from('tournaments')
     .select('id, name, start_date, end_date, location, total_prize_usd, is_online, format, region')
@@ -38,6 +54,16 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
     .single()
 
   if (tErr || !tournament) return null
+
+  // Extended meta columns (added by 20260528_tournament_meta.sql migration)
+  // Falls back to compile-time constants if migration not yet applied
+  const { data: tMeta, error: tMetaErr } = await supabase
+    .from('tournaments')
+    .select('logo_url, cpt_event_type, final_pool_identifier, top24_pool_identifier')
+    .eq('id', numericId)
+    .single()
+  const meta    = (!tMetaErr && tMeta) ? tMeta : null
+  const metaFb  = TOURNAMENT_META[numericId] ?? null
 
   // Entrants with player info
   const { data: entrantsRaw } = await supabase
@@ -447,6 +473,11 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       isOnline:  tournament.is_online ?? false,
       format:    tournament.format ?? null,
       region:    tournament.region ?? null,
+      // Meta columns: DB value → compile-time constant fallback
+      logoUrl:             meta?.logo_url             ?? metaFb?.logoUrl             ?? null,
+      cptEventType:        meta?.cpt_event_type       ?? metaFb?.cptEventType        ?? null,
+      finalPoolIdentifier: meta?.final_pool_identifier ?? metaFb?.finalPoolIdentifier ?? null,
+      top24PoolIdentifier: meta?.top24_pool_identifier ?? metaFb?.top24PoolIdentifier ?? null,
       numEntrantsOverride: TOURNAMENT_REAL_STATS[numericId]?.numEntrants,
       totalSetsOverride:   TOURNAMENT_REAL_STATS[numericId]?.totalSets,
     },

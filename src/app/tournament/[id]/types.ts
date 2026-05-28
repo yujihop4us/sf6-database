@@ -8,6 +8,14 @@ export interface TournamentInfo {
   isOnline: boolean
   format: string | null
   region: string | null
+  /** 大会ロゴ URL（ヒーローバナー背景に薄く表示） */
+  logoUrl: string | null
+  /** CPT イベント種別: 'premier' | 'world_warrior' | null */
+  cptEventType: string | null
+  /** Top 8 ブラケットの pool_identifier */
+  finalPoolIdentifier: string | null
+  /** Top 24 ブラケットの pool_identifier */
+  top24PoolIdentifier: string | null
   /** 実際のエントラント数（start.gg の正式値。未設定なら DB 値を使用） */
   numEntrantsOverride?: number
   /** 実際のセット総数（start.gg の正式値。未設定なら DB 値を使用） */
