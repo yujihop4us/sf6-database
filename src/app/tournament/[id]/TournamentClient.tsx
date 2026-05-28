@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useLocale } from '@/lib/locale-context'
 import SiteNavbar from '@/components/SiteNavbar'
-import type { TournamentData, EntrantRow, SetRow } from './types'
+import type { TournamentData, TournamentInfo, EntrantRow, SetRow } from './types'
 import { getBracketSortOrder } from '@/lib/bracketOrder'
 
 // ─── Design tokens (CSS vars defined in globals.css) ──────────────
@@ -323,7 +323,7 @@ type TabId = 'standings' | 'bracket' | 'chars'
 const TABS: { id: TabId; label: string }[] = [
   { id: 'standings', label: '順位表' },
   { id: 'bracket',   label: 'ブラケット' },
-  { id: 'chars',     label: 'キャラ統計' },
+  { id: 'chars',     label: 'Top 24 キャラ統計' },
 ]
 
 function TabBar({ active, setActive, counts }: {
@@ -1325,90 +1325,173 @@ function MatchList({ sets }: { sets: SetRow[] }) {
   )
 }
 
-// ─── Character stats ──────────────────────────────────────────────
+// ─── Character stats (Top 24 scope) ──────────────────────────────
 
-function CharStats({ sets }: { sets: SetRow[] }) {
-  // Compute character usage and win rates from real set data
-  const charMap: Record<string, { uses: number; wins: number }> = {}
+function CharStats({
+  sets,
+  entrants,
+  tournament,
+}: {
+  sets: SetRow[]
+  entrants: EntrantRow[]
+  tournament: TournamentInfo
+}) {
+  // ── 集計対象セットを絞り込む ──────────────────────────────────
+  const topPoolIds = [tournament.finalPoolIdentifier, tournament.top24PoolIdentifier]
+    .filter((id): id is string => !!id)
 
-  for (const s of sets) {
-    if (s.winnerCharacter) {
-      if (!charMap[s.winnerCharacter]) charMap[s.winnerCharacter] = { uses: 0, wins: 0 }
-      charMap[s.winnerCharacter].uses++
-      charMap[s.winnerCharacter].wins++
+  const isFiltered = topPoolIds.length > 0
+
+  const scopeSets = isFiltered
+    ? sets.filter(s => s.poolIdentifier && topPoolIds.includes(s.poolIdentifier))
+    : sets
+
+  // ── 出場したユニーク選手 ID を収集 ────────────────────────────
+  const playerIds = new Set<number>()
+  for (const s of scopeSets) {
+    if (s.winnerId) playerIds.add(s.winnerId)
+    if (s.loserId)  playerIds.add(s.loserId)
+  }
+
+  // ── 選手 ID → キャラ のマップ (entrants.player.character が第一優先) ──
+  const playerCharMap = new Map<number, string>()
+  for (const e of entrants) {
+    if (e.player?.id && e.player.character) {
+      playerCharMap.set(e.player.id, e.player.character)
     }
-    if (s.loserCharacter) {
-      if (!charMap[s.loserCharacter]) charMap[s.loserCharacter] = { uses: 0, wins: 0 }
-      charMap[s.loserCharacter].uses++
+  }
+  // フォールバック: セットの winner/loser character
+  for (const s of scopeSets) {
+    if (s.winnerId && !playerCharMap.has(s.winnerId) && s.winnerCharacter) {
+      playerCharMap.set(s.winnerId, s.winnerCharacter)
+    }
+    if (s.loserId  && !playerCharMap.has(s.loserId)  && s.loserCharacter)  {
+      playerCharMap.set(s.loserId, s.loserCharacter)
     }
   }
 
-  const stats = Object.entries(charMap)
-    .map(([char, { uses, wins }]) => ({
-      char, uses, winrate: uses > 0 ? Math.round((wins / uses) * 1000) / 10 : 0,
-    }))
-    .filter(c => c.uses >= 3)
-    .sort((a, b) => b.uses - a.uses)
-    .slice(0, 16)
+  // ── キャラ別使用人数を集計 (NULL キャラは除外) ────────────────
+  const charCount: Record<string, number> = {}
+  for (const pid of playerIds) {
+    const char = playerCharMap.get(pid)
+    if (char) charCount[char] = (charCount[char] ?? 0) + 1
+  }
 
-  const maxUses = Math.max(...stats.map(c => c.uses), 1)
+  const totalPlayers = Object.values(charCount).reduce((a, b) => a + b, 0)
+  const stats = Object.entries(charCount)
+    .map(([char, count]) => ({
+      char,
+      count,
+      pct: totalPlayers > 0 ? Math.round((count / totalPlayers) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.count - a.count)
+
+  const maxCount = Math.max(...stats.map(c => c.count), 1)
 
   if (stats.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '60px 0', color: T.dim, fontFamily: T.fDisplay }}>
-        キャラデータなし（tournament_sets に main_character データが必要です）
+        {isFiltered
+          ? 'Top 24 ブラケットのキャラデータなし'
+          : 'キャラデータなし（tournament_sets に main_character データが必要です）'}
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'grid', gap: 10 }}>
-      {stats.map((c, i) => {
-        const color = charColor(c.char)
-        return (
-          <div key={c.char} style={{
-            background: T.card, border: `1px solid ${T.border}`,
-            borderRadius: 10, padding: '16px 20px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10 }}>
-              <span style={{
-                fontFamily: T.fDisplay, fontSize: 14, fontWeight: 700, color: T.dim,
-                minWidth: 24, textAlign: 'center',
-              }}>{i + 1}</span>
-              <CharPill name={c.char} />
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 28 }}>
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div style={{
+          fontFamily: T.fDisplay, fontSize: 13, fontWeight: 800,
+          letterSpacing: '0.12em', textTransform: 'uppercase', color: T.accent,
+        }}>
+          {stats.length} キャラクター · {totalPlayers} 選手
+        </div>
+        {isFiltered && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {topPoolIds.map(pid => (
+              <span key={pid} style={{
+                fontFamily: T.fDisplay, fontSize: 10, fontWeight: 700,
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: T.muted, background: T.surface3,
+                border: `1px solid ${T.border}`, borderRadius: 4, padding: '2px 8px',
+              }}>
+                {pid === tournament.finalPoolIdentifier ? 'Top 8' : 'Top 24'} ({pid})
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Chart rows */}
+      <div style={{ display: 'grid', gap: 8 }}>
+        {stats.map((c, i) => {
+          const color = charColor(c.char)
+          const barPct = (c.count / maxCount) * 100
+          return (
+            <div key={c.char} style={{
+              background: T.card, border: `1px solid ${T.border}`,
+              borderRadius: 10, padding: '14px 20px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 8 }}>
+                {/* Rank */}
+                <span style={{
+                  fontFamily: T.fDisplay, fontSize: 13, fontWeight: 700, color: T.dim,
+                  minWidth: 22, textAlign: 'right', flexShrink: 0,
+                }}>{i + 1}</span>
+                {/* Char pill */}
+                <CharPill name={c.char} />
+                {/* Spacer */}
+                <div style={{ flex: 1 }} />
+                {/* Count */}
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontFamily: T.fDisplay, fontSize: 26, fontWeight: 800, color: T.text, lineHeight: 1 }}>
-                    {c.uses.toLocaleString()}
-                  </div>
-                  <div style={{ fontFamily: T.fDisplay, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: T.muted, textTransform: 'uppercase' }}>
-                    使用数
-                  </div>
+                  <span style={{
+                    fontFamily: T.fDisplay, fontSize: 24, fontWeight: 900,
+                    color: T.text, lineHeight: 1, letterSpacing: '-0.02em',
+                  }}>{c.count}</span>
+                  <span style={{
+                    fontFamily: T.fDisplay, fontSize: 11, fontWeight: 600,
+                    color: T.dim, marginLeft: 4, letterSpacing: '0.06em',
+                  }}>人</span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{
-                    fontFamily: T.fDisplay, fontSize: 26, fontWeight: 800, lineHeight: 1,
-                    color: c.winrate >= 52 ? T.green : c.winrate >= 50 ? T.text : T.muted,
-                  }}>
-                    {c.winrate}%
-                  </div>
-                  <div style={{ fontFamily: T.fDisplay, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', color: T.muted, textTransform: 'uppercase' }}>
-                    勝率
-                  </div>
+                {/* Percentage */}
+                <div style={{
+                  minWidth: 52, textAlign: 'right',
+                }}>
+                  <span style={{
+                    fontFamily: T.fDisplay, fontSize: 17, fontWeight: 800,
+                    color: c.pct >= 15 ? T.accent : T.muted,
+                    letterSpacing: '-0.01em',
+                  }}>{c.pct}%</span>
                 </div>
               </div>
-            </div>
-            <div style={{ height: 4, background: T.surface3, borderRadius: 4, overflow: 'hidden' }}>
+              {/* Progress bar */}
               <div style={{
-                height: '100%', borderRadius: 4,
-                width: `${(c.uses / maxUses) * 100}%`,
-                background: `linear-gradient(90deg, ${color}bb, ${color})`,
-                transition: 'width 0.8s ease',
-              }} />
+                height: 5, background: T.surface3, borderRadius: 4, overflow: 'hidden',
+                marginLeft: 36,
+              }}>
+                <div style={{
+                  height: '100%', borderRadius: 4,
+                  width: `${barPct}%`,
+                  background: `linear-gradient(90deg, ${color}99, ${color})`,
+                  transition: 'width 0.9s ease',
+                }} />
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+
+      {/* Footnote */}
+      <div style={{
+        marginTop: 18, fontFamily: T.fBody, fontSize: 11,
+        color: T.dim, letterSpacing: '0.02em',
+        borderTop: `1px solid ${T.border}`, paddingTop: 10,
+      }}>
+        ※ CPTポイント獲得圏内（Top 24）の選手が使用したキャラクターの分布
+        {!isFiltered && ' · 全セット対象（pool_identifier 未設定）'}
+      </div>
     </div>
   )
 }
@@ -1465,7 +1548,13 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
           />
         )}
         {activeTab === 'bracket'   && <BracketView sets={data.sets} />}
-        {activeTab === 'chars'     && <CharStats sets={data.sets} />}
+        {activeTab === 'chars'     && (
+          <CharStats
+            sets={data.sets}
+            entrants={data.entrants}
+            tournament={data.tournament}
+          />
+        )}
       </div>
     </div>
   )
