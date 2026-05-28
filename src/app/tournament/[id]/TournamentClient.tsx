@@ -307,14 +307,6 @@ function TabBar({ active, setActive, counts }: {
             marginBottom: -1,
           }}>
             {tab.label}
-            {(counts[tab.id] ?? 0) > 0 && (
-              <span style={{
-                marginLeft: 6, fontSize: 11, color: active === tab.id ? T.accent : T.dim,
-                fontWeight: 600,
-              }}>
-                ({counts[tab.id]})
-              </span>
-            )}
           </button>
         ))}
       </div>
