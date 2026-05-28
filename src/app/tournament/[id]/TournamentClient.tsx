@@ -293,21 +293,25 @@ function HeroSection({ data }: { data: TournamentData }) {
         </div>
       )}
 
-      {/* Text readability scrim (left→right) */}
+      {/* Symmetric scrim — readable in center, fades toward edges */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
-        background: 'linear-gradient(to right, rgba(8,12,16,0.95) 0%, rgba(14,31,36,0.75) 52%, rgba(14,31,36,0.10) 100%)',
+        background: 'linear-gradient(90deg, rgba(8,12,16,0.65) 0%, rgba(8,12,16,0.25) 50%, rgba(8,12,16,0.60) 100%)',
       }} />
-      {/* Accent glow blob */}
+      {/* Accent glow blob — centered */}
       <div style={{
-        position: 'absolute', top: -70, right: 120, width: 320, height: 320,
-        background: 'radial-gradient(circle, rgba(0,212,170,0.15) 0%, transparent 70%)',
+        position: 'absolute', top: -70, left: '50%', transform: 'translateX(-50%)',
+        width: 480, height: 480,
+        background: 'radial-gradient(circle, rgba(0,212,170,0.12) 0%, transparent 70%)',
         borderRadius: '50%', pointerEvents: 'none', zIndex: 2,
       }} />
 
-      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto' }}>
-        {/* Status + location row */}
-        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{
+        position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto',
+        textAlign: 'center',
+      }}>
+        {/* Status + badges row — centered */}
+        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'rgba(0,0,0,0.5)', border: `1px solid ${T.border2}`,
@@ -337,12 +341,12 @@ function HeroSection({ data }: { data: TournamentData }) {
           )}
         </div>
 
-        {/* Title — Archivo Black italic, trailing year as outline */}
+        {/* Title — Archivo Black italic, max-width for natural wrap */}
         <h1 style={{
           fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
-          fontSize: 'clamp(52px, 8vw, 88px)',
+          fontSize: 'clamp(48px, 8vw, 88px)',
           lineHeight: 0.96, letterSpacing: '-0.02em',
-          color: T.text, margin: '0 0 14px',
+          color: T.text, margin: '0 auto 14px', maxWidth: 800,
           textShadow: '0 6px 28px rgba(0,0,0,0.55)',
         }}>
           {nameBase}
@@ -368,15 +372,15 @@ function HeroSection({ data }: { data: TournamentData }) {
         {(tournament.startDate || tournament.endDate) && (
           <p style={{
             fontFamily: T.fDisplay, fontSize: 15, fontWeight: 500,
-            color: T.muted, letterSpacing: '0.04em', margin: '16px 0 36px',
+            color: T.muted, letterSpacing: '0.04em', margin: '14px 0 36px',
           }}>
             {fmtDate(tournament.startDate)}
             {tournament.endDate && tournament.endDate !== tournament.startDate && ` – ${fmtDate(tournament.endDate)}`}
           </p>
         )}
 
-        {/* Stat boxes */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {/* Stat boxes — centered */}
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
           <StatCard value={displayEntrants}                label="参加者数" />
           <StatCard value={displayMatches}                 label="総試合数" />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
