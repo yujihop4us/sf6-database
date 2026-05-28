@@ -65,6 +65,21 @@ function fmtPrize(usd: number | null): string {
   return '$' + usd.toLocaleString()
 }
 
+// ─── CPT Premier ──────────────────────────────────────────────────
+// Tournament IDs that use the CPT Premier points scale
+const CPT_PREMIER_IDS = new Set([48])  // 48 = Combo Breaker 2026
+
+// Points by placement (1st = CC seat, no points value in this table)
+const CPT_PREMIER_POINTS: Record<number, number> = {
+  2: 300, 3: 250, 4: 200,
+  5: 150, 6: 150,
+  7: 100, 8: 100,
+  9: 50, 10: 50, 11: 50, 12: 50,
+  13: 30, 14: 30, 15: 30, 16: 30,
+  17: 20, 18: 20, 19: 20, 20: 20, 21: 20, 22: 20, 23: 20, 24: 20,
+  25: 10, 26: 10, 27: 10, 28: 10, 29: 10, 30: 10, 31: 10, 32: 10,
+}
+
 function fmtDate(d: string | null): string {
   if (!d) return ''
   return new Date(d).toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' })
@@ -298,11 +313,18 @@ function TabBar({ active, setActive, counts }: {
 
 type SortKey = 'placement' | 'handle' | 'wins' | 'losses'
 
-function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
+function StandingsTable({
+  entrants,
+  isCptPremier = false,
+}: {
+  entrants: EntrantRow[]
+  isCptPremier?: boolean
+}) {
   const [sortKey, setSortKey] = useState<SortKey>('placement')
   const [asc, setAsc] = useState(true)
   const [search, setSearch] = useState('')
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
+  const [showAll, setShowAll] = useState(false)
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setAsc(a => !a)
@@ -311,7 +333,7 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
 
   const hasAnyPlacement = entrants.some(e => e.placement !== null || e.inferredPlacement !== null)
 
-  const sorted = [...entrants]
+  const allSorted = [...entrants]
     .filter(e => e.player && e.player.handle.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
       const p = a.player!, q = b.player!
@@ -323,6 +345,14 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
       else if (sortKey === 'losses') diff = p.losses - q.losses
       return asc ? diff : -diff
     })
+
+  // CPT Premier: limit to top 32 by default (CPT point range)
+  const CPT_LIMIT = 32
+  const cappedForCpt = isCptPremier && !showAll && search === ''
+  const sorted = cappedForCpt
+    ? allSorted.filter(e => (effectivePlacement(e) ?? 9999) <= CPT_LIMIT)
+    : allSorted
+  const hiddenCount = cappedForCpt ? allSorted.length - sorted.length : 0
 
   const SortTh = ({ id, label, align = 'left' }: { id: SortKey; label: string; align?: string }) => (
     <th onClick={() => handleSort(id)} style={{
@@ -375,6 +405,7 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
                 <SortTh id="wins"   label="W" align="center" />
                 <SortTh id="losses" label="L" align="center" />
                 <StaticTh label="入賞"    align="center" />
+                {isCptPremier && <StaticTh label="CPT"   align="center" />}
                 <StaticTh label="賞金"    align="right" />
               </tr>
             </thead>
@@ -386,6 +417,7 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
                 const eff = effectivePlacement(e)
                 const isInferred = e.placement === null && e.inferredPlacement !== null
                 const medal = eff === 1 ? '🥇' : eff === 2 ? '🥈' : eff === 3 ? '🥉' : null
+                const cptPts = isCptPremier ? (eff === 1 ? null : (eff ? CPT_PREMIER_POINTS[eff] ?? 0 : 0)) : null
 
                 return (
                   <tr
@@ -467,21 +499,50 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
                     </td>
                     {/* Placement label */}
                     <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                      <span
-                        title={isInferred ? 'セットデータから推定 (*)' : undefined}
-                        style={{
-                          fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
+                      {eff === 1 ? (
+                        <span style={{
+                          fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
                           letterSpacing: '0.06em', textTransform: 'uppercase',
-                          color: placementColor(eff),
-                          padding: '2px 8px', borderRadius: 4,
-                          background: `${placementColor(eff)}18`,
-                          border: `1px solid ${placementColor(eff)}40`,
-                          opacity: isInferred ? 0.8 : 1,
-                          cursor: isInferred ? 'help' : 'default',
+                          color: T.accent, padding: '3px 8px', borderRadius: 4,
+                          background: `${T.accent}20`, border: `1px solid ${T.accent}60`,
+                          whiteSpace: 'nowrap',
                         }}>
-                        {placementLabel(eff, isInferred)}
-                      </span>
+                          🏆 CC出場権
+                        </span>
+                      ) : (
+                        <span
+                          title={isInferred ? 'セットデータから推定 (*)' : undefined}
+                          style={{
+                            fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
+                            letterSpacing: '0.06em', textTransform: 'uppercase',
+                            color: placementColor(eff),
+                            padding: '2px 8px', borderRadius: 4,
+                            background: `${placementColor(eff)}18`,
+                            border: `1px solid ${placementColor(eff)}40`,
+                            opacity: isInferred ? 0.8 : 1,
+                            cursor: isInferred ? 'help' : 'default',
+                          }}>
+                          {placementLabel(eff, isInferred)}
+                        </span>
+                      )}
                     </td>
+                    {/* CPT points */}
+                    {isCptPremier && (
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        {eff === 1 ? (
+                          <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.accent, fontWeight: 700 }}>—</span>
+                        ) : cptPts ? (
+                          <span style={{
+                            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
+                            color: cptPts >= 100 ? T.gold : cptPts >= 50 ? '#60a5fa' : T.muted,
+                          }}>
+                            {cptPts}
+                          </span>
+                        ) : (
+                          <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: T.dim }}>—</span>
+                        )}
+                      </td>
+                    )}
                     {/* Prize */}
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <span style={{ fontFamily: T.fDisplay, fontSize: 14, fontWeight: 600, color: T.muted }}>
@@ -495,15 +556,47 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
           </table>
         </div>
       </div>
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+
+      {/* Show all / summary footer */}
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.dim, letterSpacing: '0.06em' }}>
-          {sorted.length} / {entrants.length} 選手
+          {sorted.length} / {entrants.length} 選手表示
         </span>
-        {!hasAnyPlacement && entrants.length > 0 && (
-          <span style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim }}>
-            * 順位はセットデータから推定（DBに正式な順位データなし）
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          {!hasAnyPlacement && entrants.length > 0 && (
+            <span style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim }}>
+              * 順位はセットデータから推定（DBに正式な順位データなし）
+            </span>
+          )}
+          {cappedForCpt && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              style={{
+                fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: T.accent, background: 'transparent',
+                border: `1px solid ${T.accent}50`, borderRadius: 6,
+                padding: '5px 14px', cursor: 'pointer',
+              }}
+            >
+              全選手を表示 (+{hiddenCount})
+            </button>
+          )}
+          {showAll && isCptPremier && (
+            <button
+              onClick={() => setShowAll(false)}
+              style={{
+                fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: T.muted, background: 'transparent',
+                border: `1px solid ${T.border}`, borderRadius: 6,
+                padding: '5px 14px', cursor: 'pointer',
+              }}
+            >
+              CPTポイント圏のみ
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1332,7 +1425,12 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
       <TabBar active={activeTab} setActive={setActiveTab} counts={counts} />
 
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 32px 100px' }}>
-        {activeTab === 'standings' && <StandingsTable entrants={data.entrants} />}
+        {activeTab === 'standings' && (
+          <StandingsTable
+            entrants={data.entrants}
+            isCptPremier={CPT_PREMIER_IDS.has(data.tournament.id)}
+          />
+        )}
         {activeTab === 'bracket'   && <BracketView sets={data.sets} />}
         {activeTab === 'chars'     && <CharStats sets={data.sets} />}
       </div>

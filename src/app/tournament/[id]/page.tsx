@@ -18,6 +18,7 @@ type PlayerRow = {
 const TOURNAMENT_REAL_STATS: Record<number, { numEntrants: number; totalSets: number }> = {
   40: { numEntrants: 7683, totalSets: 15364 },  // EVO Japan 2026
   34: { numEntrants: 4026, totalSets: 8049  },  // EVO Japan 2025
+  48: { numEntrants: 1452, totalSets: 1361  },  // Combo Breaker 2026
 }
 
 async function fetchTournamentData(id: string): Promise<TournamentData | null> {
@@ -108,39 +109,24 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
 
   // ── Infer placement from sets when DB placement is null ──────────
   // Strategy for double-elimination brackets:
-  //   1st = Grand Final winner
-  //   2nd = Grand Final loser
-  //   3rd+ = losers bracket, ranked by when the set occurred
+  //   1st = Grand Final winner, 2nd = Grand Final loser
+  //   3rd+ = assigned by losers-bracket round depth (deepest = best)
   //
-  // Ranking approach:
-  //   - "Losers Final" and "Losers Semi-Final" are unique rounds (fixed).
-  //     They rank above all numbered / quarter-final rounds.
-  //   - All other losers rounds (Losers Quarter-Final, Losers Round N) are
-  //     grouped by (round_text, cluster).  A cluster = sets of the same
-  //     round_text whose IDs are within CLUSTER_GAP of each other.
-  //   - Groups are sorted by their maximum set ID descending.
-  //     Later sets (higher ID) = deeper in the bracket = better placement.
-  //   - Players eliminated in the same cluster share the same placement (tie).
+  // When pool_identifier is available (post 2026 imports), phases are identified
+  // precisely by pool_identifier (e.g. VVX15 = Top 8, PX133 = Top 24).
+  // This avoids the re-imported-high-ID problem that broke the old cluster logic.
   //
-  // This handles multi-phase formats (e.g. pools → Top 8) where the same
-  // round_text string appears in multiple bracket phases, because each phase
-  // produces a distinct cluster of set IDs.
+  // Falls back to original cluster-based logic for older tournaments without
+  // pool_identifier data.
   function inferPlacements(
     sets: typeof setList,
     entrantPlayerIds: number[],
   ): Map<number, number> {
     if (sets.length === 0) return new Map()
 
-    // Helpers ─────────────────────────────────────────────────────────────
-    function isLosersRound(rt: string | null): boolean {
-      return /losers/i.test(rt ?? '')
-    }
-    function isGFRound(rt: string | null): boolean {
-      return /grand final/i.test(rt ?? '')
-    }
-    // Returns a depth value for losers rounds.
+    // Shared helper: named depth for losers-bracket rounds.
     // Losers Final=100, Losers Semi-Final=90, Losers Quarter-Final=80,
-    // Losers Round N = 60+N.  Returns null for non-losers rounds.
+    // Losers Round N = 60+N.  Returns null for non-losers / non-named rounds.
     function namedDepth(rt: string | null): number | null {
       if (/losers final$/i.test(rt ?? ''))          return 100
       if (/losers semi.?final/i.test(rt ?? ''))     return 90
@@ -149,145 +135,168 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       if (m) return 60 + parseInt(m[1], 10)
       return null
     }
-    // "Fixed" named rounds appear exactly once in the final bracket
-    // (Losers Final, Losers Semi-Final).  They don't need clustering.
-    function isFixedNamedRound(rt: string | null): boolean {
-      return /losers final$/i.test(rt ?? '') ||
-             /losers semi.?final/i.test(rt ?? '')
-    }
 
-    // Sort all completed sets by ID (ascending = chronological)
-    const sorted = [...sets]
+    const placementMap = new Map<number, number>()
+    const completed = [...sets]
       .filter(s => s.winner_id !== null || s.loser_id !== null)
       .sort((a, b) => a.id - b.id)
 
     // ── 1st & 2nd: Grand Final ──────────────────────────────────────
-    const gfSets = sorted.filter(s => isGFRound(s.round_text))
-    // Prefer Grand Final Reset (played after main GF) when it has a winner.
-    const gfReset = [...gfSets].reverse().find(
-      s => /reset/i.test(s.round_text ?? '') && s.winner_id !== null,
-    )
-    const gfMain = [...gfSets].reverse().find(
-      s => !/reset/i.test(s.round_text ?? '') && s.winner_id !== null,
-    )
-    const gfFinal  = gfReset ?? gfMain
-    const gfWinner = gfFinal?.winner_id ?? null
-    const gfLoser  = gfFinal?.loser_id  ?? null
+    const gfAll = completed.filter(s => /grand final/i.test(s.round_text ?? ''))
+    const gfFinal =
+      [...gfAll].reverse().find(s => /reset/i.test(s.round_text ?? '') && s.winner_id !== null) ??
+      [...gfAll].reverse().find(s => !/reset/i.test(s.round_text ?? '') && s.winner_id !== null)
+    if (!gfFinal) return placementMap
+    if (gfFinal.winner_id) placementMap.set(gfFinal.winner_id, 1)
+    if (gfFinal.loser_id)  placementMap.set(gfFinal.loser_id,  2)
 
-    const placementMap = new Map<number, number>()
-    if (gfWinner) placementMap.set(gfWinner, 1)
-    if (gfLoser)  placementMap.set(gfLoser,  2)
+    // ════════════════════════════════════════════════════════════════
+    // PATH A: pool_identifier available → precise phase detection
+    // ════════════════════════════════════════════════════════════════
+    const top8PoolId = gfFinal.pool_identifier
+    if (top8PoolId !== null) {
+      const top8Sets  = completed.filter(s => s.pool_identifier === top8PoolId)
+      const top8MinId = top8Sets.length > 0 ? Math.min(...top8Sets.map(s => s.id)) : Infinity
 
-    // ── 3rd+: losers bracket ────────────────────────────────────────
-    // Step 1: For each player, find their FINAL losers-side loss.
-    //   Priority: deeper named round beats shallower; named beats numbered;
-    //   among numbered rounds, later set ID wins.
-    const finalLossRound: Record<number, string | null> = {}  // round_text
-    const finalLossSetId: Record<number, number>        = {}  // set ID
+      // Find penultimate phase (Top 24): small pool with highest maxId,
+      // excluding re-imported sets with id ≥ top8MinId.
+      const poolStats = new Map<string, { maxId: number; count: number }>()
+      for (const s of completed) {
+        if (!s.pool_identifier || s.pool_identifier === top8PoolId || s.id >= top8MinId) continue
+        const st = poolStats.get(s.pool_identifier)
+        if (!st) poolStats.set(s.pool_identifier, { maxId: s.id, count: 1 })
+        else { st.maxId = Math.max(st.maxId, s.id); st.count++ }
+      }
+      const threshold   = Math.max(top8Sets.length * 3, 25)
+      const top24Entry  = [...poolStats.entries()]
+        .filter(([, st]) => st.count <= threshold)
+        .sort((a, b) => b[1].maxId - a[1].maxId)[0]
+      const top24PoolId = top24Entry?.[0] ?? null
+      const top24Sets   = top24PoolId ? completed.filter(s => s.pool_identifier === top24PoolId) : []
 
-    for (const s of sorted) {
-      if (!isLosersRound(s.round_text) || s.loser_id === null) continue
-      const pid      = s.loser_id
-      const depth    = namedDepth(s.round_text)
-      const prevDepth = namedDepth(finalLossRound[pid] ?? null)
-
-      if (prevDepth === null && depth !== null) {
-        // Named beats unnamed
-        finalLossRound[pid] = s.round_text
-        finalLossSetId[pid] = s.id
-      } else if (prevDepth !== null && depth !== null) {
-        // Both named: take deeper
-        if (depth > prevDepth) {
-          finalLossRound[pid] = s.round_text
-          finalLossSetId[pid] = s.id
+      // Assign placements from losers-bracket rounds of a phase.
+      // Rounds sorted deepest-first → deepest losers are best-placed.
+      function assignLosers(phaseSets: typeof setList, startRank: number): number {
+        const byRound = new Map<string, Set<number>>()
+        for (const s of phaseSets) {
+          if (!s.loser_id || placementMap.has(s.loser_id)) continue
+          if (!/losers/i.test(s.round_text ?? '')) continue  // winners-bracket: not eliminated
+          const rt = s.round_text ?? ''
+          if (!byRound.has(rt)) byRound.set(rt, new Set())
+          byRound.get(rt)!.add(s.loser_id)
         }
-      } else if (prevDepth === null && depth === null) {
-        // Both numbered: take higher set ID
-        if (s.id > (finalLossSetId[pid] ?? -1)) {
-          finalLossRound[pid] = s.round_text
-          finalLossSetId[pid] = s.id
+        const sortedRounds = [...byRound.entries()]
+          .sort((a, b) => (namedDepth(b[0]) ?? 0) - (namedDepth(a[0]) ?? 0))
+        let rank = startRank
+        for (const [, players] of sortedRounds) {
+          for (const pid of players) {
+            if (!placementMap.has(pid)) placementMap.set(pid, rank)
+          }
+          rank += players.size
+        }
+        return rank
+      }
+
+      // Top 8 → 3rd–8th; Top 24 → 9th–24th
+      let nextRank = assignLosers(top8Sets, 3)
+      if (top24Sets.length > 0) nextRank = assignLosers(top24Sets, nextRank)
+
+      // Remaining pool players: rank by phase depth
+      // (Round 3 > Round 2 > Round 1 > generic pools)
+      const PHASE_DEPTH: Record<string, number> = { 'Round 3': 30, 'Round 2': 20, 'Round 1': 10 }
+      const playerBest = new Map<number, { depth: number; maxId: number }>()
+      for (const s of completed) {
+        if (s.pool_identifier === top8PoolId || s.pool_identifier === top24PoolId) continue
+        const depth = PHASE_DEPTH[s.phase_name ?? ''] ?? 5
+        for (const pid of [s.winner_id, s.loser_id] as (number | null)[]) {
+          if (!pid || placementMap.has(pid)) continue
+          const cur = playerBest.get(pid)
+          if (!cur || depth > cur.depth || (depth === cur.depth && s.id > cur.maxId)) {
+            playerBest.set(pid, { depth, maxId: s.id })
+          }
         }
       }
-      // Named prevDepth + unnamed current → skip (named is always better)
+      // Group ties by phase depth, assign placements depth-descending
+      const remaining = entrantPlayerIds.filter(pid => !placementMap.has(pid))
+      const depthGroups = new Map<number, number[]>()
+      for (const pid of remaining) {
+        const d = playerBest.get(pid)?.depth ?? 0
+        if (!depthGroups.has(d)) depthGroups.set(d, [])
+        depthGroups.get(d)!.push(pid)
+      }
+      for (const d of [...depthGroups.keys()].sort((a, b) => b - a)) {
+        const group = depthGroups.get(d)!
+        for (const pid of group) placementMap.set(pid, nextRank)
+        nextRank += group.length
+      }
+      return placementMap
     }
 
-    // Step 2: Build clusters for non-fixed losers rounds.
-    //   A cluster = consecutive set IDs (gap ≤ CLUSTER_GAP) with the same
-    //   round_text.  Each cluster represents one "wave" of that round in a
-    //   phase.  We store sorted IDs per round_text to detect clusters.
+    // ════════════════════════════════════════════════════════════════
+    // PATH B: no pool_identifier → original cluster-based fallback
+    // (for older tournaments imported before pool_identifier was saved)
+    // ════════════════════════════════════════════════════════════════
+    function isLosersRound(rt: string | null): boolean { return /losers/i.test(rt ?? '') }
+    function isFixedNamedRound(rt: string | null): boolean {
+      return /losers final$/i.test(rt ?? '') || /losers semi.?final/i.test(rt ?? '')
+    }
+
+    const finalLossRound: Record<number, string | null> = {}
+    const finalLossSetId: Record<number, number>        = {}
+    for (const s of completed) {
+      if (!isLosersRound(s.round_text) || s.loser_id === null) continue
+      const pid       = s.loser_id
+      const depth     = namedDepth(s.round_text)
+      const prevDepth = namedDepth(finalLossRound[pid] ?? null)
+      if (prevDepth === null && depth !== null) {
+        finalLossRound[pid] = s.round_text; finalLossSetId[pid] = s.id
+      } else if (prevDepth !== null && depth !== null && depth > prevDepth) {
+        finalLossRound[pid] = s.round_text; finalLossSetId[pid] = s.id
+      } else if (prevDepth === null && depth === null && s.id > (finalLossSetId[pid] ?? -1)) {
+        finalLossRound[pid] = s.round_text; finalLossSetId[pid] = s.id
+      }
+    }
+
     const CLUSTER_GAP = 20
     const roundIdMap = new Map<string, number[]>()
-    for (const s of sorted) {
+    for (const s of completed) {
       const rt = s.round_text ?? ''
       if (!isLosersRound(rt) || isFixedNamedRound(rt)) continue
       if (!roundIdMap.has(rt)) roundIdMap.set(rt, [])
       roundIdMap.get(rt)!.push(s.id)
     }
-
-    // Given a round_text and a setId, return the max setId in the same cluster.
-    function getClusterMaxId(rt: string, setId: number): number {
+    function getClusterBound(rt: string, setId: number, wantMax: boolean): number {
       const ids = roundIdMap.get(rt) ?? [setId]
       let clusterStart = 0
       for (let i = 1; i <= ids.length; i++) {
         const atEnd = i === ids.length || ids[i] - ids[i - 1] > CLUSTER_GAP
         if (atEnd) {
-          if (ids[clusterStart] <= setId && setId <= ids[i - 1]) return ids[i - 1]
+          if (ids[clusterStart] <= setId && setId <= ids[i - 1])
+            return wantMax ? ids[i - 1] : ids[clusterStart]
           clusterStart = i
         }
       }
       return setId
     }
 
-    // Also need cluster min for grouping players into the same tie group.
-    function getClusterMinId(rt: string, setId: number): number {
-      const ids = roundIdMap.get(rt) ?? [setId]
-      let clusterStart = 0
-      for (let i = 1; i <= ids.length; i++) {
-        const atEnd = i === ids.length || ids[i] - ids[i - 1] > CLUSTER_GAP
-        if (atEnd) {
-          if (ids[clusterStart] <= setId && setId <= ids[i - 1]) return ids[clusterStart]
-          clusterStart = i
-        }
-      }
-      return setId
-    }
-
-    // Step 3: Assign a group key and a sort score to each player.
-    //   Group key = (round_text, cluster_min)  → same key = same placement (tie).
-    //   Sort score = cluster max setId for non-fixed rounds,
-    //                depth × 10_000_000 for fixed named rounds (LF/LSF) so they
-    //                always rank above any numbered/QF round.
-    const playerGroupKey:   Record<number, string> = {}
-    const groupSortScore:   Record<string, number> = {}
-
+    const playerGroupKey:  Record<number, string> = {}
+    const groupSortScore:  Record<string, number> = {}
     for (const pid of Object.keys(finalLossRound).map(Number)) {
       if (placementMap.has(pid)) continue
       const rt  = finalLossRound[pid] ?? ''
       const sid = finalLossSetId[pid] ?? 0
-
-      let gk: string
-      let score: number
-
+      let gk: string; let score: number
       if (isFixedNamedRound(rt)) {
-        // Losers Final or Losers Semi-Final: unique across the bracket
         const d = namedDepth(rt) ?? 0
-        gk    = `fixed:${d}`
-        score = d * 10_000_000  // e.g. LF → 1 000 000 000, LSF → 900 000 000
+        gk = `fixed:${d}`; score = d * 10_000_000
       } else {
-        // LQF or Losers Round N: cluster by proximity
-        const clMin = getClusterMinId(rt, sid)
-        const clMax = getClusterMaxId(rt, sid)
-        gk    = `${rt}:${clMin}`
-        score = clMax
+        gk    = `${rt}:${getClusterBound(rt, sid, false)}`
+        score = getClusterBound(rt, sid, true)
       }
-
       playerGroupKey[pid] = gk
-      if (groupSortScore[gk] === undefined || score > groupSortScore[gk]) {
-        groupSortScore[gk] = score
-      }
+      if (groupSortScore[gk] === undefined || score > groupSortScore[gk]) groupSortScore[gk] = score
     }
 
-    // Step 4: Build groups and sort by sort score descending.
     const groups = new Map<string, number[]>()
     for (const pid of Object.keys(finalLossRound).map(Number)) {
       if (placementMap.has(pid)) continue
@@ -295,22 +304,15 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       if (!groups.has(gk)) groups.set(gk, [])
       groups.get(gk)!.push(pid)
     }
-
-    const sortedGroupKeys = [...groups.keys()]
-      .sort((a, b) => groupSortScore[b] - groupSortScore[a])
-
     let rank = 3
-    for (const gk of sortedGroupKeys) {
+    for (const gk of [...groups.keys()].sort((a, b) => groupSortScore[b] - groupSortScore[a])) {
       const group = groups.get(gk)!
       for (const pid of group) placementMap.set(pid, rank)
       rank += group.length
     }
-
-    // Fill remaining entrants (those with no losers sets recorded)
     for (const pid of entrantPlayerIds) {
       if (!placementMap.has(pid)) placementMap.set(pid, rank++)
     }
-
     return placementMap
   }
 

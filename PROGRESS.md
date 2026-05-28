@@ -17,6 +17,37 @@
 
 ## 最新の作業ログ
 
+### 2026-05-28 — 順位表修正 + CPT ポイント + 賞金表示 + 参加者数修正
+
+**対象:** `src/app/tournament/[id]/page.tsx`, `src/app/tournament/[id]/TournamentClient.tsx`
+
+#### 修正内容
+
+**1. inferPlacements 書き直し（pool_identifier ベース）**
+- Path A: `pool_identifier` が利用可能な場合（CB2026 以降）
+  - GF の `pool_identifier` で Top 8（VVX15）を特定
+  - `top8MinId` フィルタで Top 24（PX133）を特定（再インポート高IDセット除外）
+  - `assignLosers()` : losers ラウンドを namedDepth 降順でソートし rank 割り当て
+  - Top 8: 3rd–8th, Top 24: 9th–24th を正確に割り当て
+  - 残り: phase_name 深さ（Round 3 > Round 2 > Round 1）でグループタイ
+- Path B: `pool_identifier = null` の旧トーナメントは従来のクラスター方式を維持
+- 動作確認: CB2026 全1–24位が Liquipedia 結果と完全一致
+
+**2. CPT Premier ポイント追加（TournamentClient.tsx）**
+- `CPT_PREMIER_IDS`（tournament id の Set）と `CPT_PREMIER_POINTS`（順位→ポイント対応表）を定義
+- StandingsTable に `isCptPremier` prop 追加
+- CPT Premier 大会は: 32位以内のみデフォルト表示、CPT ポイント列追加、1位に「🏆 CC出場権」バッジ
+- 「全選手を表示」ボタンで 33位以降を展開可能
+
+**3. 賞金総額 DB 更新**
+- `UPDATE tournaments SET total_prize_usd = 19720 WHERE id = 48` → $19,720 表示
+
+**4. 参加者数修正**
+- TOURNAMENT_REAL_STATS に `48: { numEntrants: 1452, totalSets: 1361 }` 追加
+- Supabase anon キーの 1000行上限を回避し正確な 1452 を表示
+
+---
+
 ### 2026-05-28 — Top 24 データ backfill + タイムライン 2フェーズ表示
 
 **対象:** `scripts/import-sets.js`, `src/app/tournament/[id]/TournamentClient.tsx`
