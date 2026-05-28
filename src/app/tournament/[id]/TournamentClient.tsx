@@ -132,7 +132,8 @@ function CharPill({ name }: { name: string | null }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
-      background: `${color}18`, border: `1px solid ${color}40`,
+      background: 'rgba(255,255,255,0.07)',
+      border: `1px solid rgba(255,255,255,0.12)`,
       borderRadius: 4, padding: '2px 8px',
       fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
       letterSpacing: '0.06em', textTransform: 'uppercase',
@@ -145,6 +146,7 @@ function CharPill({ name }: { name: string | null }) {
 
 function StatCard({ value, label }: { value: string | number; label: string }) {
   const [displayed, setDisplayed] = useState(0)
+  const [hovered, setHovered] = useState(false)
   const isNum = typeof value === 'number'
 
   useEffect(() => {
@@ -161,24 +163,28 @@ function StatCard({ value, label }: { value: string | number; label: string }) {
   }, [value, isNum])
 
   return (
-    <div style={{
-      background: T.card, border: `1px solid ${T.border}`,
-      borderRadius: 10, padding: '20px 24px',
-      flex: '1 1 130px', minWidth: 130,
-      transition: 'border-color 0.2s',
-    }}
-    onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(0,212,170,0.25)')}
-    onMouseLeave={e => (e.currentTarget.style.borderColor = T.border)}
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: 'linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+        border: `1px solid ${hovered ? 'rgba(0,212,170,0.35)' : T.border}`,
+        borderRadius: 12, padding: '22px 28px',
+        flex: '1 1 140px', minWidth: 140,
+        transform: hovered ? 'scale(1.02)' : 'scale(1)',
+        transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
+        boxShadow: hovered ? '0 4px 24px rgba(0,212,170,0.10)' : 'none',
+      }}
     >
       <div style={{
-        fontFamily: T.fDisplay, fontSize: 40, fontWeight: 900,
-        lineHeight: 1, color: T.accent, letterSpacing: '-0.02em', marginBottom: 6,
+        fontFamily: T.fDisplay, fontSize: 48, fontWeight: 900,
+        lineHeight: 1, color: T.accent, letterSpacing: '-0.03em', marginBottom: 8,
       }}>
         {isNum ? displayed.toLocaleString() : value}
       </div>
       <div style={{
         fontFamily: T.fDisplay, fontSize: 11, fontWeight: 600,
-        letterSpacing: '0.12em', textTransform: 'uppercase', color: T.muted,
+        letterSpacing: '0.14em', textTransform: 'uppercase', color: T.muted,
       }}>
         {label}
       </div>
@@ -198,16 +204,16 @@ function HeroSection({ data }: { data: TournamentData }) {
   return (
     <div style={{
       position: 'relative', overflow: 'hidden',
-      background: `linear-gradient(150deg, #0f3040 0%, ${T.hero} 40%, ${T.bg} 80%)`,
-      padding: '56px 32px 52px',
+      background: 'linear-gradient(135deg, #060d1a 0%, #0d1f35 40%, #0a1628 100%)',
+      padding: '64px 32px 56px',
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* Scanline texture */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
-        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px)',
+        backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px)',
       }} />
-      {/* Tournament logo watermark (right side, very subtle) */}
+      {/* Tournament logo watermark */}
       {tournament.logoUrl && (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0,
@@ -215,50 +221,74 @@ function HeroSection({ data }: { data: TournamentData }) {
           backgroundSize: 'contain',
           backgroundRepeat: 'no-repeat',
           backgroundPosition: 'right center',
-          opacity: 0.10,
+          opacity: 0.11,
         }} />
       )}
+      {/* Left-to-right depth gradient (ensures text readability over logo) */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
+        background: 'linear-gradient(to right, rgba(6,13,26,0.92) 0%, rgba(16,24,40,0.70) 55%, rgba(16,24,40,0.20) 100%)',
+      }} />
       {/* Accent glow */}
       <div style={{
-        position: 'absolute', top: -80, right: 60, width: 360, height: 360,
-        background: 'radial-gradient(circle, rgba(0,212,170,0.08) 0%, transparent 70%)',
-        borderRadius: '50%', pointerEvents: 'none',
+        position: 'absolute', top: -100, right: 80, width: 480, height: 480,
+        background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 65%)',
+        borderRadius: '50%', pointerEvents: 'none', zIndex: 1,
       }} />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 1200, margin: '0 auto' }}>
-        {/* Status badge */}
-        <div style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ position: 'relative', zIndex: 2, maxWidth: 1200, margin: '0 auto' }}>
+        {/* Status + location row */}
+        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            background: 'rgba(0,0,0,0.5)', border: `1px solid ${T.border2}`,
-            borderRadius: 20, padding: '4px 14px',
-            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
-            letterSpacing: '0.14em', textTransform: 'uppercase', color: T.accent,
+            display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 20, padding: '5px 16px',
+            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
+            letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.75)',
           }}>
             <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: T.red,
-              display: 'inline-block', animation: 'sf6-pulse-dot 1.5s ease-in-out infinite',
+              width: 7, height: 7, borderRadius: '50%', background: '#ef4444',
+              display: 'inline-block', flexShrink: 0,
+              boxShadow: '0 0 6px rgba(239,68,68,0.8)',
             }} />
             CONCLUDED
           </span>
+          {tournament.cptEventType === 'premier' && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(234,179,8,0.12)', border: '1px solid rgba(234,179,8,0.35)',
+              borderRadius: 20, padding: '5px 14px',
+              fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
+              letterSpacing: '0.14em', textTransform: 'uppercase', color: '#fbbf24',
+            }}>
+              ★ CPT PREMIER
+            </span>
+          )}
           {tournament.location && (
-            <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.muted, letterSpacing: '0.05em' }}>
+            <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: 'rgba(255,255,255,0.45)', letterSpacing: '0.05em' }}>
               {tournament.location}
             </span>
           )}
         </div>
 
         {/* Title */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 18, flexWrap: 'wrap', marginBottom: 8 }}>
+        <div style={{ marginBottom: 12 }}>
           <h1 style={{
-            fontFamily: T.fDisplay, fontWeight: 900, fontSize: 'clamp(52px, 8vw, 80px)',
-            lineHeight: 1, letterSpacing: '-0.03em', color: T.text, margin: 0,
+            fontFamily: T.fDisplay, fontWeight: 900,
+            fontSize: 'clamp(56px, 9vw, 96px)',
+            lineHeight: 0.95, letterSpacing: '-0.02em',
+            color: '#ffffff', margin: '0 0 14px',
+            textShadow: '0 2px 20px rgba(0,0,0,0.5)',
           }}>
             {tournament.name}
           </h1>
           <span style={{
-            fontFamily: T.fDisplay, fontWeight: 600, fontSize: 22,
-            color: T.accent, letterSpacing: '0.04em',
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'rgba(16,185,129,0.15)',
+            border: '1px solid rgba(16,185,129,0.40)',
+            borderRadius: 6, padding: '4px 12px',
+            fontFamily: T.fDisplay, fontWeight: 700, fontSize: 13,
+            color: '#10B981', letterSpacing: '0.10em', textTransform: 'uppercase',
           }}>
             Street Fighter 6
           </span>
@@ -267,8 +297,9 @@ function HeroSection({ data }: { data: TournamentData }) {
         {/* Date */}
         {(tournament.startDate || tournament.endDate) && (
           <p style={{
-            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 500,
-            color: T.muted, letterSpacing: '0.04em', marginBottom: 40,
+            fontFamily: T.fDisplay, fontSize: 16, fontWeight: 500,
+            color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em',
+            marginBottom: 44, marginTop: 10,
           }}>
             {fmtDate(tournament.startDate)}
             {tournament.endDate && tournament.endDate !== tournament.startDate && ` – ${fmtDate(tournament.endDate)}`}
@@ -276,7 +307,7 @@ function HeroSection({ data }: { data: TournamentData }) {
         )}
 
         {/* Stat boxes */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           <StatCard value={displayEntrants}                label="参加者数" />
           <StatCard value={displayMatches}                 label="総試合数" />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
@@ -313,7 +344,7 @@ function TabBar({ active, setActive, counts }: {
             fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
             letterSpacing: '0.08em', textTransform: 'uppercase',
             color: active === tab.id ? T.accent : T.muted,
-            borderBottom: `2px solid ${active === tab.id ? T.accent : 'transparent'}`,
+            borderBottom: `3px solid ${active === tab.id ? T.accent : 'transparent'}`,
             transition: 'color 0.15s, border-color 0.15s',
             marginBottom: -1,
           }}>
@@ -435,14 +466,18 @@ function StandingsTable({
                 const cptPts = isCptPremier ? (eff === 1 ? null : (eff ? CPT_PREMIER_POINTS[eff] ?? 0 : 0)) : null
                 const prizeAmt = eff ? prizeMap[eff] ?? null : null
 
+                const isFirst = eff === 1
                 return (
                   <tr
                     key={e.entrantId}
                     onMouseEnter={() => setHoveredRow(i)}
                     onMouseLeave={() => setHoveredRow(null)}
                     style={{
-                      background: rowBg,
-                      borderBottom: `1px solid ${T.border}`,
+                      background: isFirst
+                        ? (isHovered ? 'rgba(0,212,170,0.10)' : 'rgba(0,212,170,0.05)')
+                        : rowBg,
+                      borderBottom: `1px solid ${isFirst ? 'rgba(0,212,170,0.18)' : T.border}`,
+                      boxShadow: isFirst ? 'inset 4px 0 0 0 #00d4aa' : 'none',
                       transition: 'background 0.1s',
                       cursor: 'pointer',
                     }}
@@ -505,8 +540,11 @@ function StandingsTable({
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       {prizeAmt != null ? (
                         <span style={{
-                          fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
+                          fontFamily: T.fDisplay,
+                          fontSize: isFirst ? 20 : 17,
+                          fontWeight: 800,
                           color: T.accent,
+                          letterSpacing: '-0.01em',
                         }}>
                           ${Math.round(prizeAmt).toLocaleString()}
                         </span>
@@ -519,13 +557,17 @@ function StandingsTable({
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {eff === 1 ? (
                           <span style={{
-                            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
-                            letterSpacing: '0.06em', textTransform: 'uppercase',
-                            color: T.accent, padding: '3px 8px', borderRadius: 4,
-                            background: `${T.accent}20`, border: `1px solid ${T.accent}60`,
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 900,
+                            letterSpacing: '0.08em', textTransform: 'uppercase',
+                            color: '#fbbf24',
+                            padding: '4px 10px', borderRadius: 6,
+                            background: 'rgba(234,179,8,0.12)',
+                            border: '1px solid rgba(234,179,8,0.40)',
+                            boxShadow: '0 0 8px rgba(234,179,8,0.15)',
                             whiteSpace: 'nowrap',
                           }}>
-                            🏆 CC出場権
+                            🏆 CC確定
                           </span>
                         ) : cptPts ? (
                           <span style={{
