@@ -17,6 +17,73 @@
 
 ## 最新の作業ログ
 
+### 2026-05-28 — Top 24 データ backfill + タイムライン 2フェーズ表示
+
+**対象:** `scripts/import-sets.js`, `src/app/tournament/[id]/TournamentClient.tsx`
+
+#### 問題
+- CB2026 の Top 24 ブラケット（start.gg phase名: "Top 24"）のセット結果が DB に未登録
+- 15 セットの Top 24 ブラケット構造は存在するが `winner_id = NULL`（backfill 未実施）
+
+#### 調査で判明した CB2026 フェーズ構造（start.gg）
+```
+Round 1 (27 pools, A103-D134 etc.)
+Round 2 (8 pools, J104-L123)
+Round 3 (2 pools: NA133×16sets, OA133×16sets)
+Top 24  (1 pool:  PX133×20sets) ← phase_name="Top 24", pool_identifier="PX133"
+Top 8   (1 pool:  VVX15×11sets) ← phase_name="Top 8",  pool_identifier="VVX15"
+```
+- PX133 ラウンド: WQF×4, LR1×8, LR2×4, LR3×4
+- VVX15 ラウンド: LR1×2, WSF×2, LQF×2, WF×1, LSF×1, LF×1, GF×1, GFR×1
+
+#### 実装
+
+**`scripts/import-sets.js` 改修**
+- `allSets.push()` に `pool_identifier: group.displayIdentifier` を追加
+- 今後のインポートで pool_identifier が保存されるよう修正
+- `node scripts/import-sets.js combo-breaker-2026` 実行 → 1361 sets upsert 完了
+
+**`detectFinalPhases()` 改修**
+- `top8MinId` フィルタ追加: `s.id >= top8MinId` のセットを候補から除外
+  - 再インポートで高 ID を持つ通常プールセットの誤検出を防止
+- Top 24 検出: `id < top8MinId` のセットのみで maxId 最大の小プールを選択
+  - CB2026: PX133 (maxId=26547) > OA133 (26495) > NA133 (26478) → PX133 ✓
+
+**新定数追加**
+- `TOP24_TIMELINE`: LR1 → WQF → LR2 → LR3
+- `TOP8_TIMELINE`: LR1 → WSF → LQF → WF → LSF → LF → GF → GFR
+- `TOP24_FLOW_NOTES`, `TOP8_FLOW_NOTES`: フェーズ別フロー注釈
+
+**`BracketTimeline` 改修**
+- 複数フェーズを個別レンダリング: 各フェーズに SectionDivider + タイムライン
+- `getPhaseTimeline(phaseName)` でフェーズ別の order/flowNotes/label/isTop8 を取得
+- `sortRoundsByTimeline(roundGroups, order)` をユーティリティ関数に分離
+
+**`BracketView` ルーティング更新**
+- `detectFinalPhases().length >= 2` のとき BracketTimeline を優先使用
+- CB2026: Top 24 + Top 8 の 2フェーズ → BracketTimeline で統合表示
+
+#### 表示結果（CB2026）
+```
+───────────── TOP 24 ─────────────
+🔴 LOSERS ROUND 1       ← Round 3 losers drop in      (8 sets)
+🔵 WINNERS QUARTER-FINAL                               (4 sets)
+🔴 LOSERS ROUND 2       ← WQF losers drop here        (4 sets)
+🔴 LOSERS ROUND 3       ← LR2 winners continue        (4 sets)
+
+━━━━━━━━━ 🏆 TOP 8 ━━━━━━━━━
+🔴 LOSERS ROUND 1       ← Top 24 losers side          (2 sets)
+🔵 WINNERS SEMI-FINAL                                  (2 sets)
+🔴 LOSERS QUARTER-FINAL ← WSF losers drop here        (2 sets)
+🔵 WINNERS FINAL                                       (1 set)
+🔴 LOSERS SEMI-FINAL    ← LQF winner advances         (1 set)
+🔴 LOSERS FINAL         ← WF loser drops here         (1 set)
+🏆 GRAND FINAL                                         (1 set)
+🏆 GRAND FINAL RESET                                   (1 set)
+```
+
+---
+
 ### 2026-05-27 — ブラケットタブ: タイムライン表示リニューアル
 
 **対象:** `src/app/tournament/[id]/TournamentClient.tsx`

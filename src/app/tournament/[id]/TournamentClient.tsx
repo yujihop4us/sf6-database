@@ -515,17 +515,17 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
 // getBracketSortOrder は src/lib/bracketOrder.ts に移管済み
 
 /**
- * phase_name = null のトーナメント（CB2026 など）向け
- * 最終ブラケットセット群を特定する。
+ * 最終ブラケットフェーズを検出する。
  *
  * 戦略 (優先順):
- *   1. pool_identifier ベース: GF セットの pool_identifier を取得し、
- *      同じ pool_identifier を持つセットすべてが最終ブラケット。
- *      （CB2026: VVX15 = 最終ブラケット 11 sets）
+ *   1. pool_identifier ベース:
+ *      a. GF セットの pool_identifier → Top 8
+ *      b. 残りのプールのうち最も高い maxId かつ小さいセット数のもの → Top 24
+ *      （CB2026: VVX15=Top8, PX133=Top24）
  *
- *   2. フォールバック (pool_identifier が null の場合):
- *      出現頻度フィルタで GF/WF/LF/LSF を特定（score≤5, count≤2）。
- *      それらのセットのみを返す（Top 24 等の別フェーズは存在しない前提）。
+ *   2. フォールバック: 出現頻度フィルタ（GF/WF/LF/LSF を 1〜2 回のみ登場で特定）
+ *
+ * 戻り値は時系列順（先頭が早いフェーズ）: [Top 24, Top 8] or [Final Bracket]
  */
 function detectFinalPhases(sets: SetRow[]): Array<{ name: string; sets: SetRow[] }> {
   // ── 戦略 1: pool_identifier ベース ───────────────────────────
@@ -534,28 +534,53 @@ function detectFinalPhases(sets: SetRow[]): Array<{ name: string; sets: SetRow[]
   )
 
   if (gfSet?.poolIdentifier) {
-    const finalSets = sets.filter(s => s.poolIdentifier === gfSet.poolIdentifier)
-    if (finalSets.length > 0) {
-      return [{ name: 'Final Bracket', sets: finalSets }]
+    const top8PoolId = gfSet.poolIdentifier
+    const top8Sets   = sets.filter(s => s.poolIdentifier === top8PoolId)
+    const top8MinId  = Math.min(...top8Sets.map(s => s.id))
+
+    // Top 24 候補:
+    //   ・Top 8 以外のプールで
+    //   ・すべてのセット ID が top8MinId より小さい（= Top 8 よりも前に挿入）
+    //   ・セット数が閾値以下（= 大会プールではない小さいブラケット）
+    //   ・その中で最も高い maxId = Top 8 直前フェーズ
+    const poolStats = new Map<string, { maxId: number; count: number; sets: SetRow[] }>()
+    for (const s of sets) {
+      if (!s.poolIdentifier || s.poolIdentifier === top8PoolId) continue
+      if (s.id >= top8MinId) continue  // Top 8 以降に挿入されたセットは除外
+      if (!poolStats.has(s.poolIdentifier)) {
+        poolStats.set(s.poolIdentifier, { maxId: 0, count: 0, sets: [] })
+      }
+      const stat = poolStats.get(s.poolIdentifier)!
+      stat.maxId = Math.max(stat.maxId, s.id)
+      stat.count++
+      stat.sets.push(s)
     }
+
+    // 閾値: Top 8 セット数 × 3（または最低 25）以下のプールのみ候補とする
+    const threshold = Math.max(top8Sets.length * 3, 25)
+    const candidates = [...poolStats.entries()]
+      .filter(([_, st]) => st.count <= threshold)
+      .sort((a, b) => b[1].maxId - a[1].maxId)  // maxId 降順 = Top 8 直前が先頭
+
+    const result: Array<{ name: string; sets: SetRow[] }> = []
+    if (candidates.length > 0) {
+      // 最も高い maxId のプール = Top 24（Top 8 の直前フェーズ）
+      result.push({ name: 'Top 24', sets: candidates[0][1].sets })
+    }
+    result.push({ name: 'Top 8', sets: top8Sets })
+    return result
   }
 
   // ── 戦略 2: 出現頻度フォールバック ───────────────────────────
-  // GF/WF/LF/LSF/WSF は最終ブラケットで 1〜2 回のみ登場
   const roundCount: Record<string, number> = {}
   for (const s of sets) {
     if (s.roundText) roundCount[s.roundText] = (roundCount[s.roundText] ?? 0) + 1
   }
-
   const finalSets = sets.filter(s => {
     const score = getBracketSortOrder(s.roundText)
     return score <= 5 && (roundCount[s.roundText] ?? 99) <= 2
   })
-
-  if (finalSets.length === 0) {
-    return [{ name: 'ブラケット', sets }]
-  }
-
+  if (finalSets.length === 0) return [{ name: 'ブラケット', sets }]
   return [{ name: 'Final Bracket', sets: finalSets }]
 }
 
@@ -648,35 +673,55 @@ function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
 // ─── Timeline display constants ──────────────────────────────────
 
 /**
- * タイムライン表示順（大会進行の時系列順 = 早いラウンドが上、決勝が下）
- *
- * CB2026 (VVX15 Final Bracket) の実際のラウンド:
- *   Winners Semi-Final (2) → Winners Final (1)
- *   Losers Round 1 (2) → Losers Quarter-Final (2) → Losers Semi-Final (1)
- *   → Losers Final (1) → Grand Final (1) → Grand Final Reset (0-1)
- *
- * 一般的なダブルエリミを幅広くカバーするよう拡張してある。
- * TIMELINE_ORDER に含まれないラウンドは先頭に getBracketSortOrder 昇順で配置。
+ * Top 24 フェーズ（CB2026: PX133）タイムライン順
+ * Rounds: WQF×4, LR1×8, LR2×4, LR3×4
+ */
+const TOP24_TIMELINE = [
+  'Losers Round 1',          // LR1: 8 sets - losers bracket start (Round 3 losers)
+  'Winners Quarter-Final',   // WQF: 4 sets - winners bracket
+  'Losers Round 2',          // LR2: 4 sets - LR1 winners + WQF losers
+  'Losers Round 3',          // LR3: 4 sets - losers continue
+]
+
+/**
+ * Top 8 フェーズ（CB2026: VVX15）タイムライン順
+ * Rounds: LR1×2, WSF×2, LQF×2, WF×1, LSF×1, LF×1, GF×1, GFR×0-1
+ */
+const TOP8_TIMELINE = [
+  'Losers Round 1',          // LR1: Top 24 losers side drops here
+  'Winners Semi-Final',      // WSF: 4 players → 2 advance, 2 drop to LQF
+  'Losers Quarter-Final',    // LQF: LR1 winners vs WSF losers
+  'Winners Final',           // WF: 2 WSF winners compete
+  'Losers Semi-Final',       // LSF: LQF winners
+  'Losers Final',            // LF: LSF winner vs WF loser
+  'Grand Final',             // GF: WF winner vs LF winner
+  'Grand Final Reset',       // GFR: if GF loser wins
+]
+
+/**
+ * 汎用タイムライン順（フォールバック用）
  */
 const TIMELINE_ORDER = [
-  // ─ 予選ブラケット系（Top 24/Top 32 形式） ─
-  'Winners Round 1',
-  'Losers Round 1',
-  'Winners Round 2',
-  'Losers Round 2',
-  'Winners Quarter-Final',
-  'Losers Round 3',
-  'Winners Semi-Final',      // CB2026 VVX15 はここが最初のラウンド（ひなお vs Xiaohai）
-  'Losers Round 4',
-  'Losers Quarter-Final',
-  'Losers Round 5',
-  // ─ 最終ブラケット系 ─
-  'Winners Final',
-  'Losers Semi-Final',       // WF 敗者がここに落ちてくる
-  'Losers Final',
-  'Grand Final',
-  'Grand Final Reset',
+  'Winners Round 1', 'Losers Round 1', 'Winners Round 2', 'Losers Round 2',
+  'Winners Quarter-Final', 'Losers Round 3', 'Winners Semi-Final',
+  'Losers Round 4', 'Losers Quarter-Final', 'Losers Round 5',
+  'Winners Final', 'Losers Semi-Final', 'Losers Final',
+  'Grand Final', 'Grand Final Reset',
 ]
+
+const TOP24_FLOW_NOTES: Record<string, string> = {
+  'Losers Round 1':        '← Round 3 losers drop in',
+  'Winners Quarter-Final': 'Winners bracket quarterfinals',
+  'Losers Round 2':        '← WQF losers drop here',
+  'Losers Round 3':        '← LR2 winners continue',
+}
+
+const TOP8_FLOW_NOTES: Record<string, string> = {
+  'Losers Round 1':       '← Top 24 losers side',
+  'Losers Quarter-Final': '← WSF losers drop here',
+  'Losers Semi-Final':    '← LQF winner advances',
+  'Losers Final':         '← WF loser drops here',
+}
 
 const FLOW_NOTES: Record<string, string> = {
   'Losers Round 1':       '← WSF losers drop here',
@@ -738,14 +783,20 @@ function BracketView({ sets }: { sets: SetRow[] }) {
     )
   }
 
-  const hasPhaseNames = sets.some(s => s.phase !== '')
+  // 最終フェーズを検出: 2つ以上検出された場合はタイムライン統合表示
+  // （例: Top 24 + Top 8）
+  const finalPhases = detectFinalPhases(sets)
+  if (finalPhases.length >= 2) {
+    return <BracketTimeline sets={sets} />
+  }
 
   // ── phase_name あり (CC11, EVO など): フェーズ切替 UI ─────────────
+  const hasPhaseNames = sets.some(s => s.phase !== '')
   if (hasPhaseNames) {
     return <BracketViewPhased sets={sets} />
   }
 
-  // ── phase_name なし (CB2026 など): タイムライン統合表示 ───────────
+  // ── phase_name なし・単一最終フェーズ: タイムライン表示 ───────────
   return <BracketTimeline sets={sets} />
 }
 
@@ -842,56 +893,49 @@ function BracketViewPhased({ sets }: { sets: SetRow[] }) {
   )
 }
 
-// ─── Timeline view (for phase_name=null tournaments like CB2026) ──
+// ─── Timeline view (for final bracket phases like CB2026) ─────────
+
+/** フェーズ名からタイムライン順とフロー注釈を取得 */
+function getPhaseTimeline(phaseName: string): {
+  order: string[]
+  flowNotes: Record<string, string>
+  label: string
+  isTop8: boolean
+} {
+  if (phaseName === 'Top 24') {
+    return { order: TOP24_TIMELINE, flowNotes: TOP24_FLOW_NOTES, label: 'TOP 24', isTop8: false }
+  }
+  if (phaseName === 'Top 8' || phaseName === 'Final Bracket') {
+    return { order: TOP8_TIMELINE, flowNotes: TOP8_FLOW_NOTES, label: phaseName === 'Top 8' ? 'TOP 8' : 'FINAL BRACKET', isTop8: true }
+  }
+  return { order: TIMELINE_ORDER, flowNotes: FLOW_NOTES, label: phaseName.toUpperCase(), isTop8: true }
+}
+
+/** ラウンドエントリをタイムライン順にソート */
+function sortRoundsByTimeline(
+  roundGroups: Map<string, SetRow[]>,
+  order: string[],
+): Array<{ round: string; sets: SetRow[] }> {
+  const entries: Array<{ round: string; sets: SetRow[]; tlIdx: number }> = []
+  for (const [round, roundSets] of roundGroups) {
+    const tlIdx = order.findIndex(r => r.toLowerCase() === round.toLowerCase())
+    entries.push({ round, sets: roundSets, tlIdx })
+  }
+  return entries.sort((a, b) => {
+    if (a.tlIdx < 0 && b.tlIdx < 0) return getBracketSortOrder(a.round) - getBracketSortOrder(b.round)
+    if (a.tlIdx < 0) return -1
+    if (b.tlIdx < 0) return  1
+    return a.tlIdx - b.tlIdx
+  })
+}
 
 function BracketTimeline({ sets }: { sets: SetRow[] }) {
-  // Top 8 + Top 24 を統合して最終ブラケット全体を1タイムラインで表示
-  const allFinalSets = useMemo<SetRow[]>(() => {
-    const phases = detectFinalPhases(sets)
-    return phases
-      .flatMap(p => p.sets)
-      .filter(s => s.winnerId !== null || s.loserId !== null)
-  }, [sets])
+  const phases = useMemo(() => detectFinalPhases(sets), [sets])
 
-  // ラウンドごとにグループ化（同ラウンド内は ID 降順）
-  const roundGroups = useMemo(() => {
-    const map = new Map<string, SetRow[]>()
-    for (const s of allFinalSets) {
-      const r = s.roundText || '—'
-      if (!map.has(r)) map.set(r, [])
-      map.get(r)!.push(s)
-    }
-    for (const matches of map.values()) {
-      matches.sort((a, b) => b.id - a.id)
-    }
-    return map
-  }, [allFinalSets])
-
-  // タイムライン順にソート
-  // - TIMELINE_ORDER に含まれないラウンド → 先頭に getBracketSortOrder 昇順で配置
-  // - TIMELINE_ORDER に含まれるラウンド → インデックス順（大会進行の時系列）
-  type RoundEntry = { round: string; sets: SetRow[]; tlIdx: number }
-  const sortedEntries = useMemo<RoundEntry[]>(() => {
-    const entries: RoundEntry[] = []
-    for (const [round, roundSets] of roundGroups) {
-      const tlIdx = TIMELINE_ORDER.findIndex(
-        r => r.toLowerCase() === round.toLowerCase()
-      )
-      entries.push({ round, sets: roundSets, tlIdx })
-    }
-    return entries.sort((a, b) => {
-      // どちらも不明 → getBracketSortOrder 昇順（早いラウンドが先）
-      if (a.tlIdx < 0 && b.tlIdx < 0) {
-        return getBracketSortOrder(a.round) - getBracketSortOrder(b.round)
-      }
-      // 不明は先頭
-      if (a.tlIdx < 0) return -1
-      if (b.tlIdx < 0) return  1
-      return a.tlIdx - b.tlIdx
-    })
-  }, [roundGroups])
-
-  const totalSets = allFinalSets.length
+  const totalSets = phases.reduce(
+    (acc, p) => acc + p.sets.filter(s => s.winnerId !== null || s.loserId !== null).length,
+    0
+  )
 
   if (totalSets === 0) {
     return (
@@ -903,71 +947,93 @@ function BracketTimeline({ sets }: { sets: SetRow[] }) {
 
   return (
     <div>
-      {/* セクションヘッダー */}
-      <SectionDivider label="FINAL BRACKET" isTop8={true} />
+      {phases.map((phase, phaseIdx) => {
+        const phaseSets = phase.sets.filter(s => s.winnerId !== null || s.loserId !== null)
+        if (phaseSets.length === 0) return null
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
-        {sortedEntries.map(({ round, sets: matches }) => {
-          const isGF    = /grand final/i.test(round)
-          const color   = roundColor(round)
-          const icon    = roundIcon(round)
-          const note    = FLOW_NOTES[round]
+        // ラウンドごとにグループ化（同ラウンド内は ID 降順）
+        const roundGroups = new Map<string, SetRow[]>()
+        for (const s of phaseSets) {
+          const r = s.roundText || '—'
+          if (!roundGroups.has(r)) roundGroups.set(r, [])
+          roundGroups.get(r)!.push(s)
+        }
+        for (const matches of roundGroups.values()) {
+          matches.sort((a, b) => b.id - a.id)
+        }
 
-          return (
-            <React.Fragment key={round}>
-              <div style={{
-                borderLeft: `3px solid ${color}`,
-                paddingLeft: 14,
-                ...(isGF ? {
-                  background: 'rgba(245,158,11,0.03)',
-                  borderRadius: '0 8px 8px 0',
-                  padding: '10px 10px 10px 14px',
-                } : {}),
-              }}>
-                {/* ラウンドヘッダー */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
-                  <div style={{
-                    fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
-                    letterSpacing: '0.16em', textTransform: 'uppercase',
-                    color: isGF ? '#F59E0B' : T.muted,
-                    flex: 1,
-                  }}>{round}</div>
-                  {/* セット数バッジ */}
-                  <span style={{
-                    fontFamily: T.fDisplay, fontSize: 10, fontWeight: 700,
-                    color: T.dim, letterSpacing: '0.06em',
-                    background: T.surface3, borderRadius: 4,
-                    padding: '1px 7px', border: `1px solid ${T.border}`,
-                  }}>{matches.length} sets</span>
-                </div>
+        const { order, flowNotes, label, isTop8 } = getPhaseTimeline(phase.name)
+        const sortedEntries = sortRoundsByTimeline(roundGroups, order)
 
-                {/* フロー注釈 */}
-                {note && (
-                  <div style={{
-                    fontFamily: T.fBody, fontSize: 11,
-                    color: '#9CA3AF', fontStyle: 'italic',
-                    marginBottom: 8, marginTop: -2,
-                    letterSpacing: '0.01em',
-                  }}>{note}</div>
-                )}
+        return (
+          <div key={phase.name} style={{ marginTop: phaseIdx > 0 ? 32 : 0 }}>
+            {/* フェーズセクションヘッダー */}
+            <SectionDivider label={label} isTop8={isTop8} />
 
-                {/* マッチカード群 */}
-                <div style={{
-                  display: 'grid', gap: 6,
-                  gridTemplateColumns: matches.length > 2 ? '1fr 1fr' : '1fr',
-                }}>
-                  {matches.map(s => <BracketMatchRow key={s.id} s={s} isGF={isGF} />)}
-                </div>
-              </div>
-            </React.Fragment>
-          )
-        })}
-      </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+              {sortedEntries.map(({ round, sets: matches }) => {
+                const isGF  = /grand final/i.test(round)
+                const color = roundColor(round)
+                const icon  = roundIcon(round)
+                const note  = flowNotes[round]
 
-      <div style={{ marginTop: 20, fontFamily: T.fDisplay, fontSize: 11, color: T.dim, letterSpacing: '0.06em' }}>
-        {totalSets} 試合 · Final Bracket
-      </div>
+                return (
+                  <React.Fragment key={`${phase.name}-${round}`}>
+                    <div style={{
+                      borderLeft: `3px solid ${color}`,
+                      paddingLeft: 14,
+                      ...(isGF ? {
+                        background: 'rgba(245,158,11,0.03)',
+                        borderRadius: '0 8px 8px 0',
+                        padding: '10px 10px 10px 14px',
+                      } : {}),
+                    }}>
+                      {/* ラウンドヘッダー */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 13, lineHeight: 1 }}>{icon}</span>
+                        <div style={{
+                          fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
+                          letterSpacing: '0.16em', textTransform: 'uppercase',
+                          color: isGF ? '#F59E0B' : T.muted,
+                          flex: 1,
+                        }}>{round}</div>
+                        <span style={{
+                          fontFamily: T.fDisplay, fontSize: 10, fontWeight: 700,
+                          color: T.dim, letterSpacing: '0.06em',
+                          background: T.surface3, borderRadius: 4,
+                          padding: '1px 7px', border: `1px solid ${T.border}`,
+                        }}>{matches.length} sets</span>
+                      </div>
+
+                      {/* フロー注釈 */}
+                      {note && (
+                        <div style={{
+                          fontFamily: T.fBody, fontSize: 11,
+                          color: '#9CA3AF', fontStyle: 'italic',
+                          marginBottom: 8, marginTop: -2,
+                          letterSpacing: '0.01em',
+                        }}>{note}</div>
+                      )}
+
+                      {/* マッチカード群 */}
+                      <div style={{
+                        display: 'grid', gap: 6,
+                        gridTemplateColumns: matches.length > 2 ? '1fr 1fr' : '1fr',
+                      }}>
+                        {matches.map(s => <BracketMatchRow key={s.id} s={s} isGF={isGF} />)}
+                      </div>
+                    </div>
+                  </React.Fragment>
+                )
+              })}
+            </div>
+
+            <div style={{ marginTop: 12, fontFamily: T.fDisplay, fontSize: 11, color: T.dim, letterSpacing: '0.06em' }}>
+              {phaseSets.length} 試合 · {phase.name}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

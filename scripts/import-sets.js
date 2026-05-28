@@ -243,6 +243,7 @@ async function main() {
             winner_entrant_id: winnerSlot.entrant.id,
             loser_entrant_id: loserSlot.entrant.id,
             phase_name: phase.name,
+            pool_identifier: group.displayIdentifier || null,
           });
         }
 
