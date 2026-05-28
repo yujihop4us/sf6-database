@@ -49,14 +49,14 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   // Sets with basic fields — join player data separately
   const { data: setsRaw } = await supabase
     .from('tournament_sets')
-    .select('id, round_text, phase_name, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
+    .select('id, round_text, phase_name, pool_identifier, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
     .eq('tournament_id', numericId)
     .order('id', { ascending: false })
     .limit(2000)
 
   // Collect all player IDs from sets and fetch them
   const setList = (setsRaw ?? []) as {
-    id: number; round_text: string | null; phase_name: string | null
+    id: number; round_text: string | null; phase_name: string | null; pool_identifier: string | null
     display_score: string | null; winner_score: number | null; loser_score: number | null
     winner_id: number | null; loser_id: number | null
     winner_character: string | null; loser_character: string | null
@@ -417,6 +417,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       id:                 s.id,
       roundText:          s.round_text    ?? '',
       phase:              s.phase_name    ?? '',
+      poolIdentifier:     s.pool_identifier ?? null,
       displayScore:       s.display_score ?? '',
       winnerScore:        s.winner_score  ?? 0,
       loserScore:         s.loser_score   ?? 0,

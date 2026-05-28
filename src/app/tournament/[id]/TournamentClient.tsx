@@ -516,64 +516,47 @@ function StandingsTable({ entrants }: { entrants: EntrantRow[] }) {
 
 /**
  * phase_name = null のトーナメント（CB2026 など）向け
- * ラウンドテキストの出現頻度と ID クラスター検出で
- * 「Top 8」「Top 24」フェーズを自動識別する。
+ * 最終ブラケットセット群を特定する。
  *
- * 戦略:
- *   1. GF / WF / LF などの "最終ラウンド" は大会中に 1〜2 回しか登場しない。
- *      出現数 ≤ MAX_FINAL_COUNT かつ getBracketSortOrder ≤ 5 → Top 8
- *   2. Top 8 最大 ID の直上にある最初の密集クラスターを Top 24 とみなす。
+ * 戦略 (優先順):
+ *   1. pool_identifier ベース: GF セットの pool_identifier を取得し、
+ *      同じ pool_identifier を持つセットすべてが最終ブラケット。
+ *      （CB2026: VVX15 = 最終ブラケット 11 sets）
+ *
+ *   2. フォールバック (pool_identifier が null の場合):
+ *      出現頻度フィルタで GF/WF/LF/LSF を特定（score≤5, count≤2）。
+ *      それらのセットのみを返す（Top 24 等の別フェーズは存在しない前提）。
  */
 function detectFinalPhases(sets: SetRow[]): Array<{ name: string; sets: SetRow[] }> {
-  // ラウンドテキストの全体出現数を集計
+  // ── 戦略 1: pool_identifier ベース ───────────────────────────
+  const gfSet = sets.find(s =>
+    /grand final/i.test(s.roundText) && !/reset/i.test(s.roundText) && s.winnerId !== null
+  )
+
+  if (gfSet?.poolIdentifier) {
+    const finalSets = sets.filter(s => s.poolIdentifier === gfSet.poolIdentifier)
+    if (finalSets.length > 0) {
+      return [{ name: 'Final Bracket', sets: finalSets }]
+    }
+  }
+
+  // ── 戦略 2: 出現頻度フォールバック ───────────────────────────
+  // GF/WF/LF/LSF/WSF は最終ブラケットで 1〜2 回のみ登場
   const roundCount: Record<string, number> = {}
   for (const s of sets) {
     if (s.roundText) roundCount[s.roundText] = (roundCount[s.roundText] ?? 0) + 1
   }
 
-  // Top 8: score ≤ 5 (GF Reset〜LSF) かつ出現数 ≤ 2 → 最終ブラケット確定ラウンド
-  // GF / GF Reset / WF / LF は必ず 1 回のみ登場。LSF は 1〜2 回。
-  // プール WSF はトーナメント全体で 30+ 回登場するため除外される。
-  const MAX_FINAL_COUNT = 2
-  const top8Sets = sets.filter(s => {
+  const finalSets = sets.filter(s => {
     const score = getBracketSortOrder(s.roundText)
-    return score <= 5 && (roundCount[s.roundText] ?? 99) <= MAX_FINAL_COUNT
+    return score <= 5 && (roundCount[s.roundText] ?? 99) <= 2
   })
 
-  if (top8Sets.length === 0) {
+  if (finalSets.length === 0) {
     return [{ name: 'ブラケット', sets }]
   }
 
-  const top8MaxId = Math.max(...top8Sets.map(s => s.id))
-
-  // Top 24: Top 8 の最大 ID 直上にある最初の密集クラスター
-  // SEARCH_GAP: Top 8 から検索を開始する最大距離
-  // CLUSTER_GAP: Top 24 クラスター内部の最大 ID ギャップ
-  const SEARCH_GAP  = 800
-  const CLUSTER_GAP = 300
-
-  const aboveSets = [...sets]
-    .filter(s => s.id > top8MaxId && s.id <= top8MaxId + SEARCH_GAP + CLUSTER_GAP)
-    .sort((a, b) => a.id - b.id)
-
-  let top24Sets: SetRow[] = []
-  if (aboveSets.length > 0) {
-    // 最初の密集クラスターを取得（ギャップが CLUSTER_GAP を超えた時点で終了）
-    const cluster: SetRow[] = [aboveSets[0]]
-    for (let i = 1; i < aboveSets.length; i++) {
-      if (aboveSets[i].id - aboveSets[i - 1].id <= CLUSTER_GAP) {
-        cluster.push(aboveSets[i])
-      } else {
-        break
-      }
-    }
-    top24Sets = cluster
-  }
-
-  const result: Array<{ name: string; sets: SetRow[] }> = []
-  if (top24Sets.length > 0) result.push({ name: 'Top 24', sets: top24Sets })
-  result.push({ name: 'Top 8', sets: top8Sets })
-  return result
+  return [{ name: 'Final Bracket', sets: finalSets }]
 }
 
 function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
@@ -666,29 +649,44 @@ function BracketMatchRow({ s, isGF }: { s: SetRow; isGF: boolean }) {
 
 /**
  * タイムライン表示順（大会進行の時系列順 = 早いラウンドが上、決勝が下）
- * TOP8_BOUNDARY のインデックスより上 = Top 24、以下 = Top 8 セクション。
+ *
+ * CB2026 (VVX15 Final Bracket) の実際のラウンド:
+ *   Winners Semi-Final (2) → Winners Final (1)
+ *   Losers Round 1 (2) → Losers Quarter-Final (2) → Losers Semi-Final (1)
+ *   → Losers Final (1) → Grand Final (1) → Grand Final Reset (0-1)
+ *
+ * 一般的なダブルエリミを幅広くカバーするよう拡張してある。
+ * TIMELINE_ORDER に含まれないラウンドは先頭に getBracketSortOrder 昇順で配置。
  */
 const TIMELINE_ORDER = [
-  'Winners Quarter-Final',   // 0
-  'Losers Round 3',          // 1
-  'Winners Semi-Final',      // 2
-  'Losers Round 4',          // 3
-  'Losers Quarter-Final',    // 4
-  'Winners Final',           // 5  ← TOP 8 セクション開始
-  'Losers Semi-Final',       // 6
-  'Losers Final',            // 7
-  'Grand Final',             // 8
-  'Grand Final Reset',       // 9
+  // ─ 予選ブラケット系（Top 24/Top 32 形式） ─
+  'Winners Round 1',
+  'Losers Round 1',
+  'Winners Round 2',
+  'Losers Round 2',
+  'Winners Quarter-Final',
+  'Losers Round 3',
+  'Winners Semi-Final',      // CB2026 VVX15 はここが最初のラウンド（ひなお vs Xiaohai）
+  'Losers Round 4',
+  'Losers Quarter-Final',
+  'Losers Round 5',
+  // ─ 最終ブラケット系 ─
+  'Winners Final',
+  'Losers Semi-Final',       // WF 敗者がここに落ちてくる
+  'Losers Final',
+  'Grand Final',
+  'Grand Final Reset',
 ]
 
-const TOP8_BOUNDARY = TIMELINE_ORDER.indexOf('Winners Final') // 5
-
 const FLOW_NOTES: Record<string, string> = {
+  'Losers Round 1':       '← WSF losers drop here',
+  'Losers Round 2':       '← WR2/WQF losers drop here',
   'Losers Round 3':       '← WQF losers drop here',
   'Losers Round 4':       '← WSF losers drop here',
-  'Losers Quarter-Final': '← Previous round losers',
+  'Losers Round 5':       '← WF losers drop here',
+  'Losers Quarter-Final': '← LR1 winners advance',
   'Losers Semi-Final':    '← WF loser drops here',
-  'Losers Final':         '← LSF winner vs WF loser',
+  'Losers Final':         '← LSF winner vs WF/WSF loser',
 }
 
 function roundColor(rt: string): string {
@@ -870,28 +868,23 @@ function BracketTimeline({ sets }: { sets: SetRow[] }) {
   }, [allFinalSets])
 
   // タイムライン順にソート
-  // - TIMELINE_ORDER に含まれないラウンド → Top 24 先頭に getBracketSortOrder 昇順で配置
-  // - TIMELINE_ORDER に含まれるラウンド → インデックス順
-  type RoundEntry = { round: string; sets: SetRow[]; tlIdx: number; inTop8: boolean }
+  // - TIMELINE_ORDER に含まれないラウンド → 先頭に getBracketSortOrder 昇順で配置
+  // - TIMELINE_ORDER に含まれるラウンド → インデックス順（大会進行の時系列）
+  type RoundEntry = { round: string; sets: SetRow[]; tlIdx: number }
   const sortedEntries = useMemo<RoundEntry[]>(() => {
     const entries: RoundEntry[] = []
     for (const [round, roundSets] of roundGroups) {
       const tlIdx = TIMELINE_ORDER.findIndex(
         r => r.toLowerCase() === round.toLowerCase()
       )
-      entries.push({
-        round,
-        sets: roundSets,
-        tlIdx,
-        inTop8: tlIdx >= TOP8_BOUNDARY,
-      })
+      entries.push({ round, sets: roundSets, tlIdx })
     }
     return entries.sort((a, b) => {
       // どちらも不明 → getBracketSortOrder 昇順（早いラウンドが先）
       if (a.tlIdx < 0 && b.tlIdx < 0) {
         return getBracketSortOrder(a.round) - getBracketSortOrder(b.round)
       }
-      // 不明は先頭（Top 24 先頭に配置）
+      // 不明は先頭
       if (a.tlIdx < 0) return -1
       if (b.tlIdx < 0) return  1
       return a.tlIdx - b.tlIdx
@@ -908,32 +901,20 @@ function BracketTimeline({ sets }: { sets: SetRow[] }) {
     )
   }
 
-  let shownTop24Divider = false
-  let shownTop8Divider  = false
-
   return (
     <div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {sortedEntries.map(({ round, sets: matches, inTop8 }) => {
+      {/* セクションヘッダー */}
+      <SectionDivider label="FINAL BRACKET" isTop8={true} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 8 }}>
+        {sortedEntries.map(({ round, sets: matches }) => {
           const isGF    = /grand final/i.test(round)
           const color   = roundColor(round)
           const icon    = roundIcon(round)
           const note    = FLOW_NOTES[round]
 
-          // セクション区切りの挿入
-          const dividers: React.ReactNode[] = []
-          if (!shownTop24Divider) {
-            dividers.push(<SectionDivider key="top24-div" label="TOP 24" isTop8={false} />)
-            shownTop24Divider = true
-          }
-          if (inTop8 && !shownTop8Divider) {
-            dividers.push(<SectionDivider key="top8-div" label="TOP 8" isTop8={true} />)
-            shownTop8Divider = true
-          }
-
           return (
             <React.Fragment key={round}>
-              {dividers}
               <div style={{
                 borderLeft: `3px solid ${color}`,
                 paddingLeft: 14,

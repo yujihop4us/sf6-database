@@ -41,6 +41,8 @@ export interface SetRow {
   id: number
   roundText: string
   phase: string
+  /** pool_identifier = phaseGroup.displayIdentifier (e.g. "VVX15" for final bracket) */
+  poolIdentifier: string | null
   displayScore: string
   winnerScore: number
   loserScore: number
