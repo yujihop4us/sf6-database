@@ -17,6 +17,51 @@
 
 ## 最新の作業ログ
 
+### 2026-05-29 — Step 2 HTMLパーサー修正（Liquipedia match-popup方式）
+
+**対象:** `scripts/post-tournament-update.js`
+
+#### 問題と解決
+
+**旧パーサー**: `data-player/character` 属性、`class="race"` など複数パターン → 全大会で0選手  
+**原因**: Liquipedia SF6の実際のHTML構造は bracket popup 形式
+
+**実際の構造（全大会共通）:**
+```html
+match-info-header-opponent-left → href="/fighters/Slug">Handle</a>  ← 左プレイヤー
+match-info-header-winner        → href="/fighters/Slug">Handle</a>  ← 右プレイヤー
+brkts-popup-body-element-thumbs → "CharName&#160;<img"              ← 左キャラ
+brkts-popup-body-element-thumbs → "<img...X_SF6_icon...>&#160;CharName" ← 右キャラ
+```
+
+**新実装**: `match-info-header-opponent-left` 出現位置でHTMLを分割し、各マッチブロックで選手+キャラを抽出。複数ゲームの最頻出キャラを main character として採用。DB検索はテキスト → URL decoded href の順でフォールバック。
+
+**`LIQUIPEDIA_CHAR_NORMALIZE` 更新**: `A.K.I.` → `Aki`（DB canonical 名に統一）
+
+#### キャラデータ更新結果（全大会）
+
+| 大会 | Sets | Char% | 選手 main_char |
+|------|------|-------|----------------|
+| CC11 | 142 | **100%** ✅ | 46/46 |
+| CC X | 143 | **92%** | 41/42 |
+| EWC 2024 | 67 | **91%** | 24/24 |
+| EWC 2025 | 88 | **94%** | 36/36 |
+| CB2026 | 4391 | 0% | 53/492 |
+| EvoJP2026 | 1376 | 2% | 19/436 |
+| DH Atlanta | 242 | 17% | 42/89 |
+| Evo2025 | 1580 | 3% | 48/459 |
+| CB2025 | 1269 | 5% | 35/445 |
+| EvoJP2025 | 1328 | 4% | 28/426 |
+
+小規模大会 (CC/EWC): 91-100% ✅  
+大規模大会: Liquipedia は Top 32 のみ記録のため 0-17%（今後 start.gg Step 1 で補完予定）
+
+#### 注目データ
+- Xiao Hai: M.Bison → **Mai**（CB2026でスイッチ確認）
+- Vxbao: M.Bison → **Mai**（同上）
+
+---
+
 ### 2026-05-29 — post-tournament-update 改善 + 大会データ一括処理（CB2026）
 
 **対象:** `scripts/post-tournament-update.js`, `scripts/backfill-main-characters.js`, `supabase/migrations/`
