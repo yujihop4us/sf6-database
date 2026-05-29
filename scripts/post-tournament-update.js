@@ -357,8 +357,21 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun) {
 // ── Step 3: main_character を tournament_sets の使用キャラから更新 ────────
 async function step3_updateMainCharacters(tournamentId, dryRun) {
   console.log('\n╔══════════════════════════════════════════════════════════╗')
-  console.log('║  Step 3: players.main_character を使用キャラから補完        ║')
+  console.log('║  Step 3: players.main_character を使用キャラから更新        ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
+
+  // 今回の大会の start_date を取得
+  const { data: thisTourney } = await supabase
+    .from('tournaments')
+    .select('id, name, start_date')
+    .eq('id', tournamentId)
+    .single()
+  if (!thisTourney) {
+    console.log('  ⚠ 大会情報が見つかりません')
+    return 0
+  }
+  const thisDate = thisTourney.start_date ?? '1900-01-01'
+  console.log(`  対象大会: ${thisTourney.name} (${thisDate})`)
 
   // このトーナメントで使用キャラが記録されているセットからプレイヤー別集計
   const { data: sets } = await supabase
@@ -380,27 +393,61 @@ async function step3_updateMainCharacters(tournamentId, dryRun) {
     }
   }
 
-  let updated = 0
+  const playerIds = Object.keys(playerCharFreq).map(Number)
+  if (playerIds.length === 0) {
+    console.log('  キャラデータなし — スキップ')
+    return 0
+  }
+
+  // プレイヤーの現在の main_character + main_character_tournament_id を一括取得
+  const { data: playersRaw } = await supabase
+    .from('players')
+    .select('id, handle, main_character, main_character_tournament_id')
+    .in('id', playerIds)
+  const playerMap = new Map((playersRaw ?? []).map(p => [p.id, p]))
+
+  // 既存 tournament_id の start_date を取得
+  const existingTourneyIds = [
+    ...new Set((playersRaw ?? []).map(p => p.main_character_tournament_id).filter(Boolean))
+  ]
+  const existingDateMap = new Map()
+  if (existingTourneyIds.length > 0) {
+    const { data: existingTourneys } = await supabase
+      .from('tournaments')
+      .select('id, start_date')
+      .in('id', existingTourneyIds)
+    for (const t of existingTourneys ?? []) existingDateMap.set(t.id, t.start_date ?? '1900-01-01')
+  }
+
+  let updated = 0, skipped = 0
   for (const [pidStr, freq] of Object.entries(playerCharFreq)) {
     const pid = Number(pidStr)
     const topChar = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
+    const player = playerMap.get(pid)
+    if (!player) continue
 
-    const { data: player } = await supabase
-      .from('players')
-      .select('id, handle, main_character')
-      .eq('id', pid)
-      .single()
-
-    if (!player || player.main_character) continue  // 既に設定済みはスキップ
+    // 既存の main_character_tournament_id がある場合: その大会の start_date と比較
+    if (player.main_character_tournament_id) {
+      const existingDate = existingDateMap.get(player.main_character_tournament_id) ?? '1900-01-01'
+      if (thisDate <= existingDate) {
+        // 既存の方が新しいか同一 → スキップ
+        skipped++
+        continue
+      }
+    }
 
     if (!dryRun) {
-      await supabase.from('players').update({ main_character: topChar }).eq('id', pid)
+      await supabase.from('players').update({
+        main_character: topChar,
+        main_character_tournament_id: tournamentId,
+      }).eq('id', pid)
     }
-    console.log(`  ✅ id=${pid} ${player.handle} → main_character=${topChar}`)
+    const prev = player.main_character ? ` (旧: ${player.main_character})` : ''
+    console.log(`  ✅ id=${pid} ${player.handle} → ${topChar}${prev}`)
     updated++
   }
 
-  console.log(`\n  完了: ${updated} 件更新`)
+  console.log(`\n  完了: ${updated} 件更新, ${skipped} 件スキップ（既存の方が新しい大会）`)
   return updated
 }
 
