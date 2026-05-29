@@ -57,6 +57,43 @@
 - CC11/CC X: 52-60%
 - 大規模オープン大会（Evo, CB, EvoJP）: 2-9%
 
+### 2026-05-29 — Step 4 対象選手選択ロジック修正 + 全大会 country_code 一括更新
+
+**対象:** `scripts/post-tournament-update.js`
+
+#### 問題と修正
+
+**Step 4 が全 entrant にリクエスト送信 → Cloudflare IP ブロックの原因**
+
+新ロジック（大会規模別に3戦略）:
+- **Strategy C** (≤50名): 全 entrant を `tournament_entrants` から取得
+- **Strategy A** (大規模 + placement あり): `placement ORDER BY ASC LIMIT 30`
+- **Strategy B** (大規模 + placement なし): `final_pool_identifier` + `top24_pool_identifier` で sets フィルタ（CB2026 → pool=VVX15,PX133）
+
+**Step 2 も top-phase フィルタを適用**: `tournaments.final_pool_identifier` / `top24_pool_identifier` を自動検出し、そのフェーズのセットのみ winner_character を更新
+
+**`--step4-limit` デフォルト変更**: 100 → 30
+
+#### country_code 更新結果（全 10 大会）
+
+| 大会 | 更新前 | 更新後 | 追加 |
+|------|--------|--------|------|
+| CB2026 | 64/712 (9%) | 75/712 (11%) | +11 |
+| EvoJP2026 | 10/657 (2%) | 19/657 (3%) | +9 |
+| DH Atlanta | 34/121 (28%) | 48/121 (40%) | +14 |
+| Evo2025 | 31/659 (5%) | 43/659 (7%) | +12 |
+| CB2025 | 34/573 (6%) | 40/573 (7%) | +6 |
+| EvoJP2025 | 19/649 (3%) | 32/649 (5%) | +13 |
+| CC11 | 29/48 (60%) | 42/48 (88%) | +13 |
+| CC X | 25/48 (52%) | 41/48 (85%) | +16 |
+| EWC 2024 | 30/32 (94%) | 32/32 (100%) ✅ | +2 |
+| EWC 2025 | 35/48 (73%) | 45/48 (94%) | +10 |
+
+#### Step 2 (Liquipedia キャラスクレイプ) 状況
+- 全大会で 0 選手抽出 — `brkts-bracket-wrapper` は存在するが character データなし
+- CC11/CC X は group-table 形式（`brkts-opponent-hover`）で bracket とは別構造
+- 今後: Liquipedia WikiTable の別セクションにキャラデータがある可能性あり
+
 ---
 
 ### 2026-05-28 — 順位表修正 + CPT ポイント + 賞金表示 + 参加者数修正
