@@ -17,6 +17,51 @@
 
 ## 最新の作業ログ
 
+### 2026-05-29 — Liquipedia Cron バックフィル実装
+
+**対象:** `src/lib/liquipedia-backfill.ts`, `src/app/api/cron/backfill/route.ts`, `vercel.json`, `supabase/migrations/20260529_backfill_tracking.sql`
+
+#### 実装内容
+
+**`src/lib/liquipedia-backfill.ts`** — 共有モジュール
+- `fetchLiquipediaHtml(url)`: 4秒待機 + 429/Cloudflare検出
+- `fetchPlayerFromLiquipedia(handle)`: country_code + main_character（選手ページのinfobox）
+- `fetchTournamentPrizePool(url)`: csstable-widget-row をパースし placement→賞金テーブルを返す
+- `getBackfillTargets(supabase, opts)`: placement 昇順で欠損プレイヤー（最大8名）+ prize_pool未取得の大会（1件）
+
+**`src/app/api/cron/backfill/route.ts`** — Cron API
+- `Authorization: Bearer CRON_SECRET` で認証
+- 1実行: 大会賞金1件 + 選手8名処理
+- 429で即停止、`stopped_reason` を返す
+- 4分タイムアウト保護
+- 更新: `tournament_entrants.prize_amount`, `tournaments.prize_pool`, `players.country_code`, `players.main_character`, `players.liquipedia_checked_at`
+
+**`vercel.json`** — `0 */6 * * *`（6時間ごと）
+
+**Migration**: `players.liquipedia_checked_at` 追加、11大会の `tournaments.liquipedia_url` 設定
+
+#### ローカルテスト結果
+```json
+{
+  "processed_players": 8,
+  "updated_players": 5,
+  "processed_tournaments": 1,
+  "updated_prize_entries": 14,
+  "remaining_players": 246,
+  "remaining_tournaments": 2,
+  "elapsed_ms": 46079
+}
+```
+- DH Atlanta 2026: prize_pool = $50,000、14エントリに賞金設定
+- 選手5名更新: Kite→MX, Daigo→FR, Shine→Kimberly, etc.
+
+#### テスト方法
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/backfill
+```
+
+---
+
 ### 2026-05-29 — Step 2 HTMLパーサー修正（Liquipedia match-popup方式）
 
 **対象:** `scripts/post-tournament-update.js`
