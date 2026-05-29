@@ -690,7 +690,7 @@ function StandingsTable({
   const toPodiumEntry = (e: EntrantRow): PodiumEntry => {
     const p   = e.player!
     const eff = effectivePlacement(e)!
-    const rawPrize = eff ? prizeMap[eff] ?? null : null
+    const rawPrize = eff ? (prizeMap[eff] ?? e.prizeAmount ?? null) : (e.prizeAmount ?? null)
     return {
       rank:        eff,
       handle:      p.handle,
@@ -836,7 +836,7 @@ function StandingsTable({
                 const isInferred = e.placement === null && e.inferredPlacement !== null
                 const medal = eff === 1 ? '🥇' : eff === 2 ? '🥈' : eff === 3 ? '🥉' : null
                 const cptPts = isCptPremier ? (eff === 1 ? null : (eff ? CPT_PREMIER_POINTS[eff] ?? 0 : 0)) : null
-                const prizeAmt = eff ? prizeMap[eff] ?? null : null
+                const prizeAmt = eff ? (prizeMap[eff] ?? e.prizeAmount ?? null) : (e.prizeAmount ?? null)
 
                 const isFirst = eff === 1
                 return (
