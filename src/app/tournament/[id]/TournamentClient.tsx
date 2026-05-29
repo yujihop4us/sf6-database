@@ -68,8 +68,8 @@ function fmtPrize(usd: number | null): string {
 }
 
 // ─── CPT Premier ──────────────────────────────────────────────────
-// Tournament IDs that use the CPT Premier points scale
-const CPT_PREMIER_IDS = new Set([48])  // 48 = Combo Breaker 2026
+// isCptPremier は tournament.cptEventType === 'premier' で動的に判定
+// (page.tsx → DB の cpt_event_type カラムから取得)
 
 // Points by placement (1st = CC seat, no points value in this table)
 const CPT_PREMIER_POINTS: Record<number, number> = {
@@ -333,6 +333,7 @@ function HeroSection({ data }: { data: TournamentData }) {
             }} />
             CONCLUDED
           </span>
+          {/* cptEventType ベースのイベントバッジ */}
           {tournament.cptEventType === 'premier' && (
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -341,6 +342,33 @@ function HeroSection({ data }: { data: TournamentData }) {
               fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
               letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gold,
             }}>★ CPT PREMIER</span>
+          )}
+          {tournament.cptEventType === 'capcom_cup' && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(220,60,40,0.14)', border: '1px solid rgba(220,60,40,0.50)',
+              borderRadius: 20, padding: '4px 12px',
+              fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
+              letterSpacing: '0.12em', textTransform: 'uppercase', color: '#ff7a60',
+            }}>🏆 CAPCOM CUP</span>
+          )}
+          {tournament.cptEventType === 'ewc' && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(124,58,237,0.14)', border: '1px solid rgba(124,58,237,0.50)',
+              borderRadius: 20, padding: '4px 12px',
+              fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800,
+              letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c4b5fd',
+            }}>⚡ EWC</span>
+          )}
+          {tournament.cptEventType === 'road_to_ewc' && (
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.30)',
+              borderRadius: 20, padding: '4px 12px',
+              fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
+              letterSpacing: '0.10em', textTransform: 'uppercase', color: '#a78bfa',
+            }}>ROAD TO EWC</span>
           )}
           {tournament.location && (
             <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.muted, letterSpacing: '0.06em' }}>
@@ -1883,7 +1911,7 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             <StandingsTable
               entrants={data.entrants}
               tournamentId={data.tournament.id}
-              isCptPremier={CPT_PREMIER_IDS.has(data.tournament.id)}
+              isCptPremier={data.tournament.cptEventType === 'premier'}
               ewcQualifyingSpots={data.tournament.ewcQualifyingSpots ?? null}
             />
           </>
