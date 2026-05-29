@@ -271,7 +271,7 @@ function HeroSection({ data }: { data: TournamentData }) {
     <div style={{
       position: 'relative', overflow: 'hidden',
       background: 'linear-gradient(160deg, #0e1f24 0%, #080c10 62%)',
-      padding: '52px 4% 48px 4%',
+      padding: '36px 0 32px',          /* 上下を詰めてコンパクトに */
       borderBottom: `1px solid ${T.border}`,
     }}>
       {/* Scanline texture */}
@@ -283,36 +283,42 @@ function HeroSection({ data }: { data: TournamentData }) {
       {/* Diagonal accent stripes — top-right */}
       <Stripes style={{ top: 0, right: 0, bottom: 0, width: '42%', zIndex: 1 }} />
 
-      {/* Watermark: real logo image (priority) or CB monogram fallback */}
+      {/* Watermark: 60-65% サイズ、中央寄り */}
       {tournament.logoUrl ? (
         <div style={{
           position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
           backgroundImage: `url(${tournament.logoUrl})`,
-          backgroundSize: 'contain', backgroundRepeat: 'no-repeat',
-          backgroundPosition: '92% center', opacity: 0.08,
+          backgroundSize: '30%',         /* contain → 固定% でサイズ縮小 */
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: '78% center',  /* 右端から約22%内側 */
+          opacity: 0.10,
         }} />
       ) : (
-        <div style={{ position: 'absolute', top: '50%', right: '7%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
-          <CBMark size={320} opacity={0.05} />
+        <div style={{ position: 'absolute', top: '50%', right: '18%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
+          <CBMark size={220} opacity={0.05} />
         </div>
       )}
 
-      {/* Left-to-right scrim — text on left stays readable over watermark */}
+      {/* Left-to-right scrim */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 2,
-        background: 'linear-gradient(to right, rgba(8,12,16,0.92) 0%, rgba(14,31,36,0.65) 50%, rgba(14,31,36,0.10) 100%)',
+        background: 'linear-gradient(to right, rgba(8,12,16,0.92) 0%, rgba(14,31,36,0.65) 55%, rgba(14,31,36,0.10) 100%)',
       }} />
       {/* Accent glow blob */}
       <div style={{
-        position: 'absolute', top: -70, right: 120, width: 320, height: 320,
+        position: 'absolute', top: -60, right: 100, width: 260, height: 260,
         background: 'radial-gradient(circle, rgba(0,212,170,0.15) 0%, transparent 70%)',
         borderRadius: '50%', pointerEvents: 'none', zIndex: 2,
       }} />
 
-      {/* Content — left-aligned, max-width cap prevents overlong lines on ultra-wide */}
-      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1100 }}>
+      {/*
+       * コンテンツブロック: 画面中央付近にまとめるため
+       * maxWidth: 900 + margin: 0 auto で左右対称に配置
+       * テキストは左揃えのまま、ブロック全体を中央に
+       */}
+      <div style={{ position: 'relative', zIndex: 3, maxWidth: 900, margin: '0 auto', padding: '0 32px' }}>
         {/* Status + badges row */}
-        <div style={{ marginBottom: 18, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             background: 'rgba(0,0,0,0.5)', border: `1px solid ${T.border2}`,
@@ -342,17 +348,15 @@ function HeroSection({ data }: { data: TournamentData }) {
           )}
         </div>
 
-        {/* Title — Archivo Black italic, 2-line: first word / rest+year */}
+        {/* Title — バナー縮小に合わせてフォントサイズ削減 */}
         <h1 style={{
           fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
-          fontSize: 'clamp(52px, 8vw, 92px)',
+          fontSize: 'clamp(42px, 6vw, 72px)',
           lineHeight: 0.96, letterSpacing: '-0.02em',
-          color: T.text, margin: '0 0 14px',
-          textShadow: '0 6px 28px rgba(0,0,0,0.55)',
+          color: T.text, margin: '0 0 12px',
+          textShadow: '0 4px 20px rgba(0,0,0,0.55)',
         }}>
-          {/* Line 1: first word */}
           <span style={{ display: 'block' }}>{line1}</span>
-          {/* Line 2: remaining words, trailing year outlined */}
           <span style={{ display: 'block' }}>
             {line2Base}
             {nameYear && (
@@ -377,8 +381,8 @@ function HeroSection({ data }: { data: TournamentData }) {
         {/* Date */}
         {(tournament.startDate || tournament.endDate) && (
           <p style={{
-            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 500,
-            color: T.muted, letterSpacing: '0.04em', margin: '14px 0 36px',
+            fontFamily: T.fDisplay, fontSize: 14, fontWeight: 500,
+            color: T.muted, letterSpacing: '0.04em', margin: '10px 0 24px',
           }}>
             {fmtDate(tournament.startDate)}
             {tournament.endDate && tournament.endDate !== tournament.startDate && ` – ${fmtDate(tournament.endDate)}`}
@@ -386,7 +390,7 @@ function HeroSection({ data }: { data: TournamentData }) {
         )}
 
         {/* Stat boxes */}
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard value={displayEntrants}                label="参加者数" />
           <StatCard value={displayMatches}                 label="総試合数" />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
