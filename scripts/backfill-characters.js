@@ -182,24 +182,30 @@ async function main() {
     console.log(`[RESUME] ${targetSetIds.size} sets from previous error log\n`)
   }
 
-  // ── DB からセット取得 ──
+  // ── DB からセット取得 (ページネーション対応: PostgREST 1000行上限回避) ──
   console.log('[INFO] Loading sets with null winner_character...')
-  let q = supabase
-    .from('tournament_sets')
-    .select('id, startgg_set_id, winner_entrant_id, loser_entrant_id, round_text')
-    .eq('tournament_id', DB_TOURNAMENT_ID)
-    .is('winner_character', null)
-    .not('startgg_set_id', 'is', null)
-    .not('winner_entrant_id', 'is', null)
-    .order('id')
+  const PAGE_SIZE = 1000
+  let allSets = []
+  let from = 0
+  while (true) {
+    const { data: page, error } = await supabase
+      .from('tournament_sets')
+      .select('id, startgg_set_id, winner_entrant_id, loser_entrant_id, round_text')
+      .eq('tournament_id', DB_TOURNAMENT_ID)
+      .is('winner_character', null)
+      .not('startgg_set_id', 'is', null)
+      .not('winner_entrant_id', 'is', null)
+      .order('id')
+      .range(from, from + PAGE_SIZE - 1)
+    if (error) { console.error('DB error:', error.message); process.exit(1) }
+    allSets = allSets.concat(page ?? [])
+    if (!page || page.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
 
-  // limit は resume 対応のため JS 側で適用
-  const { data: allSets, error } = await q.limit(LIMIT ? LIMIT : 20000)
-  if (error) { console.error('DB error:', error.message); process.exit(1) }
-
-  let sets = allSets ?? []
+  let sets = allSets
   if (targetSetIds) sets = sets.filter(s => targetSetIds.has(s.id))
-  if (LIMIT && !targetSetIds) sets = sets.slice(0, LIMIT)
+  if (LIMIT) sets = sets.slice(0, LIMIT)
 
   console.log(`[INFO] ${sets.length} sets to process\n`)
   if (!sets.length) { console.log('Nothing to do.'); return }

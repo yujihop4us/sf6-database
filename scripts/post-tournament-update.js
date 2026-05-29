@@ -24,6 +24,8 @@
  *                          省略時は --slug から自動生成
  *   --skip-step1           Step 1（start.gg API）をスキップして Step 2 から開始
  *                          キャラデータが start.gg にない大会で時間節約
+ *   --step4-limit=<n>      Step 4 で処理する選手数の上限（デフォルト: 100）
+ *                          レート制限対策: 一度に大量の選手を処理しない
  */
 
 import dotenv from 'dotenv'
@@ -101,7 +103,8 @@ async function fetchText(url, retries = 3) {
         },
       })
       if (res.status === 429 || res.status === 503) {
-        const wait = (i + 1) * 4_000
+        // Liquipedia が厳しいレート制限を課している: 指数バックオフで長く待機
+        const wait = Math.pow(2, i + 1) * 30_000  // 60s, 120s, 240s
         console.log(`  ⏳ Rate limited (${res.status}), waiting ${wait / 1000}s...`)
         await sleep(wait)
         continue
@@ -110,8 +113,15 @@ async function fetchText(url, retries = 3) {
         console.log(`  ⚠️  HTTP ${res.status} for ${url}`)
         return null
       }
-      // gzip は fetch が自動展開（Node.js 18+）
-      return await res.text()
+      const text = await res.text()
+      // Cloudflare/Liquipedia のレート制限ページを検出
+      if (text.includes('Rate Limited') && text.includes('cloudflare')) {
+        const wait = Math.pow(2, i + 1) * 30_000
+        console.log(`  ⏳ Cloudflare rate limit page, waiting ${wait / 1000}s...`)
+        await sleep(wait)
+        continue
+      }
+      return text
     } catch (err) {
       if (i === retries - 1) console.error(`  Fetch error: ${err.message}`)
       await sleep(2_000)
@@ -300,24 +310,47 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
   console.log(`  ✅ 取得: ${usedUrl}`)
 
   // ブラケットページからプレイヤー名とキャラを抽出
-  // パターン: <span class="name">PlayerName</span> + <span class="character">CharName</span>
   const playerCharMap = {}
-
-  // パターン1: data-player と data-character 属性
-  const attrPattern = /data-(?:player|name)="([^"]+)"[^>]*data-character="([^"]+)"/gi
   let m
-  while ((m = attrPattern.exec(html)) !== null) {
+
+  // パターン1: data-player/data-name + data-character 属性（同一要素）
+  const attrPattern1 = /data-(?:player|name)="([^"]+)"[^>]*data-character="([^"]+)"/gi
+  while ((m = attrPattern1.exec(html)) !== null) {
     const player = m[1].trim()
     const char   = normalizeChar(m[2])
     if (player && char) playerCharMap[player] = char
   }
 
-  // パターン2: テキスト "PlayerName\nCharacterName" 形式
-  // WikiTable: 連続するテキストノードからパース
-  const textPattern = /class="[^"]*name[^"]*">([^<]+)<\/[^>]+>[\s\S]{0,200}?class="[^"]*character[^"]*">([^<]+)</gi
+  // パターン1b: data-character が先に来る場合
+  const attrPattern1b = /data-character="([^"]+)"[^>]*data-(?:player|name)="([^"]+)"/gi
+  while ((m = attrPattern1b.exec(html)) !== null) {
+    const char   = normalizeChar(m[1])
+    const player = m[2].trim()
+    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
+  }
+
+  // パターン2: CSS class name + character（最大500文字以内）
+  const textPattern = /class="[^"]*(?:brkts-opponent-)?name[^"]*">([^<]+)<\/[^>]+>[\s\S]{0,500}?class="[^"]*character[^"]*">([^<]+)</gi
   while ((m = textPattern.exec(html)) !== null) {
     const player = m[1].trim()
     const char   = normalizeChar(m[2].trim())
+    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
+  }
+
+  // パターン3: brkts-popup-body (試合詳細ポップアップ形式)
+  // <div class="brkts-popup-body-game"> ... <img alt="CharName"> ... >PlayerName<
+  const popupPattern = /<div[^>]*brkts-popup-body-game[^>]*>[\s\S]{0,600}?<img[^>]+alt="([^"]+)"[\s\S]{0,400}?brkts-popup-body-player[^>]*>([\s\S]{0,200}?)<\//gi
+  while ((m = popupPattern.exec(html)) !== null) {
+    const char   = normalizeChar(m[1])
+    const player = m[2].replace(/<[^>]+>/g, '').trim()
+    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
+  }
+
+  // パターン4: WikiTable の行 — "| Player || Character" 形式（wikitext が残っている場合）
+  const wikiPattern = /\|\s*([A-Za-z0-9\-_. ]+?)\s*\|\|\s*(Ryu|Ken|Luke|Kimberly|Chun-Li|Guile|Zangief|Manon|Marisa|JP|Dee Jay|Dhalsim|Blanka|E\.? Honda|Jamie|Lily|Cammy|Juri|Rashid|A\.K\.I\.?|Ed|Akuma|M\.?Bison|Terry|Mai|Elena|Sagat|C\. Viper|Alex|Ingrid)/gi
+  while ((m = wikiPattern.exec(html)) !== null) {
+    const player = m[1].trim()
+    const char   = normalizeChar(m[2])
     if (player && char && !playerCharMap[player]) playerCharMap[player] = char
   }
 
@@ -325,6 +358,14 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
 
   if (!Object.keys(playerCharMap).length) {
     console.log('  ℹ️  キャラデータが取れませんでした（ページ形式が異なる可能性）')
+    // デバッグ: HTML の先頭500文字と brkts- 周辺を表示
+    const brktsIdx = html.indexOf('brkts-')
+    if (brktsIdx >= 0) {
+      console.log(`  📋 HTML snippet (brkts- 周辺 @${brktsIdx}):`)
+      console.log('  ' + html.slice(Math.max(0, brktsIdx - 50), brktsIdx + 300).replace(/\s+/g, ' '))
+    } else {
+      console.log('  📋 HTML先頭500文字:', html.slice(0, 500).replace(/\s+/g, ' '))
+    }
     return {}
   }
 
@@ -463,7 +504,7 @@ async function step3_updateMainCharacters(tournamentId, dryRun) {
 }
 
 // ── Step 4: Liquipedia 選手ページから country_code 補完 ─────────────────
-async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryRun) {
+async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryRun, limit = 100) {
   console.log('\n╔══════════════════════════════════════════════════════════╗')
   console.log('║  Step 4: Liquipedia 選手ページから country_code 補完        ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
@@ -497,19 +538,32 @@ async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryR
     return 0
   }
 
-  console.log(`  country_code 未設定: ${players.length} 名`)
+  console.log(`  country_code 未設定: ${players.length} 名（上限: ${limit} 名処理）`)
+  const targets = players.slice(0, limit)
 
   let updated = 0
-  for (const player of players) {
+  let consecutiveRateLimits = 0
+  for (const player of targets) {
     // Liquipedia 選手ページ: https://liquipedia.net/fighters/PlayerName
     const encodedName = encodeURIComponent(player.handle.replace(/ /g, '_'))
     const url = `${LIQUIPEDIA_BASE}/${encodedName}`
 
     console.log(`  Fetching ${player.handle}...`)
     const html = await fetchText(url)
-    await sleep(2_000)  // Liquipedia: 1 req/2s
+    await sleep(3_000)  // Liquipedia: 1 req/3s (余裕を持たせる)
 
-    if (!html) { console.log(`    → skipped (fetch failed)`); continue }
+    if (!html) {
+      consecutiveRateLimits++
+      console.log(`    → skipped (fetch failed)`)
+      // 連続で失敗が続いたら長めに待機
+      if (consecutiveRateLimits >= 3) {
+        console.log(`  ⏸  連続失敗 ${consecutiveRateLimits} 回 — 60s 待機...`)
+        await sleep(60_000)
+        consecutiveRateLimits = 0
+      }
+      continue
+    }
+    consecutiveRateLimits = 0
 
     // "Nationality:" または "Country:" フィールドを抽出
     const natPatterns = [
@@ -542,7 +596,11 @@ async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryR
     updated++
   }
 
-  console.log(`\n  完了: ${updated} 件更新`)
+  const remaining = players.length - targets.length
+  console.log(`\n  完了: ${updated} 件更新（処理: ${targets.length} 名, 残り: ${remaining} 名）`)
+  if (remaining > 0) {
+    console.log(`  ℹ️  残りの ${remaining} 名は次回 --step=4 で処理可能`)
+  }
   return updated
 }
 
@@ -558,6 +616,7 @@ async function main() {
   const topPhases       = argv['top-phases']?.split(',') ?? []
   const liquipediaUrl   = argv['liquipedia-url'] || null   // Step 2 用 Liquipedia URL 直接指定
   const skipStep1       = !!argv['skip-step1']             // Step 1 をスキップして Step 2 から開始
+  const step4Limit      = Number(argv['step4-limit'] ?? 100) // Step 4 で処理する選手数の上限
 
   if (!tournamentId) {
     console.error('Usage: node scripts/post-tournament-update.js --tournament-id=<id> --slug=<slug>')
@@ -577,6 +636,7 @@ async function main() {
   char-threshold: ${charThreshold}%
   top-phases    : ${topPhases.join(',') || '(自動検出)'}
   liquipedia-url: ${liquipediaUrl || '(slugから自動生成)'}
+  step4-limit   : ${step4Limit}
 `)
 
   const shouldRun = n => stepOnly === null || stepOnly === n
@@ -618,7 +678,7 @@ async function main() {
     if (!slug) {
       console.log('\n⚠️  --slug が未指定のため Step 4 スキップ')
     } else {
-      await step4_liquipediaCountries(tournamentId, topPhases, dryRun)
+      await step4_liquipediaCountries(tournamentId, topPhases, dryRun, step4Limit)
     }
   }
 
