@@ -270,7 +270,7 @@ function HeroSection({ data }: { data: TournamentData }) {
   const nameYear  = yearMatch?.[1] ?? null                            // "2026"
 
   return (
-    <div style={{
+    <div className="hero-banner" style={{
       position: 'relative', overflow: 'hidden',
       background: 'linear-gradient(160deg, #0e1f24 0%, #080c10 62%)',
       padding: '36px 0 32px',          /* 上下を詰めてコンパクトに */
@@ -308,11 +308,11 @@ function HeroSection({ data }: { data: TournamentData }) {
        * コンテンツブロック: TabBar・順位表と同じ maxWidth: 1200 に揃えて左端を統一
        * ロゴ透かしはコンテナ内 position: absolute で右端に配置
        */}
-      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1400, margin: '0 auto', padding: '0 20px' }}>
+      <div className="hero-content" style={{ position: 'relative', zIndex: 3, maxWidth: 1400, margin: '0 auto', padding: '0 20px' }}>
         {/* Watermark logo — コンテナ右端に控えめに配置 */}
         {tournament.logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={tournament.logoUrl} alt="" style={{
+          <img className="hero-logo" src={tournament.logoUrl} alt="" style={{
             position: 'absolute', right: 20, top: 0,
             height: 260, width: 'auto',
             opacity: 0.09, pointerEvents: 'none', userSelect: 'none',
@@ -379,7 +379,7 @@ function HeroSection({ data }: { data: TournamentData }) {
         </div>
 
         {/* Title — バナー縮小に合わせてフォントサイズ削減 */}
-        <h1 style={{
+        <h1 className="hero-title" style={{
           fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
           fontSize: 'clamp(42px, 6vw, 72px)',
           lineHeight: 0.96, letterSpacing: '-0.02em',
@@ -420,7 +420,7 @@ function HeroSection({ data }: { data: TournamentData }) {
         )}
 
         {/* Stat boxes */}
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div className="stats-row" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <StatCard value={displayEntrants}                label={UI_TEXT.participants} />
           <StatCard value={displayMatches}                 label={UI_TEXT.totalMatches} />
           <StatCard value={fmtPrize(tournament.prizeUsd)} label={UI_TEXT.totalPrize} />
@@ -449,7 +449,7 @@ function TabBar({ active, setActive, counts }: {
       background: T.card, borderBottom: `1px solid ${T.border}`,
       position: 'sticky', top: 52, zIndex: 40,
     }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', display: 'flex' }}>
+      <div className="tab-bar" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 32px', display: 'flex' }}>
         {TABS.map(tab => {
           const on = active === tab.id
           return (
@@ -540,6 +540,7 @@ function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | n
   const showEwc = ewcSpots != null && p.rank <= ewcSpots
   const inner = (
     <div
+      className="podium-champion"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -770,7 +771,7 @@ function StandingsTable({
     <div>
       {/* ── Podium: Top 3 independent cards ── */}
       {podiumEntrants.length > 0 && !isSearching && (
-        <div style={{ marginBottom: 28 }}>
+        <div className="podium-section" style={{ marginBottom: 28 }}>
           {(() => {
             const champ   = podiumEntrants.find(e => effectivePlacement(e) === 1)
             const runners = podiumEntrants.filter(e => effectivePlacement(e) !== 1)
@@ -779,7 +780,7 @@ function StandingsTable({
               <>
                 {champ && <PodiumChampion p={toPodiumEntry(champ)} ewcSpots={ewcQualifyingSpots} />}
                 {runners.length > 0 && (
-                  <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
+                  <div className="podium-runners" style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
                     {runners.map(e => <PodiumRunner key={e.entrantId} p={toPodiumEntry(e)} ewcSpots={ewcQualifyingSpots} />)}
                   </div>
                 )}
@@ -815,7 +816,7 @@ function StandingsTable({
 
       <div style={{ borderRadius: 10, border: `1px solid ${T.border}`, overflow: 'hidden', background: T.card }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="standings-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
                 <SortTh id="placement" label={UI_TEXT.colRank}      align="center" />
@@ -842,6 +843,7 @@ function StandingsTable({
                 return (
                   <tr
                     key={e.entrantId}
+                    className="standings-row"
                     onMouseEnter={() => setHoveredRow(i)}
                     onMouseLeave={() => setHoveredRow(null)}
                     style={{
@@ -1796,7 +1798,7 @@ function CharStats({
           const color = charColor(c.char)
           const barPct = (c.count / maxCount) * 100
           return (
-            <div key={c.char} style={{
+            <div key={c.char} className="char-stat-row" style={{
               background: T.card, border: `1px solid ${T.border}`,
               borderRadius: 10, padding: '14px 20px',
             }}>
@@ -1899,13 +1901,89 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
         ::-webkit-scrollbar-thumb { background: var(--sf6-surface3); border-radius: 3px; }
         input::placeholder { color: var(--sf6-text-dim); }
         * { box-sizing: border-box; }
+
+        /* ── モバイルレスポンシブ (768px以下) ── */
+        @media (max-width: 768px) {
+          .hero-content {
+            max-width: 100% !important;
+            padding: 0 16px !important;
+          }
+          .hero-logo {
+            display: none !important;
+          }
+          .hero-title {
+            font-size: clamp(28px, 9vw, 42px) !important;
+            line-height: 1.05 !important;
+          }
+          .stats-row {
+            gap: 8px !important;
+          }
+          .tab-bar {
+            padding: 0 12px !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+          }
+          .tab-bar::-webkit-scrollbar { display: none; }
+          .main-content {
+            padding: 20px 16px 80px !important;
+          }
+          /* ポディアム */
+          .podium-champion {
+            padding: 16px 18px !important;
+            gap: 16px !important;
+          }
+          .podium-runners {
+            flex-direction: column !important;
+            gap: 8px !important;
+          }
+          .podium-runners > * {
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
+          }
+          /* 順位表: char列(4), EWC列(6+)を非表示 */
+          .standings-table th:nth-child(4),
+          .standings-table td:nth-child(4) { display: none !important; }
+          .standings-table th:nth-child(n+6),
+          .standings-table td:nth-child(n+6) { display: none !important; }
+          .standings-table td,
+          .standings-table th {
+            padding: 8px 8px !important;
+            font-size: 13px !important;
+          }
+          /* キャラ統計: 数値が重ならないよう調整 */
+          .char-stat-row { padding: 10px 14px !important; }
+        }
+
+        /* ── 小型スマホ (480px以下) ── */
+        @media (max-width: 480px) {
+          .hero-title {
+            font-size: clamp(22px, 8vw, 32px) !important;
+          }
+          .stats-row > div {
+            flex: 1 1 calc(50% - 4px) !important;
+          }
+          .standings-table td,
+          .standings-table th {
+            padding: 6px 6px !important;
+            font-size: 12px !important;
+          }
+          /* 国旗列も非表示にして賞金列を見やすく */
+          .standings-table th:nth-child(3),
+          .standings-table td:nth-child(3) { display: none !important; }
+          .podium-champion {
+            padding: 14px 14px !important;
+            gap: 12px !important;
+          }
+          .char-stat-row { padding: 8px 10px !important; }
+        }
       `}</style>
 
       <SiteNavbar activePage="tournaments" breadcrumb={[{ label: '大会', href: '/tournaments' }, { label: data.tournament.name }]} />
       <HeroSection data={data} />
       <TabBar active={activeTab} setActive={setActiveTab} counts={counts} />
 
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 32px 100px' }}>
+      <div className="main-content" style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 32px 100px' }}>
         {activeTab === 'standings' && (
           <>
             <SectionHead title={UI_TEXT.sectionStandings} sub={`${data.entrants.length} ENTRANTS`} />
