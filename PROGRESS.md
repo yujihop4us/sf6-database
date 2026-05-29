@@ -17,6 +17,48 @@
 
 ## 最新の作業ログ
 
+### 2026-05-29 — post-tournament-update 改善 + 大会データ一括処理（CB2026）
+
+**対象:** `scripts/post-tournament-update.js`, `scripts/backfill-main-characters.js`, `supabase/migrations/`
+
+#### 実施内容
+
+**1. players.main_character バックフィル**
+- 新スクリプト `scripts/backfill-main-characters.js` 作成
+- 最新大会優先ロジック: 大会 start_date 降順で最頻出キャラを選択
+- CC11 データから 48 選手の `main_character` を更新
+
+**2. players テーブル migration**
+- `supabase/migrations/20260531_player_char_tournament.sql`: `main_character_tournament_id` カラム追加
+  - どの大会のデータで main_character を設定したかを追跡
+
+**3. tournament_meta 一括 migration**
+- `supabase/migrations/20260531_tournament_meta_bulk.sql`: 6大会の `cpt_event_type`, `ewc_qualifying_spots`, `logo_url` 設定
+- `supabase/migrations/20260530_ewc_qualifying_spots.sql`: CB2026 の `ewc_qualifying_spots=2` 設定
+
+**4. CB2026 post-tournament-update 実行**
+- `--skip-step1 --liquipedia-url` オプション追加（start.gg API スキップ：2900セット×760ms≒74分を回避）
+- Step 2（Liquipedia ブラケット）: 0選手抽出（ページ形式が異なる or 未記入）
+- Step 4（country_code）: 12名更新（Problem-X→GB, iDom→US, K-Brad→US など）
+  - IP レート制限でブロック → 処理中断
+
+**5. post-tournament-update.js 改善（commit 9bce109）**
+- `fetchText`: Cloudflare レート制限ページ検出 + 指数バックオフ（60/120/240s）
+- Step 2: 4種類の追加 HTMLパターン + 0選手時デバッグ出力
+- Step 4: `--step4-limit` オプション（デフォルト100名）+ 連続失敗時60s一時停止
+- `backfill-characters.js`: PostgREST 1000行上限を回避するページネーション
+
+#### キャラデータ状況
+- CC11 のみ 99% カバー（start.gg から取得済み）
+- その他全大会: 0%（Liquipedia スクレイプ待ち）
+
+#### country_code 状況
+- EWC系（小規模）: 73-94%
+- CC11/CC X: 52-60%
+- 大規模オープン大会（Evo, CB, EvoJP）: 2-9%
+
+---
+
 ### 2026-05-28 — 順位表修正 + CPT ポイント + 賞金表示 + 参加者数修正
 
 **対象:** `src/app/tournament/[id]/page.tsx`, `src/app/tournament/[id]/TournamentClient.tsx`
