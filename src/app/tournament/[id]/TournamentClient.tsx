@@ -71,7 +71,8 @@ function fmtPrize(usd: number | null): string {
 // isCptPremier は tournament.cptEventType === 'premier' で動的に判定
 // (page.tsx → DB の cpt_event_type カラムから取得)
 
-// Points by placement (1st = CC seat, no points value in this table)
+// CPT Premier ポイント配分 (2025/2026 共通)
+// 1st = Capcom Cup 出場権（ポイント値なし）
 const CPT_PREMIER_POINTS: Record<number, number> = {
   2: 300, 3: 250, 4: 200,
   5: 150, 6: 150,
