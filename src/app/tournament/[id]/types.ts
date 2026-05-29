@@ -20,6 +20,8 @@ export interface TournamentInfo {
   numEntrantsOverride?: number
   /** 実際のセット総数（start.gg の正式値。未設定なら DB 値を使用） */
   totalSetsOverride?: number
+  /** EWC出場権付き順位枠数（例: 2 → 1位・2位にEWCバッジ表示） */
+  ewcQualifyingSpots?: number | null
 }
 
 export interface PlayerInfo {

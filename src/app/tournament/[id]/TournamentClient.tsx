@@ -311,8 +311,8 @@ function HeroSection({ data }: { data: TournamentData }) {
         {tournament.logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={tournament.logoUrl} alt="" style={{
-            position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)',
-            height: 220, width: 'auto',
+            position: 'absolute', right: 20, top: 0,
+            height: 260, width: 'auto',
             opacity: 0.09, pointerEvents: 'none', userSelect: 'none',
             objectFit: 'contain',
           }} />
@@ -458,6 +458,23 @@ function TabBar({ active, setActive, counts }: {
   )
 }
 
+// ─── EWC badge ───────────────────────────────────────────────────
+
+function EwcBadge() {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4,
+      background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.55)',
+      borderRadius: 20, padding: '2px 9px',
+      fontFamily: 'var(--font-barlow-condensed, sans-serif)', fontSize: 11, fontWeight: 800,
+      letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a5b4fc',
+      whiteSpace: 'nowrap',
+    }}>
+      EWC
+    </span>
+  )
+}
+
 // ─── Podium (Top 3 independent section) ──────────────────────────
 
 interface PodiumEntry {
@@ -467,16 +484,27 @@ interface PodiumEntry {
   char: string | null
   prize: string
   cptPts: number | null
+  playerId: number | null
 }
 
-function PodiumChampion({ p }: { p: PodiumEntry }) {
-  return (
-    <div style={{
-      position: 'relative', overflow: 'hidden', borderRadius: 12,
-      border: '1px solid rgba(245,200,66,0.45)',
-      background: 'linear-gradient(120deg, rgba(245,200,66,0.15) 0%, rgba(245,200,66,0.03) 46%, rgba(14,20,25,1) 78%)',
-      padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 26,
-    }}>
+function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | null }) {
+  const [hovered, setHovered] = useState(false)
+  const showEwc = ewcSpots != null && p.rank <= ewcSpots
+  const inner = (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative', overflow: 'hidden', borderRadius: 12,
+        border: '1px solid rgba(245,200,66,0.45)',
+        background: 'linear-gradient(120deg, rgba(245,200,66,0.15) 0%, rgba(245,200,66,0.03) 46%, rgba(14,20,25,1) 78%)',
+        padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 26,
+        cursor: p.playerId ? 'pointer' : 'default',
+        transition: 'filter 0.15s, transform 0.15s',
+        filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
+        transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
+      }}
+    >
       <Stripes style={{ top: 0, right: 0, bottom: 0, width: '30%', zIndex: 0 }} />
       {/* Ghost rank numeral */}
       <div style={{
@@ -501,8 +529,9 @@ function PodiumChampion({ p }: { p: PodiumEntry }) {
             fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
           }}>{p.handle}</h3>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <CharPill name={p.char} />
+          {showEwc && <EwcBadge />}
         </div>
       </div>
       {/* Prize + points */}
@@ -518,23 +547,36 @@ function PodiumChampion({ p }: { p: PodiumEntry }) {
       </div>
     </div>
   )
+  return p.playerId
+    ? <Link href={`/player/${p.playerId}`} style={{ display: 'block', textDecoration: 'none' }}>{inner}</Link>
+    : inner
 }
 
-function PodiumRunner({ p }: { p: PodiumEntry }) {
-  const isSilver  = p.rank === 2
+function PodiumRunner({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | null }) {
+  const [hovered, setHovered] = useState(false)
+  const isSilver   = p.rank === 2
   const medalColor = isSilver ? T.silver : T.bronze
   const medal      = isSilver ? '🥈' : '🥉'
-  return (
-    <div style={{
-      position: 'relative', overflow: 'hidden',
-      flex: '1 1 240px', minWidth: 0, borderRadius: 10,
-      border: `1px solid ${medalColor}55`,
-      background: isSilver
-        ? 'linear-gradient(120deg, rgba(160,176,191,0.13) 0%, rgba(14,20,25,1) 62%)'
-        : 'linear-gradient(120deg, rgba(205,140,82,0.13) 0%, rgba(14,20,25,1) 62%)',
-      boxShadow: `inset 3px 0 0 ${medalColor}`,
-      padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16,
-    }}>
+  const showEwc    = ewcSpots != null && p.rank <= ewcSpots
+  const inner = (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative', overflow: 'hidden',
+        flex: '1 1 240px', minWidth: 0, borderRadius: 10,
+        border: `1px solid ${medalColor}55`,
+        background: isSilver
+          ? 'linear-gradient(120deg, rgba(160,176,191,0.13) 0%, rgba(14,20,25,1) 62%)'
+          : 'linear-gradient(120deg, rgba(205,140,82,0.13) 0%, rgba(14,20,25,1) 62%)',
+        boxShadow: `inset 3px 0 0 ${medalColor}`,
+        padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16,
+        cursor: p.playerId ? 'pointer' : 'default',
+        transition: 'filter 0.15s, transform 0.15s',
+        filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
+        transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
+      }}
+    >
       {/* Outlined rank numeral */}
       <div style={{
         flexShrink: 0, fontFamily: T.fTitle, fontStyle: 'italic',
@@ -552,6 +594,7 @@ function PodiumRunner({ p }: { p: PodiumEntry }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <CharPill name={p.char} />
+          {showEwc && <EwcBadge />}
           {p.prize !== '—' && (
             <span style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
               {p.prize}
@@ -567,6 +610,9 @@ function PodiumRunner({ p }: { p: PodiumEntry }) {
       <div style={{ fontSize: 22, flexShrink: 0 }}>{medal}</div>
     </div>
   )
+  return p.playerId
+    ? <Link href={`/player/${p.playerId}`} style={{ display: 'block', textDecoration: 'none', flex: '1 1 240px', minWidth: 0 }}>{inner}</Link>
+    : inner
 }
 
 // ─── Standings ────────────────────────────────────────────────────
@@ -577,10 +623,12 @@ function StandingsTable({
   entrants,
   tournamentId,
   isCptPremier = false,
+  ewcQualifyingSpots = null,
 }: {
   entrants: EntrantRow[]
   tournamentId: number
   isCptPremier?: boolean
+  ewcQualifyingSpots?: number | null
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('placement')
   const [asc, setAsc] = useState(true)
@@ -602,6 +650,7 @@ function StandingsTable({
       char:        p.usedCharacters ? p.usedCharacters.split('/')[0] : p.character,
       prize:       rawPrize != null ? `$${Math.round(rawPrize).toLocaleString()}` : '—',
       cptPts:      isCptPremier && eff === 1 ? 0 : (isCptPremier && eff ? CPT_PREMIER_POINTS[eff] ?? 0 : null),
+      playerId:    p.id,
     }
   }
 
@@ -680,10 +729,10 @@ function StandingsTable({
                                           .sort((a, b) => (effectivePlacement(a) ?? 9) - (effectivePlacement(b) ?? 9))
             return (
               <>
-                {champ && <PodiumChampion p={toPodiumEntry(champ)} />}
+                {champ && <PodiumChampion p={toPodiumEntry(champ)} ewcSpots={ewcQualifyingSpots} />}
                 {runners.length > 0 && (
                   <div style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                    {runners.map(e => <PodiumRunner key={e.entrantId} p={toPodiumEntry(e)} />)}
+                    {runners.map(e => <PodiumRunner key={e.entrantId} p={toPodiumEntry(e)} ewcSpots={ewcQualifyingSpots} />)}
                   </div>
                 )}
               </>
@@ -726,6 +775,7 @@ function StandingsTable({
                 <StaticTh label="国旗" />
                 <StaticTh label="使用キャラ" />
                 <StaticTh label="賞金"  align="right" />
+                {ewcQualifyingSpots != null && <StaticTh label="EWC" align="center" />}
                 {isCptPremier && <StaticTh label="CPT" align="center" />}
               </tr>
             </thead>
@@ -826,6 +876,12 @@ function StandingsTable({
                         <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: T.dim }}>—</span>
                       )}
                     </td>
+                    {/* EWC badge column */}
+                    {ewcQualifyingSpots != null && (
+                      <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {eff != null && eff <= ewcQualifyingSpots ? <EwcBadge /> : null}
+                      </td>
+                    )}
                     {/* CPT points */}
                     {isCptPremier && (
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -1821,6 +1877,7 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
               entrants={data.entrants}
               tournamentId={data.tournament.id}
               isCptPremier={CPT_PREMIER_IDS.has(data.tournament.id)}
+              ewcQualifyingSpots={data.tournament.ewcQualifyingSpots ?? null}
             />
           </>
         )}

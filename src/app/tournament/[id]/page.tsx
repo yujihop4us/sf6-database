@@ -28,12 +28,14 @@ const TOURNAMENT_META: Record<number, {
   cptEventType: string | null
   finalPoolIdentifier: string | null
   top24PoolIdentifier: string | null
+  ewcQualifyingSpots?: number | null
 }> = {
   48: {
     logoUrl:              '/images/tournaments/cb2026.jpg',  // ローカルキャッシュ
     cptEventType:         'premier',
     finalPoolIdentifier:  'VVX15',
     top24PoolIdentifier:  'PX133',
+    ewcQualifyingSpots:   2,  // XiaoHai（1位）・Hinao（2位）
   },
 }
 
@@ -59,7 +61,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   // Falls back to compile-time constants if migration not yet applied
   const { data: tMeta, error: tMetaErr } = await supabase
     .from('tournaments')
-    .select('logo_url, cpt_event_type, final_pool_identifier, top24_pool_identifier')
+    .select('logo_url, cpt_event_type, final_pool_identifier, top24_pool_identifier, ewc_qualifying_spots')
     .eq('id', numericId)
     .single()
   const meta    = (!tMetaErr && tMeta) ? tMeta : null
@@ -478,6 +480,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       cptEventType:        meta?.cpt_event_type       ?? metaFb?.cptEventType        ?? null,
       finalPoolIdentifier: meta?.final_pool_identifier ?? metaFb?.finalPoolIdentifier ?? null,
       top24PoolIdentifier: meta?.top24_pool_identifier ?? metaFb?.top24PoolIdentifier ?? null,
+      ewcQualifyingSpots:  (meta as { ewc_qualifying_spots?: number | null } | null)?.ewc_qualifying_spots ?? metaFb?.ewcQualifyingSpots ?? null,
       numEntrantsOverride: TOURNAMENT_REAL_STATS[numericId]?.numEntrants,
       totalSetsOverride:   TOURNAMENT_REAL_STATS[numericId]?.totalSets,
     },
