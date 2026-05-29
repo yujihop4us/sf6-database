@@ -54,12 +54,14 @@ const SF6_CHAR_MAP = {
 }
 
 // ── Liquipedia キャラ名正規化 ─────────────────────────────────────────────
+// DBの canonical 名に合わせる（tournament_sets.winner_character と統一）
 const LIQUIPEDIA_CHAR_NORMALIZE = {
-  'M. Bison': 'M.Bison', 'M.Bison': 'M.Bison',
-  'A.K.I': 'A.K.I.', 'AKI': 'A.K.I.',
-  'E. Honda': 'E.Honda', 'Honda': 'E.Honda',
-  'Dee Jay': 'Dee Jay', 'DeeJay': 'Dee Jay',
-  'Chun Li': 'Chun-Li', 'Chun-Li': 'Chun-Li',
+  'M. Bison': 'M.Bison',  'M.Bison': 'M.Bison',
+  'A.K.I.':  'Aki',       'A.K.I':   'Aki',      'AKI': 'Aki',
+  'E. Honda': 'E.Honda',  'Honda':   'E.Honda',
+  'Dee Jay':  'Dee Jay',  'DeeJay':  'Dee Jay',
+  'Chun Li':  'Chun-Li',  'Chun-Li': 'Chun-Li',
+  'C. Viper': 'C. Viper',
 }
 function normalizeChar(name) {
   if (!name) return null
@@ -309,64 +311,78 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
   }
   console.log(`  ✅ 取得: ${usedUrl}`)
 
-  // ブラケットページからプレイヤー名とキャラを抽出
+  // ─── Liquipedia ブラケットからプレイヤー→キャラを抽出 ─────────────────────
+  // 構造（全大会共通）:
+  //   match-info-header-opponent-left   ... href="/fighters/Slug" > Handle </a>
+  //   match-info-header-winner          ... href="/fighters/Slug" > Handle </a>
+  //   brkts-popup-body-game 左側: "CharName&#160;<img"
+  //   brkts-popup-body-game 右側: "<img ...X_SF6_icon...>&#160;CharName</div>"
+  //
+  // 複数ゲームの最頻出キャラ = main character として採用
+
+  // { textHandle → { href: slug, charCounts: { charName → n } } }
+  const playerData = {}
+
+  // HTML を match popup ブロック単位で処理
+  // 各ブロック: match-info-header-opponent-left の出現で区切る
+  const POPUP_SEP = /match-info-header-opponent-left/g
+  const positions = [...html.matchAll(POPUP_SEP)].map(m => m.index)
+
+  for (let i = 0; i < positions.length; i++) {
+    const start = positions[i]
+    const end   = positions[i + 1] ?? Math.min(start + 5000, html.length)
+    const chunk = html.slice(start, end)
+
+    const leftM  = chunk.match(/match-info-header-opponent-left[^>]*>[\s\S]*?href="\/fighters\/([^"]+)"[^>]*>([^<]+)<\/a>/)
+    const rightM = chunk.match(/match-info-header-winner[^>]*>[\s\S]*?href="\/fighters\/([^"]+)"[^>]*>([^<]+)<\/a>/)
+    if (!leftM || !rightM) continue
+
+    // Left player chars: "CharName&#160;<img" (テキストが img より前)
+    const leftChars = [...chunk.matchAll(
+      /align-items:flex-end[\s\S]*?brkts-popup-body-element-thumbs">([^<&\n]+)&#160;<img/g
+    )].map(m => normalizeChar(m[1].trim())).filter(Boolean)
+
+    // Right player chars: "_SF6_icon...">&#160;CharName</div>" (テキストが img より後)
+    const rightChars = [...chunk.matchAll(
+      /_SF6_icon[^"]*"[^>]*>&#160;([A-Za-z][A-Za-z. ]+)<\/div>/g
+    )].map(m => normalizeChar(m[1].trim())).filter(Boolean)
+
+    for (const [href, text, chars] of [
+      [leftM[1],  leftM[2].trim(),  leftChars],
+      [rightM[1], rightM[2].trim(), rightChars],
+    ]) {
+      if (!playerData[text]) playerData[text] = { href, charCounts: {} }
+      for (const c of chars) {
+        playerData[text].charCounts[c] = (playerData[text].charCounts[c] ?? 0) + 1
+      }
+    }
+  }
+
+  // 最頻出キャラを選択 → { textHandle → charName } に変換
   const playerCharMap = {}
-  let m
-
-  // パターン1: data-player/data-name + data-character 属性（同一要素）
-  const attrPattern1 = /data-(?:player|name)="([^"]+)"[^>]*data-character="([^"]+)"/gi
-  while ((m = attrPattern1.exec(html)) !== null) {
-    const player = m[1].trim()
-    const char   = normalizeChar(m[2])
-    if (player && char) playerCharMap[player] = char
-  }
-
-  // パターン1b: data-character が先に来る場合
-  const attrPattern1b = /data-character="([^"]+)"[^>]*data-(?:player|name)="([^"]+)"/gi
-  while ((m = attrPattern1b.exec(html)) !== null) {
-    const char   = normalizeChar(m[1])
-    const player = m[2].trim()
-    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
-  }
-
-  // パターン2: CSS class name + character（最大500文字以内）
-  const textPattern = /class="[^"]*(?:brkts-opponent-)?name[^"]*">([^<]+)<\/[^>]+>[\s\S]{0,500}?class="[^"]*character[^"]*">([^<]+)</gi
-  while ((m = textPattern.exec(html)) !== null) {
-    const player = m[1].trim()
-    const char   = normalizeChar(m[2].trim())
-    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
-  }
-
-  // パターン3: brkts-popup-body (試合詳細ポップアップ形式)
-  // <div class="brkts-popup-body-game"> ... <img alt="CharName"> ... >PlayerName<
-  const popupPattern = /<div[^>]*brkts-popup-body-game[^>]*>[\s\S]{0,600}?<img[^>]+alt="([^"]+)"[\s\S]{0,400}?brkts-popup-body-player[^>]*>([\s\S]{0,200}?)<\//gi
-  while ((m = popupPattern.exec(html)) !== null) {
-    const char   = normalizeChar(m[1])
-    const player = m[2].replace(/<[^>]+>/g, '').trim()
-    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
-  }
-
-  // パターン4: WikiTable の行 — "| Player || Character" 形式（wikitext が残っている場合）
-  const wikiPattern = /\|\s*([A-Za-z0-9\-_. ]+?)\s*\|\|\s*(Ryu|Ken|Luke|Kimberly|Chun-Li|Guile|Zangief|Manon|Marisa|JP|Dee Jay|Dhalsim|Blanka|E\.? Honda|Jamie|Lily|Cammy|Juri|Rashid|A\.K\.I\.?|Ed|Akuma|M\.?Bison|Terry|Mai|Elena|Sagat|C\. Viper|Alex|Ingrid)/gi
-  while ((m = wikiPattern.exec(html)) !== null) {
-    const player = m[1].trim()
-    const char   = normalizeChar(m[2])
-    if (player && char && !playerCharMap[player]) playerCharMap[player] = char
+  for (const [text, { charCounts }] of Object.entries(playerData)) {
+    const entries = Object.entries(charCounts)
+    if (!entries.length) continue
+    playerCharMap[text] = entries.sort((a, b) => b[1] - a[1])[0][0]
   }
 
   console.log(`  抽出: ${Object.keys(playerCharMap).length} 選手`)
 
   if (!Object.keys(playerCharMap).length) {
-    console.log('  ℹ️  キャラデータが取れませんでした（ページ形式が異なる可能性）')
-    // デバッグ: HTML の先頭500文字と brkts- 周辺を表示
-    const brktsIdx = html.indexOf('brkts-')
-    if (brktsIdx >= 0) {
-      console.log(`  📋 HTML snippet (brkts- 周辺 @${brktsIdx}):`)
-      console.log('  ' + html.slice(Math.max(0, brktsIdx - 50), brktsIdx + 300).replace(/\s+/g, ' '))
+    console.log('  ℹ️  キャラデータが取れませんでした')
+    // デバッグ: match-info-header 周辺を表示
+    const dbgIdx = html.indexOf('match-info-header-opponent-left')
+    if (dbgIdx >= 0) {
+      console.log(`  📋 snippet (@${dbgIdx}): ` + html.slice(dbgIdx, dbgIdx + 300).replace(/\s+/g, ' '))
     } else {
-      console.log('  📋 HTML先頭500文字:', html.slice(0, 500).replace(/\s+/g, ' '))
+      console.log('  ⚠️  match-info-header-opponent-left not found — popup 形式でない可能性')
     }
     return {}
+  }
+
+  // 抽出した選手リストを表示
+  for (const [handle, char] of Object.entries(playerCharMap)) {
+    console.log(`  📌 ${handle} → ${char}`)
   }
 
   // Top-phase pool_identifier を自動検出（--top-phases 未指定時）
@@ -383,22 +399,30 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
     ].filter(Boolean)
   }
   if (resolvedTopPhases.length) {
-    console.log(`  📌 Top-phase フィルタ: pool=[${resolvedTopPhases.join(',')}]`)
+    console.log(`  🎯 Top-phase フィルタ: pool=[${resolvedTopPhases.join(',')}]`)
   }
 
   // DB の選手と照合して winner_character / loser_character を更新
   const updatedSets = []
-  for (const [playerHandle, charName] of Object.entries(playerCharMap)) {
-    const { data: player } = await supabase
-      .from('players')
-      .select('id')
-      .ilike('handle', playerHandle)
-      .limit(1)
-      .single()
+  let matchedPlayers = 0, unmatchedPlayers = 0
 
-    if (!player) continue
+  for (const [textHandle, charName] of Object.entries(playerCharMap)) {
+    // DB 検索: text → href decoded の順で試みる（大文字小文字無視）
+    const href         = playerData[textHandle]?.href ?? ''
+    const hrefDecoded  = decodeURIComponent(href.replace(/_/g, ' '))
+    const candidates   = [...new Set([textHandle, hrefDecoded])].filter(Boolean)
 
-    // このプレイヤーが使用したセットに character を設定（top phase のみ）
+    let player = null
+    for (const name of candidates) {
+      const { data } = await supabase
+        .from('players').select('id').ilike('handle', name).limit(1).single()
+      if (data) { player = data; break }
+    }
+
+    if (!player) { unmatchedPlayers++; continue }
+    matchedPlayers++
+
+    // top phase のセットのみ更新
     let setQuery = supabase
       .from('tournament_sets')
       .select('id, winner_id, loser_id, winner_character, loser_character')
@@ -413,7 +437,6 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
       const patch = {}
       if (s.winner_id === player.id && !s.winner_character) patch.winner_character = charName
       if (s.loser_id  === player.id && !s.loser_character)  patch.loser_character  = charName
-
       if (Object.keys(patch).length) {
         if (!dryRun) await supabase.from('tournament_sets').update(patch).eq('id', s.id)
         updatedSets.push(s.id)
@@ -421,6 +444,7 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
     }
   }
 
+  console.log(`\n  DB マッチ: ${matchedPlayers} 名, 未マッチ: ${unmatchedPlayers} 名`)
   console.log(`  ✅ ${updatedSets.length} セットを更新`)
   return playerCharMap
 }
