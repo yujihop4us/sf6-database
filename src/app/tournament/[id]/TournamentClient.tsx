@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useLocale } from '@/lib/locale-context'
+import { UI_TEXT } from '@/lib/i18n'
 import SiteNavbar from '@/components/SiteNavbar'
 import type { TournamentData, TournamentInfo, EntrantRow, SetRow } from './types'
 import { getBracketSortOrder } from '@/lib/bracketOrder'
@@ -391,9 +392,9 @@ function HeroSection({ data }: { data: TournamentData }) {
 
         {/* Stat boxes */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <StatCard value={displayEntrants}                label="参加者数" />
-          <StatCard value={displayMatches}                 label="総試合数" />
-          <StatCard value={fmtPrize(tournament.prizeUsd)} label="総賞金額" />
+          <StatCard value={displayEntrants}                label={UI_TEXT.participants} />
+          <StatCard value={displayMatches}                 label={UI_TEXT.totalMatches} />
+          <StatCard value={fmtPrize(tournament.prizeUsd)} label={UI_TEXT.totalPrize} />
         </div>
       </div>
     </div>
@@ -404,9 +405,9 @@ function HeroSection({ data }: { data: TournamentData }) {
 
 type TabId = 'standings' | 'bracket' | 'chars'
 const TABS: { id: TabId; label: string }[] = [
-  { id: 'standings', label: '順位表' },
-  { id: 'bracket',   label: 'ブラケット' },
-  { id: 'chars',     label: 'Top 24 キャラ統計' },
+  { id: 'standings', label: UI_TEXT.standings },
+  { id: 'bracket',   label: UI_TEXT.bracket },
+  { id: 'chars',     label: UI_TEXT.charStats },
 ]
 
 function TabBar({ active, setActive, counts }: {
@@ -464,13 +465,31 @@ function EwcBadge() {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
-      background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.55)',
+      background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.55)',
       borderRadius: 20, padding: '2px 9px',
       fontFamily: 'var(--font-barlow-condensed, sans-serif)', fontSize: 11, fontWeight: 800,
-      letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a5b4fc',
+      letterSpacing: '0.12em', textTransform: 'uppercase', color: '#c4b5fd',
       whiteSpace: 'nowrap',
     }}>
-      EWC
+      {UI_TEXT.ewcQualified}
+    </span>
+  )
+}
+
+function CcQualifiedBadge() {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontFamily: 'var(--font-barlow-condensed, sans-serif)', fontSize: 11, fontWeight: 900,
+      letterSpacing: '0.08em', textTransform: 'uppercase',
+      color: '#fbbf24',
+      padding: '4px 10px', borderRadius: 6,
+      background: 'rgba(234,179,8,0.12)',
+      border: '1px solid rgba(234,179,8,0.40)',
+      boxShadow: '0 0 8px rgba(234,179,8,0.15)',
+      whiteSpace: 'nowrap',
+    }}>
+      🏆 {UI_TEXT.ccQualified}
     </span>
   )
 }
@@ -531,17 +550,17 @@ function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | n
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <CharPill name={p.char} />
-          {showEwc && <EwcBadge />}
         </div>
       </div>
-      {/* Prize + points */}
+      {/* Prize + badges */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
         <div style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
           {p.prize}
         </div>
-        {p.cptPts !== null && (
-          <div style={{ fontFamily: T.fDisplay, fontSize: 14, fontWeight: 700, color: T.accent, letterSpacing: '0.06em', marginTop: 5 }}>
-            CC確定 🏆
+        {(p.cptPts !== null || showEwc) && (
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
+            {p.cptPts !== null && <CcQualifiedBadge />}
+            {showEwc && <EwcBadge />}
           </div>
         )}
       </div>
@@ -747,12 +766,12 @@ function StandingsTable({
           <span style={{
             fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
             fontSize: 16, color: T.text, letterSpacing: '-0.01em',
-          }}>4位以降</span>
+          }}>{UI_TEXT.fourthAndBelow}</span>
         )}
         <div style={{ marginLeft: 'auto' }}>
         <input
           value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="選手名で検索..."
+          placeholder={UI_TEXT.searchPlaceholder}
           style={{
             background: T.surface2, border: `1px solid ${T.border}`,
             borderRadius: 6, padding: '8px 14px', color: T.text,
@@ -770,13 +789,13 @@ function StandingsTable({
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <SortTh id="placement" label="順位"   align="center" />
-                <SortTh id="handle"    label="選手名" />
-                <StaticTh label="国旗" />
-                <StaticTh label="使用キャラ" />
-                <StaticTh label="賞金"  align="right" />
-                {ewcQualifyingSpots != null && <StaticTh label="EWC" align="center" />}
-                {isCptPremier && <StaticTh label="CPT" align="center" />}
+                <SortTh id="placement" label={UI_TEXT.colRank}      align="center" />
+                <SortTh id="handle"    label={UI_TEXT.colPlayer} />
+                <StaticTh label={UI_TEXT.colFlag} />
+                <StaticTh label={UI_TEXT.colCharacter} />
+                <StaticTh label={UI_TEXT.colPrize}  align="right" />
+                {ewcQualifyingSpots != null && <StaticTh label={UI_TEXT.colEwc} align="center" />}
+                {isCptPremier && <StaticTh label={UI_TEXT.colCpt} align="center" />}
               </tr>
             </thead>
             <tbody>
@@ -886,19 +905,7 @@ function StandingsTable({
                     {isCptPremier && (
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                         {eff === 1 ? (
-                          <span style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 5,
-                            fontFamily: T.fDisplay, fontSize: 11, fontWeight: 900,
-                            letterSpacing: '0.08em', textTransform: 'uppercase',
-                            color: '#fbbf24',
-                            padding: '4px 10px', borderRadius: 6,
-                            background: 'rgba(234,179,8,0.12)',
-                            border: '1px solid rgba(234,179,8,0.40)',
-                            boxShadow: '0 0 8px rgba(234,179,8,0.15)',
-                            whiteSpace: 'nowrap',
-                          }}>
-                            🏆 CC確定
-                          </span>
+                          <CcQualifiedBadge />
                         ) : cptPts ? (
                           <span style={{
                             fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
@@ -922,12 +929,12 @@ function StandingsTable({
       {/* Show all / summary footer */}
       <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.dim, letterSpacing: '0.06em' }}>
-          {sorted.length} / {entrants.length} 選手表示
+          {sorted.length} / {entrants.length} {UI_TEXT.playersDisplayed}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {!hasAnyPlacement && entrants.length > 0 && (
             <span style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim }}>
-              * 順位はセットデータから推定（DBに正式な順位データなし）
+              {UI_TEXT.estimatedPlacementNote}
             </span>
           )}
           {cappedForCpt && hiddenCount > 0 && (
@@ -941,7 +948,7 @@ function StandingsTable({
                 padding: '5px 14px', cursor: 'pointer',
               }}
             >
-              全選手を表示 (+{hiddenCount})
+              {UI_TEXT.showAllPlayers} (+{hiddenCount})
             </button>
           )}
           {showAll && isCptPremier && (
@@ -955,7 +962,7 @@ function StandingsTable({
                 padding: '5px 14px', cursor: 'pointer',
               }}
             >
-              CPTポイント圏のみ
+              {UI_TEXT.showTopPlayers}
             </button>
           )}
         </div>
@@ -1872,7 +1879,7 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '36px 32px 100px' }}>
         {activeTab === 'standings' && (
           <>
-            <SectionHead title="順位表" sub={`${data.entrants.length} ENTRANTS`} />
+            <SectionHead title={UI_TEXT.sectionStandings} sub={`${data.entrants.length} ENTRANTS`} />
             <StandingsTable
               entrants={data.entrants}
               tournamentId={data.tournament.id}
@@ -1883,13 +1890,13 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
         )}
         {activeTab === 'bracket' && (
           <>
-            <SectionHead title="ブラケット" sub="DOUBLE ELIM" />
+            <SectionHead title={UI_TEXT.sectionBracket} sub={UI_TEXT.sectionBracketSub} />
             <BracketView sets={data.sets} />
           </>
         )}
         {activeTab === 'chars' && (
           <>
-            <SectionHead title="Top 24 キャラ統計" sub="USAGE · TOP BRACKET" />
+            <SectionHead title={UI_TEXT.sectionCharStats} sub={UI_TEXT.sectionCharSub} />
             <CharStats
               sets={data.sets}
               entrants={data.entrants}

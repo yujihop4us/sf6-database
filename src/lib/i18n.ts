@@ -108,3 +108,47 @@ export const translations = {
 } as const
 
 export type T = Record<keyof typeof translations.ja, string>
+
+// ─── Tournament page UI text constants ───────────────────────────
+// デフォルト値は日本語。将来 locale パラメータで切り替えられるよう
+// translations オブジェクトに統合予定。
+export const UI_TEXT = {
+  // Tab labels
+  standings:     '順位表',
+  bracket:       'ブラケット',
+  charStats:     'Top 24 キャラ統計',
+  // Hero stat cards
+  participants:  '参加者数',
+  totalMatches:  '総試合数',
+  totalPrize:    '総賞金額',
+  // Standings
+  fourthAndBelow:       '4位以降',
+  searchPlaceholder:    '選手名で検索...',
+  playersDisplayed:     '選手表示',
+  showAllPlayers:       '全選手を表示',
+  showTopPlayers:       'Top 32 のみ表示',
+  estimatedPlacementNote: '* 順位はセットデータから推定（DBに正式な順位データなし）',
+  // Table headers
+  colRank:       '順位',
+  colPlayer:     '選手名',
+  colFlag:       '国旗',
+  colCharacter:  '使用キャラ',
+  colPrize:      '賞金',
+  colCpt:        'CPT',
+  colEwc:        'EWC',
+  // Section heads
+  sectionStandings:  '順位表',
+  sectionBracket:    'ブラケット',
+  sectionCharStats:  'Top 24 キャラ統計',
+  sectionBracketSub: 'DOUBLE ELIM',
+  sectionCharSub:    'USAGE · TOP BRACKET',
+  // Qualification badges
+  ccQualified:   'CC Qualified',
+  ewcQualified:  'EWC Qualified',
+  // Bracket
+  bracketNoData:     'ブラケットデータなし',
+  charStatsNoData:   'Top 24 ブラケットのキャラデータなし',
+  charStatsFootnote: '※ CPTポイント獲得圏内（Top 24）の選手が使用したキャラクターの分布',
+} as const
+
+export type UITextKey = keyof typeof UI_TEXT
