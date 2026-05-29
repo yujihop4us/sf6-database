@@ -306,14 +306,14 @@ function HeroSection({ data }: { data: TournamentData }) {
        * コンテンツブロック: TabBar・順位表と同じ maxWidth: 1200 に揃えて左端を統一
        * ロゴ透かしはコンテナ内 position: absolute で右端に配置
        */}
-      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
+      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1400, margin: '0 auto', padding: '0 20px' }}>
         {/* Watermark logo — コンテナ右端に控えめに配置 */}
         {tournament.logoUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={tournament.logoUrl} alt="" style={{
-            position: 'absolute', right: 32, top: '50%', transform: 'translateY(-50%)',
-            height: 140, width: 'auto',
-            opacity: 0.07, pointerEvents: 'none', userSelect: 'none',
+            position: 'absolute', right: 20, top: '50%', transform: 'translateY(-50%)',
+            height: 220, width: 'auto',
+            opacity: 0.09, pointerEvents: 'none', userSelect: 'none',
             objectFit: 'contain',
           }} />
         )}
