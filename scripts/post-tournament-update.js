@@ -19,6 +19,11 @@
  *   --dry-run              DB 書き込みなし（確認のみ）
  *   --top-phases           final phase の poolIdentifier（カンマ区切り, 例: PX133,VVX15）
  *   --char-threshold=50    Step 2 移行しきい値（充填率 %）
+ *   --liquipedia-url=<url> Step 2 で使用する Liquipedia URL を直接指定
+ *                          （例: https://liquipedia.net/fighters/Combo_Breaker/2026/SF6）
+ *                          省略時は --slug から自動生成
+ *   --skip-step1           Step 1（start.gg API）をスキップして Step 2 から開始
+ *                          キャラデータが start.gg にない大会で時間節約
  */
 
 import dotenv from 'dotenv'
@@ -262,16 +267,22 @@ async function step1_startggChars(tournamentId, dryRun) {
 }
 
 // ── Step 2: Liquipedia ブラケットスクレイプ ──────────────────────────────
-async function step2_liquipediaBracket(tournamentId, slug, dryRun) {
+async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl = null) {
   console.log('\n╔══════════════════════════════════════════════════════════╗')
   console.log('║  Step 2: Liquipedia ブラケットページからキャラ取得          ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
 
-  // Liquipedia URL を試みる候補
-  const candidates = [
+  // URL 候補リスト: --liquipedia-url を最優先、次に slug から自動生成
+  const slugCandidates = slug ? [
     `${LIQUIPEDIA_BASE}/${slug}/SF6/Bracket`,
     `${LIQUIPEDIA_BASE}/${slug.replace(/-/g, '_')}/SF6/Bracket`,
-  ]
+    // トップレベルページ（brkts- が含まれる場合あり）
+    `${LIQUIPEDIA_BASE}/${slug.replace(/-/g, '_')}/SF6`,
+    `${LIQUIPEDIA_BASE}/${slug.replace(/-/g, '_')}`,
+  ] : []
+  const candidates = overrideUrl
+    ? [overrideUrl, ...slugCandidates]
+    : slugCandidates
 
   let html = null
   let usedUrl = null
@@ -539,12 +550,14 @@ async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryR
 async function main() {
   const argv = parseArgs()
 
-  const tournamentId = Number(argv['tournament-id'])
-  const slug         = argv['slug'] || ''
-  const dryRun       = !!argv['dry-run']
-  const stepOnly     = argv['step'] ? Number(argv['step']) : null
-  const charThreshold = Number(argv['char-threshold'] ?? 50)
-  const topPhases    = argv['top-phases']?.split(',') ?? []
+  const tournamentId    = Number(argv['tournament-id'])
+  const slug            = argv['slug'] || ''
+  const dryRun          = !!argv['dry-run']
+  const stepOnly        = argv['step'] ? Number(argv['step']) : null
+  const charThreshold   = Number(argv['char-threshold'] ?? 50)
+  const topPhases       = argv['top-phases']?.split(',') ?? []
+  const liquipediaUrl   = argv['liquipedia-url'] || null   // Step 2 用 Liquipedia URL 直接指定
+  const skipStep1       = !!argv['skip-step1']             // Step 1 をスキップして Step 2 から開始
 
   if (!tournamentId) {
     console.error('Usage: node scripts/post-tournament-update.js --tournament-id=<id> --slug=<slug>')
@@ -560,30 +573,35 @@ async function main() {
   slug          : ${slug || '(未指定)'}
   dry-run       : ${dryRun}
   step          : ${stepOnly ?? '全ステップ'}
+  skip-step1    : ${skipStep1}
   char-threshold: ${charThreshold}%
   top-phases    : ${topPhases.join(',') || '(自動検出)'}
+  liquipedia-url: ${liquipediaUrl || '(slugから自動生成)'}
 `)
 
   const shouldRun = n => stepOnly === null || stepOnly === n
 
   // ─ Step 1: start.gg キャラバックフィル ──────────────────────────────
   let fillRate = 100
-  if (shouldRun(1)) {
+  if (shouldRun(1) && !skipStep1) {
     if (!STARTGG_TOKEN) {
       console.log('⚠️  STARTGG_TOKEN 未設定 — Step 1 スキップ')
     } else {
       const result = await step1_startggChars(tournamentId, dryRun)
       fillRate = result.fillRate ?? 100
     }
+  } else if (skipStep1) {
+    console.log('\n[Step 1] --skip-step1 指定 → スキップ（Step 2 へ）')
+    fillRate = 0  // Step 2 を強制実行
   }
 
   // ─ Step 2: 充填率が低ければ Liquipedia ブラケットスクレイプ ─────────
   if (shouldRun(2)) {
     if (fillRate < charThreshold || stepOnly === 2) {
-      if (!slug) {
-        console.log('\n⚠️  --slug が未指定のため Step 2 スキップ')
+      if (!liquipediaUrl && !slug) {
+        console.log('\n⚠️  --liquipedia-url も --slug も未指定のため Step 2 スキップ')
       } else {
-        await step2_liquipediaBracket(tournamentId, slug, dryRun)
+        await step2_liquipediaBracket(tournamentId, slug, dryRun, liquipediaUrl)
       }
     } else {
       console.log(`\n[Step 2] 充填率 ${fillRate}% ≥ ${charThreshold}% → Liquipedia スクレイプ不要`)
