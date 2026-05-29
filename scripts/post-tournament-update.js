@@ -24,8 +24,8 @@
  *                          省略時は --slug から自動生成
  *   --skip-step1           Step 1（start.gg API）をスキップして Step 2 から開始
  *                          キャラデータが start.gg にない大会で時間節約
- *   --step4-limit=<n>      Step 4 で処理する選手数の上限（デフォルト: 100）
- *                          レート制限対策: 一度に大量の選手を処理しない
+ *   --step4-limit=<n>      Step 4 で処理する選手数の上限（デフォルト: 30）
+ *                          大規模大会では placement 上位か top-phase の選手のみ対象
  */
 
 import dotenv from 'dotenv'
@@ -277,7 +277,7 @@ async function step1_startggChars(tournamentId, dryRun) {
 }
 
 // ── Step 2: Liquipedia ブラケットスクレイプ ──────────────────────────────
-async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl = null) {
+async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl = null, topPhases = []) {
   console.log('\n╔══════════════════════════════════════════════════════════╗')
   console.log('║  Step 2: Liquipedia ブラケットページからキャラ取得          ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
@@ -369,6 +369,23 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
     return {}
   }
 
+  // Top-phase pool_identifier を自動検出（--top-phases 未指定時）
+  let resolvedTopPhases = topPhases.length ? topPhases : []
+  if (!resolvedTopPhases.length) {
+    const { data: tourney } = await supabase
+      .from('tournaments')
+      .select('final_pool_identifier, top24_pool_identifier')
+      .eq('id', tournamentId)
+      .single()
+    resolvedTopPhases = [
+      tourney?.final_pool_identifier,
+      tourney?.top24_pool_identifier,
+    ].filter(Boolean)
+  }
+  if (resolvedTopPhases.length) {
+    console.log(`  📌 Top-phase フィルタ: pool=[${resolvedTopPhases.join(',')}]`)
+  }
+
   // DB の選手と照合して winner_character / loser_character を更新
   const updatedSets = []
   for (const [playerHandle, charName] of Object.entries(playerCharMap)) {
@@ -381,14 +398,16 @@ async function step2_liquipediaBracket(tournamentId, slug, dryRun, overrideUrl =
 
     if (!player) continue
 
-    // このプレイヤーが使用したセットに character を設定
-    const { data: sets } = await supabase
+    // このプレイヤーが使用したセットに character を設定（top phase のみ）
+    let setQuery = supabase
       .from('tournament_sets')
       .select('id, winner_id, loser_id, winner_character, loser_character')
       .eq('tournament_id', tournamentId)
       .or(`winner_id.eq.${player.id},loser_id.eq.${player.id}`)
       .is('winner_character', null)
       .limit(100)
+    if (resolvedTopPhases.length) setQuery = setQuery.in('pool_identifier', resolvedTopPhases)
+    const { data: sets } = await setQuery
 
     for (const s of sets ?? []) {
       const patch = {}
@@ -504,29 +523,88 @@ async function step3_updateMainCharacters(tournamentId, dryRun) {
 }
 
 // ── Step 4: Liquipedia 選手ページから country_code 補完 ─────────────────
-async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryRun, limit = 100) {
+async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryRun, limit = 30) {
   console.log('\n╔══════════════════════════════════════════════════════════╗')
   console.log('║  Step 4: Liquipedia 選手ページから country_code 補完        ║')
   console.log('╚══════════════════════════════════════════════════════════╝')
 
-  // country_code が未設定の選手を取得（対象フェーズの選手に限定）
-  let query = supabase
-    .from('tournament_sets')
-    .select('winner_id, loser_id')
-    .eq('tournament_id', tournamentId)
-    .not('winner_id', 'is', null)
+  // ─ 対象選手の決定 ─────────────────────────────────────────────────────────
+  // 戦略: 大会規模に応じて異なるアプローチを使用
+  //   小規模（≤50名）: 全entrant
+  //   大規模 + placement あり: placement 順 上位 limit 名
+  //   大規模 + placement なし: top-phase pool_identifier でフィルタ
 
-  if (topPhaseIdentifiers?.length) {
-    query = query.in('pool_identifier', topPhaseIdentifiers)
+  const { count: totalEntrants } = await supabase
+    .from('tournament_entrants')
+    .select('id', { count: 'exact', head: true })
+    .eq('tournament_id', tournamentId)
+
+  const isSmall = (totalEntrants ?? 0) <= 50
+  let playerIds = []
+  let strategyDesc = ''
+
+  if (isSmall) {
+    // ── 小規模大会: 全entrant ────────────────────────────────────────────
+    const { data: entrants } = await supabase
+      .from('tournament_entrants')
+      .select('player_id')
+      .eq('tournament_id', tournamentId)
+    playerIds = (entrants ?? []).map(e => e.player_id).filter(Boolean)
+    strategyDesc = `小規模大会（計 ${totalEntrants} 名、全員対象）`
+  } else {
+    // ── 大規模大会: placement or pool_identifier で上位のみ ──────────────
+    const { count: placedCount } = await supabase
+      .from('tournament_entrants')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId)
+      .not('placement', 'is', null)
+
+    if ((placedCount ?? 0) > 0) {
+      // Strategy A: placement データあり → 上位 limit 名
+      const { data: entrants } = await supabase
+        .from('tournament_entrants')
+        .select('player_id, placement')
+        .eq('tournament_id', tournamentId)
+        .not('placement', 'is', null)
+        .order('placement', { ascending: true })
+        .limit(limit)
+      playerIds = (entrants ?? []).map(e => e.player_id).filter(Boolean)
+      strategyDesc = `placement 上位 ${playerIds.length} 名（全 ${totalEntrants} 名中）`
+    } else {
+      // Strategy B: placement なし → tournament の top-phase pool_identifier
+      const { data: tourney } = await supabase
+        .from('tournaments')
+        .select('final_pool_identifier, top24_pool_identifier')
+        .eq('id', tournamentId)
+        .single()
+      const autoPhases = [
+        tourney?.final_pool_identifier,
+        tourney?.top24_pool_identifier,
+      ].filter(Boolean)
+      const phases = [...new Set([...(topPhaseIdentifiers ?? []), ...autoPhases])]
+
+      let setQuery = supabase
+        .from('tournament_sets')
+        .select('winner_id, loser_id')
+        .eq('tournament_id', tournamentId)
+        .not('winner_id', 'is', null)
+      if (phases.length) setQuery = setQuery.in('pool_identifier', phases)
+
+      const { data: sets } = await setQuery.limit(500)
+      playerIds = [...new Set([
+        ...(sets ?? []).map(s => s.winner_id),
+        ...(sets ?? []).map(s => s.loser_id),
+      ].filter(Boolean))]
+      strategyDesc = `pool=[${phases.join(',') || '全て'}]: ${playerIds.length} 名`
+    }
   }
 
-  const { data: sets } = await query.limit(1000)
+  if (!playerIds.length) {
+    console.log('  ⚠️  対象選手が見つかりません')
+    return 0
+  }
 
-  const playerIds = [...new Set([
-    ...(sets ?? []).map(s => s.winner_id),
-    ...(sets ?? []).map(s => s.loser_id),
-  ].filter(Boolean))]
-
+  // country_code 未設定の選手に絞る
   const { data: players } = await supabase
     .from('players')
     .select('id, handle, country_code')
@@ -534,12 +612,13 @@ async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryR
     .is('country_code', null)
 
   if (!players?.length) {
-    console.log('  ✅ 全選手の country_code が設定済み')
+    console.log(`  ✅ 全選手の country_code が設定済み（${strategyDesc}）`)
     return 0
   }
 
-  console.log(`  country_code 未設定: ${players.length} 名（上限: ${limit} 名処理）`)
-  const targets = players.slice(0, limit)
+  console.log(`  対象: ${strategyDesc}`)
+  console.log(`  country_code 未設定: ${players.length} 名`)
+  const targets = players  // 全員処理（戦略で絞り込み済み）
 
   let updated = 0
   let consecutiveRateLimits = 0
@@ -596,11 +675,7 @@ async function step4_liquipediaCountries(tournamentId, topPhaseIdentifiers, dryR
     updated++
   }
 
-  const remaining = players.length - targets.length
-  console.log(`\n  完了: ${updated} 件更新（処理: ${targets.length} 名, 残り: ${remaining} 名）`)
-  if (remaining > 0) {
-    console.log(`  ℹ️  残りの ${remaining} 名は次回 --step=4 で処理可能`)
-  }
+  console.log(`\n  完了: ${updated} 件更新（処理: ${targets.length} 名）`)
   return updated
 }
 
@@ -616,7 +691,7 @@ async function main() {
   const topPhases       = argv['top-phases']?.split(',') ?? []
   const liquipediaUrl   = argv['liquipedia-url'] || null   // Step 2 用 Liquipedia URL 直接指定
   const skipStep1       = !!argv['skip-step1']             // Step 1 をスキップして Step 2 から開始
-  const step4Limit      = Number(argv['step4-limit'] ?? 100) // Step 4 で処理する選手数の上限
+  const step4Limit      = Number(argv['step4-limit'] ?? 30)  // Step 4: 大規模大会での上限（小規模は全員）
 
   if (!tournamentId) {
     console.error('Usage: node scripts/post-tournament-update.js --tournament-id=<id> --slug=<slug>')
@@ -661,7 +736,7 @@ async function main() {
       if (!liquipediaUrl && !slug) {
         console.log('\n⚠️  --liquipedia-url も --slug も未指定のため Step 2 スキップ')
       } else {
-        await step2_liquipediaBracket(tournamentId, slug, dryRun, liquipediaUrl)
+        await step2_liquipediaBracket(tournamentId, slug, dryRun, liquipediaUrl, topPhases)
       }
     } else {
       console.log(`\n[Step 2] 充填率 ${fillRate}% ≥ ${charThreshold}% → Liquipedia スクレイプ不要`)
