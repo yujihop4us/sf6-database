@@ -283,19 +283,10 @@ function HeroSection({ data }: { data: TournamentData }) {
       {/* Diagonal accent stripes — top-right */}
       <Stripes style={{ top: 0, right: 0, bottom: 0, width: '42%', zIndex: 1 }} />
 
-      {/* Watermark: 60-65% サイズ、中央寄り */}
-      {tournament.logoUrl ? (
-        <div style={{
-          position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1,
-          backgroundImage: `url(${tournament.logoUrl})`,
-          backgroundSize: '30%',         /* contain → 固定% でサイズ縮小 */
-          backgroundRepeat: 'no-repeat',
-          backgroundPosition: '78% center',  /* 右端から約22%内側 */
-          opacity: 0.10,
-        }} />
-      ) : (
-        <div style={{ position: 'absolute', top: '50%', right: '18%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
-          <CBMark size={220} opacity={0.05} />
+      {/* CBMark fallback watermark (no logo) */}
+      {!tournament.logoUrl && (
+        <div style={{ position: 'absolute', top: '50%', right: '8%', transform: 'translateY(-50%)', zIndex: 1, pointerEvents: 'none' }}>
+          <CBMark size={140} opacity={0.05} />
         </div>
       )}
 
@@ -312,11 +303,20 @@ function HeroSection({ data }: { data: TournamentData }) {
       }} />
 
       {/*
-       * コンテンツブロック: 画面中央付近にまとめるため
-       * maxWidth: 900 + margin: 0 auto で左右対称に配置
-       * テキストは左揃えのまま、ブロック全体を中央に
+       * コンテンツブロック: TabBar・順位表と同じ maxWidth: 1200 に揃えて左端を統一
+       * ロゴ透かしはコンテナ内 position: absolute で右端に配置
        */}
-      <div style={{ position: 'relative', zIndex: 3, maxWidth: 900, margin: '0 auto', padding: '0 32px' }}>
+      <div style={{ position: 'relative', zIndex: 3, maxWidth: 1200, margin: '0 auto', padding: '0 32px' }}>
+        {/* Watermark logo — コンテナ右端に控えめに配置 */}
+        {tournament.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={tournament.logoUrl} alt="" style={{
+            position: 'absolute', right: 32, top: '50%', transform: 'translateY(-50%)',
+            height: 140, width: 'auto',
+            opacity: 0.07, pointerEvents: 'none', userSelect: 'none',
+            objectFit: 'contain',
+          }} />
+        )}
         {/* Status + badges row */}
         <div style={{ marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <span style={{
