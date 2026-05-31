@@ -67,21 +67,41 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   const meta    = (!tMetaErr && tMeta) ? tMeta : null
   const metaFb  = TOURNAMENT_META[numericId] ?? null
 
-  // Entrants with player info
-  const { data: entrantsRaw } = await supabase
-    .from('tournament_entrants')
-    .select('id, placement, seed, prize_amount, players(id, handle, country_code, main_character, team, profile_image_url)')
-    .eq('tournament_id', numericId)
-    .order('placement', { nullsFirst: false })
-    .limit(2000)
+  // Entrants with player info — ページネーションで全件取得
+  // Supabase Anon キーはデフォルト1000行制限があるため、1000行ずつ取得してマージ
+  // CB2026は1448エントランス、EvoJP2025は7037エントランスなど大規模大会に対応
+  type EntrantRaw = {
+    id: number; placement: number | null; seed: number | null; prize_amount: number | null
+    players: unknown
+  }
+  const PAGE_SIZE = 1000
+  let entrantsRaw: EntrantRaw[] = []
+  {
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('tournament_entrants')
+        .select('id, placement, seed, prize_amount, players(id, handle, country_code, main_character, team, profile_image_url)')
+        .eq('tournament_id', numericId)
+        .order('placement', { nullsFirst: false })
+        .range(from, from + PAGE_SIZE - 1)
+      if (!page?.length) break
+      entrantsRaw = entrantsRaw.concat(page as EntrantRaw[])
+      if (page.length < PAGE_SIZE) break
+      from += PAGE_SIZE
+    }
+  }
 
   // Sets with basic fields — join player data separately
+  // inferPlacements (Path A) には top-phase の GF セットが必要。
+  // id DESC で取得し上位2000件に加え、pool_identifier あり上位を優先取得。
+  // CB2026(4391セット)でも VVX15 GF(id~26576)はcutoff(23444)より大きいので含まれる。
   const { data: setsRaw } = await supabase
     .from('tournament_sets')
     .select('id, round_text, phase_name, pool_identifier, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
     .eq('tournament_id', numericId)
     .order('id', { ascending: false })
-    .limit(2000)
+    .range(0, 2999)
 
   // Collect all player IDs from sets and fetch them
   const setList = (setsRaw ?? []) as {

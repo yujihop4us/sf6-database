@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { useLocale } from '@/lib/locale-context'
 
 const fDisplay = 'var(--font-barlow-condensed, "Barlow Condensed", sans-serif)'
@@ -20,6 +21,10 @@ interface SiteNavbarProps {
 export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: SiteNavbarProps) {
   const { lang, setLang, t } = useLocale()
   const pathname = usePathname()
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // ルート遷移でメニューを閉じる
+  useEffect(() => { setMenuOpen(false) }, [pathname])
 
   // 大会 / 選手 / キャラ / 統計 — ライブはナビリンクではなく右端バッジで表示
   const navLinks = [
@@ -46,7 +51,44 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
       <style>{`
         @keyframes nav-pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
         .nav-live-dot-anim { animation: nav-pulse 1.2s ease-in-out infinite; }
+
+        /* PC: 通常表示 */
+        .nav-hamburger { display: none; }
+        .nav-mobile-menu { display: none; }
+
+        /* モバイル (768px以下) */
+        @media (max-width: 768px) {
+          .nav-links { display: none !important; }
+          .nav-lang-toggle { display: none !important; }
+          .nav-breadcrumb { display: none !important; }
+          .nav-hamburger {
+            display: flex !important;
+            align-items: center; justify-content: center;
+            background: none; border: none; cursor: pointer;
+            color: #8ba3b4; padding: 8px;
+            margin-left: auto;
+          }
+          .nav-mobile-menu {
+            display: block !important;
+            position: fixed; top: 52px; left: 0; right: 0;
+            background: rgba(8, 12, 20, 0.98);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            z-index: 100;
+            padding: 8px 0;
+          }
+          .nav-mobile-menu a, .nav-mobile-menu button {
+            display: block; width: 100%; text-align: left;
+            padding: 14px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: none; cursor: pointer;
+          }
+          .nav-mobile-lang {
+            display: flex !important;
+            gap: 8px; padding: 14px 24px;
+          }
+        }
       `}</style>
+
       <nav style={{
         position: 'sticky', top: 0, zIndex: 50,
         background: 'rgba(8,12,20,0.97)', backdropFilter: 'blur(14px)',
@@ -68,8 +110,8 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
           }}>SF6 STATS</span>
         </Link>
 
-        {/* Nav links: 大会 / 選手 / キャラ / 統計 */}
-        <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        {/* PC Nav links */}
+        <div className="nav-links" style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           {navLinks.map(link => {
             const isActive = currentPage === link.key
             return (
@@ -88,7 +130,7 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
           })}
         </div>
 
-        {/* Right side */}
+        {/* Right side (PC) */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16 }}>
 
           {/* ライブページ: ● LIVE バッジ + 大会名 */}
@@ -123,7 +165,7 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
 
           {/* 非ライブページ: 通常ブレッドクラム */}
           {!onLivePage && breadcrumb && breadcrumb.length > 0 && (
-            <div style={{
+            <div className="nav-breadcrumb" style={{
               display: 'flex', alignItems: 'center', gap: 6,
               fontFamily: fDisplay, fontSize: 12, color: '#8ba3b4',
             }}>
@@ -138,8 +180,8 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
             </div>
           )}
 
-          {/* JA/EN toggle */}
-          <div style={{
+          {/* JA/EN toggle (PC) */}
+          <div className="nav-lang-toggle" style={{
             display: 'flex', alignItems: 'center',
             background: '#131c24', border: '1px solid rgba(255,255,255,0.07)',
             borderRadius: 6, padding: 2, gap: 2,
@@ -155,8 +197,72 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
               }}>{l.toUpperCase()}</button>
             ))}
           </div>
+
+          {/* ハンバーガーボタン (モバイルのみ表示) */}
+          <button
+            className="nav-hamburger"
+            onClick={() => setMenuOpen(o => !o)}
+            aria-label={menuOpen ? 'メニューを閉じる' : 'メニューを開く'}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen
+              ? /* × アイコン */
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="4" y1="4" x2="18" y2="18"/><line x1="18" y1="4" x2="4" y2="18"/>
+                </svg>
+              : /* ☰ アイコン */
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <line x1="3" y1="6" x2="19" y2="6"/><line x1="3" y1="11" x2="19" y2="11"/><line x1="3" y1="16" x2="19" y2="16"/>
+                </svg>
+            }
+          </button>
         </div>
       </nav>
+
+      {/* モバイルドロップダウンメニュー */}
+      {menuOpen && (
+        <>
+          {/* オーバーレイ (メニュー外タップで閉じる) */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 99, top: 52 }}
+            onClick={() => setMenuOpen(false)}
+          />
+          <div className="nav-mobile-menu">
+            {/* ナビリンク */}
+            {navLinks.map(link => {
+              const isActive = currentPage === link.key
+              return (
+                <Link
+                  key={link.key}
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    fontFamily: fDisplay, fontSize: 15, fontWeight: 700,
+                    letterSpacing: '0.08em', textTransform: 'uppercase',
+                    color: isActive ? '#10b981' : '#cbd5e1',
+                    textDecoration: 'none',
+                  }}
+                >
+                  {link.label}
+                </Link>
+              )
+            })}
+            {/* JA/EN 切替 */}
+            <div className="nav-mobile-lang">
+              {(['ja', 'en'] as const).map(l => (
+                <button key={l} onClick={() => { setLang(l); setMenuOpen(false) }} style={{
+                  background: lang === l ? '#10b981' : '#1e293b',
+                  border: `1px solid ${lang === l ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                  borderRadius: 6, padding: '8px 20px', cursor: 'pointer',
+                  fontFamily: fDisplay, fontSize: 13, fontWeight: 700,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: lang === l ? '#000' : '#8ba3b4',
+                }}>{l.toUpperCase()}</button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </>
   )
 }
