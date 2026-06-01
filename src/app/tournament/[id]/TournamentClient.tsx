@@ -584,9 +584,11 @@ function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | n
       </div>
       {/* Prize + badges */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
-        <div className="podium-prize" style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
-          {p.prize}
-        </div>
+        {p.prize && (
+          <div className="podium-prize" style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
+            {p.prize}
+          </div>
+        )}
         {(p.cptPts !== null || showEwc) && (
           <div className="podium-badges" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
             {p.cptPts !== null && <CcQualifiedBadge />}
@@ -644,7 +646,7 @@ function PodiumRunner({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | nul
         <div className="podium-badges" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <CharPill name={p.char} />
           {showEwc && <EwcBadge />}
-          {p.prize !== '—' && (
+          {p.prize && (
             <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
               {p.prize}
             </span>
@@ -697,7 +699,7 @@ function StandingsTable({
       handle:      p.handle,
       countryCode: p.countryCode,
       char:        p.usedCharacters ? p.usedCharacters.split('/')[0] : p.character,
-      prize:       rawPrize != null ? `$${Math.round(rawPrize).toLocaleString()}` : '—',
+      prize:       (rawPrize != null && rawPrize > 0) ? `$${Math.round(rawPrize).toLocaleString()}` : '',
       cptPts:      isCptPremier && eff === 1 ? 0 : (isCptPremier && eff ? CPT_PREMIER_POINTS[eff] ?? 0 : null),
       playerId:    p.id,
     }
@@ -910,9 +912,9 @@ function StandingsTable({
                         : <CharPill name={p.character} />
                       }
                     </td>
-                    {/* Prize */}
+                    {/* Prize — 0 や null は非表示 */}
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      {prizeAmt != null ? (
+                      {prizeAmt != null && prizeAmt > 0 && (
                         <span style={{
                           fontFamily: T.fDisplay,
                           fontSize: isFirst ? 20 : 17,
@@ -922,8 +924,6 @@ function StandingsTable({
                         }}>
                           ${Math.round(prizeAmt).toLocaleString()}
                         </span>
-                      ) : (
-                        <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: T.dim }}>—</span>
                       )}
                     </td>
                     {/* EWC badge column */}
@@ -1941,11 +1941,19 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             flex: 1 1 auto !important;
             min-width: 0 !important;
           }
-          /* 順位表: char列(4), EWC列(6+)を非表示 */
+          /* 順位表: 768px → 順位(1)+選手(2)+国旗(3)+賞金(5)+CPT(7) の5列 */
+          /* キャラクター列(4)を非表示 */
           .standings-table th:nth-child(4),
           .standings-table td:nth-child(4) { display: none !important; }
-          .standings-table th:nth-child(n+6),
-          .standings-table td:nth-child(n+6) { display: none !important; }
+          /* EWC列(6)を非表示 — CPT列(7)は表示する */
+          .standings-table th:nth-child(6),
+          .standings-table td:nth-child(6) { display: none !important; }
+          /* CPTポイント列(7)は小さめで表示 */
+          .standings-table th:nth-child(7),
+          .standings-table td:nth-child(7) {
+            font-size: 12px !important;
+            padding: 4px 6px !important;
+          }
           .standings-table td,
           .standings-table th {
             padding: 8px 8px !important;
@@ -2023,9 +2031,17 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             padding: 6px 6px !important;
             font-size: 12px !important;
           }
-          /* 国旗列も非表示にして賞金列を見やすく */
+          /* 480px → 順位(1)+選手(2)+賞金(5)+CPT(7) の4列 */
+          /* 国旗(3)も非表示 */
           .standings-table th:nth-child(3),
           .standings-table td:nth-child(3) { display: none !important; }
+          /* キャラ(4)とEWC(6)は768pxルールから引き継ぎ非表示 */
+          /* CPT(7)は表示維持 — フォントさらに小さく */
+          .standings-table th:nth-child(7),
+          .standings-table td:nth-child(7) {
+            font-size: 11px !important;
+            padding: 4px 4px !important;
+          }
           .podium-champion {
             padding: 14px 14px !important;
             gap: 10px !important;
