@@ -1969,18 +1969,39 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             gap: 12px !important;
             flex-wrap: wrap !important;
           }
-          /* 選手名: チャンピオン */
+          /* 選手名 */
           .podium-player-name {
             font-size: 28px !important;
           }
-          /* 賞金額 */
+          /* 賞金額: 目立たせる・バッジより先に表示 */
           .podium-prize {
-            font-size: 18px !important;
+            font-size: 22px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.5px;
+            margin-top: 4px;
+            margin-bottom: 2px;
+            display: block;
+            order: 2;
+            color: #4ade80 !important;
           }
-          /* バッジコンテナ */
+          /* チャンピオンカードの賞金はさらに大きく */
+          .podium-champion .podium-prize {
+            font-size: 26px !important;
+            margin-top: 8px;
+            margin-bottom: 4px;
+          }
+          /* ランナーカードの賞金 */
+          .podium-runners .podium-prize {
+            font-size: 18px !important;
+            font-weight: 700 !important;
+            color: #4ade80 !important;
+            margin-top: 4px;
+          }
+          /* バッジコンテナ: 賞金の後に表示 */
           .podium-badges {
             gap: 6px !important;
             margin-top: 4px !important;
+            order: 3;
           }
           /* バッジ内の span（CcQualifiedBadge, EwcBadge） */
           .podium-badges > span {
@@ -2010,7 +2031,8 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             gap: 10px !important;
           }
           .podium-player-name { font-size: 22px !important; }
-          .podium-prize       { font-size: 16px !important; }
+          .podium-prize       { font-size: 20px !important; font-weight: 700 !important; }
+          .podium-champion .podium-prize { font-size: 22px !important; }
           .char-stat-row { padding: 8px 10px !important; }
         }
       `}</style>
