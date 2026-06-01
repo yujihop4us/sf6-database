@@ -675,17 +675,19 @@ function StandingsTable({
   tournamentId,
   isCptPremier = false,
   ewcQualifyingSpots = null,
+  sets = [],
 }: {
   entrants: EntrantRow[]
   tournamentId: number
   isCptPremier?: boolean
   ewcQualifyingSpots?: number | null
+  sets?: SetRow[]
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('placement')
   const [asc, setAsc] = useState(true)
   const [search, setSearch] = useState('')
   const [hoveredRow, setHoveredRow] = useState<number | null>(null)
-  const [showAll, setShowAll] = useState(false)
+  const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null)
 
   const prizeMap = TOURNAMENT_PRIZE_MAP[tournamentId] ?? {}
 
@@ -733,19 +735,29 @@ function StandingsTable({
     : []
   const podiumRanks = new Set(podiumEntrants.map(e => effectivePlacement(e)))
 
-  // CPT Premier: limit to top 32 by default (CPT point range)
+  // CPT Premier: show only CPT point range (top 32) — no toggle button
   const CPT_LIMIT = 32
-  const cappedForCpt = isCptPremier && !showAll && !isSearching
+  const cappedForCpt = isCptPremier && !isSearching
   const sorted = (() => {
-    // When not searching: exclude top 3 from table (shown in Podium above)
     const base = isSearching ? allSorted : allSorted.filter(e => !podiumRanks.has(effectivePlacement(e)))
     return cappedForCpt
       ? base.filter(e => (effectivePlacement(e) ?? 9999) <= CPT_LIMIT)
       : base
   })()
-  const hiddenCount = cappedForCpt
-    ? allSorted.filter(e => !podiumRanks.has(effectivePlacement(e))).length - sorted.length
-    : 0
+
+  // 検索結果が1件になったら自動展開
+  const prevSearchCount = React.useRef<number>(0)
+  React.useEffect(() => {
+    if (isSearching && allSorted.length === 1 && allSorted[0].player) {
+      setExpandedPlayerId(allSorted[0].player.id)
+    } else if (!isSearching) {
+      setExpandedPlayerId(null)
+    }
+    prevSearchCount.current = allSorted.length
+  }, [search, allSorted.length, isSearching])
+
+  // 列数（colSpan用）: rank + player + flag + char + prize + EWC? + CPT? + expand
+  const colCount = 5 + (ewcQualifyingSpots != null ? 1 : 0) + (isCptPremier ? 1 : 0) + 1
 
   const SortTh = ({ id, label, align = 'left' }: { id: SortKey; label: string; align?: string }) => (
     <th onClick={() => handleSort(id)} style={{
@@ -828,12 +840,14 @@ function StandingsTable({
                 <StaticTh label={UI_TEXT.colPrize}  align="right" />
                 {ewcQualifyingSpots != null && <StaticTh label={UI_TEXT.colEwc} align="center" />}
                 {isCptPremier && <StaticTh label={UI_TEXT.colCpt} align="center" />}
+                <th style={{ width: 32, background: T.card, borderBottom: `1px solid ${T.border}` }} />
               </tr>
             </thead>
             <tbody>
               {sorted.map((e, i) => {
                 const p = e.player!
                 const isHovered = hoveredRow === i
+                const isExpanded = expandedPlayerId === p.id
                 const rowBg = isHovered ? T.rowHover : i % 2 === 0 ? 'transparent' : T.rowEven
                 const eff = effectivePlacement(e)
                 const isInferred = e.placement === null && e.inferredPlacement !== null
@@ -841,115 +855,200 @@ function StandingsTable({
                 const cptPts = isCptPremier ? (eff === 1 ? null : (eff ? CPT_PREMIER_POINTS[eff] ?? 0 : 0)) : null
                 const prizeAmt = eff ? (prizeMap[eff] ?? e.prizeAmount ?? null) : (e.prizeAmount ?? null)
 
+                // この選手の対戦履歴を sets から抽出（id降順 = 最新ラウンド先頭）
+                const playerSets = sets
+                  .filter(s => s.winnerId === p.id || s.loserId === p.id)
+                  .sort((a, b) => b.id - a.id)
+
                 const isFirst = eff === 1
                 return (
-                  <tr
-                    key={e.entrantId}
-                    className="standings-row"
-                    onMouseEnter={() => setHoveredRow(i)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                    style={{
-                      background: isFirst
-                        ? (isHovered ? 'rgba(0,212,170,0.10)' : 'rgba(0,212,170,0.05)')
-                        : rowBg,
-                      borderBottom: `1px solid ${isFirst ? 'rgba(0,212,170,0.18)' : T.border}`,
-                      boxShadow: isFirst ? 'inset 4px 0 0 0 #00d4aa' : 'none',
-                      transition: 'background 0.1s',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {/* Rank */}
-                    <td style={{ padding: '12px 16px', textAlign: 'center', width: 56 }}>
-                      {medal
-                        ? <span style={{ fontSize: 20 }}>{medal}</span>
-                        : <span style={{
-                            fontFamily: T.fDisplay, fontSize: 17, fontWeight: 700,
-                            color: placementColor(eff),
-                            opacity: isInferred ? 0.7 : 1,
-                          }}>{eff ?? '—'}</span>
-                      }
-                    </td>
-                    {/* Player */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                          background: eff === 1 ? `${T.accent}22` : `${T.surface3}`,
-                          border: `1px solid ${eff === 1 ? T.accent + '60' : T.border}`,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontFamily: T.fDisplay, fontSize: 13, fontWeight: 800,
-                          color: eff === 1 ? T.accent : T.muted,
-                        }}>
-                          {p.handle.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <Link href={`/player/${p.id}`} style={{ textDecoration: 'none' }}>
-                            <div style={{
+                  <React.Fragment key={e.entrantId}>
+                    <tr
+                      className="standings-row"
+                      onMouseEnter={() => setHoveredRow(i)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      onClick={() => setExpandedPlayerId(isExpanded ? null : p.id)}
+                      style={{
+                        background: isFirst
+                          ? (isHovered ? 'rgba(0,212,170,0.10)' : 'rgba(0,212,170,0.05)')
+                          : rowBg,
+                        borderBottom: `1px solid ${isExpanded ? 'transparent' : isFirst ? 'rgba(0,212,170,0.18)' : T.border}`,
+                        boxShadow: isFirst ? 'inset 4px 0 0 0 #00d4aa' : 'none',
+                        transition: 'background 0.1s',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {/* Rank */}
+                      <td style={{ padding: '12px 16px', textAlign: 'center', width: 56 }}>
+                        {medal
+                          ? <span style={{ fontSize: 20 }}>{medal}</span>
+                          : <span style={{
                               fontFamily: T.fDisplay, fontSize: 17, fontWeight: 700,
-                              color: eff === 1 ? T.accent : T.text, letterSpacing: '0.01em',
-                            }}>{p.handle}</div>
-                          </Link>
-                          {p.team && (
-                            <div style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim, marginTop: 1 }}>
-                              {p.team}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    {/* Country flag */}
-                    <td style={{ padding: '12px 16px' }}>
-                      <span style={{ fontSize: 20, lineHeight: 1 }} title={p.countryCode ?? ''}>
-                        {flag(p.countryCode)}
-                      </span>
-                    </td>
-                    {/* Character */}
-                    <td style={{ padding: '12px 16px' }}>
-                      {p.usedCharacters
-                        ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                            {p.usedCharacters.split('/').map(c => <CharPill key={c} name={c} />)}
-                          </div>
-                        : <CharPill name={p.character} />
-                      }
-                    </td>
-                    {/* Prize — 0 や null は非表示 */}
-                    <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                      {prizeAmt != null && prizeAmt > 0 && (
-                        <span style={{
-                          fontFamily: T.fDisplay,
-                          fontSize: isFirst ? 20 : 17,
-                          fontWeight: 800,
-                          color: T.accent,
-                          letterSpacing: '-0.01em',
-                        }}>
-                          ${Math.round(prizeAmt).toLocaleString()}
-                        </span>
-                      )}
-                    </td>
-                    {/* EWC badge column */}
-                    {ewcQualifyingSpots != null && (
-                      <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {eff != null && eff <= ewcQualifyingSpots ? <EwcBadge /> : null}
+                              color: placementColor(eff),
+                              opacity: isInferred ? 0.7 : 1,
+                            }}>{eff ?? '—'}</span>
+                        }
                       </td>
-                    )}
-                    {/* CPT points */}
-                    {isCptPremier && (
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {eff === 1 ? (
-                          <CcQualifiedBadge />
-                        ) : cptPts ? (
-                          <span style={{
-                            fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
-                            color: cptPts >= 100 ? T.gold : cptPts >= 50 ? '#60a5fa' : T.muted,
+                      {/* Player */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                            background: eff === 1 ? `${T.accent}22` : `${T.surface3}`,
+                            border: `1px solid ${eff === 1 ? T.accent + '60' : T.border}`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontFamily: T.fDisplay, fontSize: 13, fontWeight: 800,
+                            color: eff === 1 ? T.accent : T.muted,
                           }}>
-                            {cptPts}
+                            {p.handle.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <Link
+                              href={`/player/${p.id}`}
+                              onClick={ev => ev.stopPropagation()}
+                              style={{ textDecoration: 'none' }}
+                            >
+                              <div style={{
+                                fontFamily: T.fDisplay, fontSize: 17, fontWeight: 700,
+                                color: '#60a5fa', letterSpacing: '0.01em',
+                              }}>{p.handle}</div>
+                            </Link>
+                            {p.team && (
+                              <div style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim, marginTop: 1 }}>
+                                {p.team}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      {/* Country flag */}
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ fontSize: 20, lineHeight: 1 }} title={p.countryCode ?? ''}>
+                          {flag(p.countryCode)}
+                        </span>
+                      </td>
+                      {/* Character */}
+                      <td style={{ padding: '12px 16px' }}>
+                        {p.usedCharacters
+                          ? <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {p.usedCharacters.split('/').map(c => <CharPill key={c} name={c} />)}
+                            </div>
+                          : <CharPill name={p.character} />
+                        }
+                      </td>
+                      {/* Prize */}
+                      <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                        {prizeAmt != null && prizeAmt > 0 && (
+                          <span style={{
+                            fontFamily: T.fDisplay,
+                            fontSize: isFirst ? 20 : 17,
+                            fontWeight: 800,
+                            color: T.accent,
+                            letterSpacing: '-0.01em',
+                          }}>
+                            ${Math.round(prizeAmt).toLocaleString()}
                           </span>
-                        ) : (
-                          <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: T.dim }}>—</span>
                         )}
                       </td>
+                      {/* EWC badge column */}
+                      {ewcQualifyingSpots != null && (
+                        <td style={{ padding: '12px 16px', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {eff != null && eff <= ewcQualifyingSpots ? <EwcBadge /> : null}
+                        </td>
+                      )}
+                      {/* CPT points */}
+                      {isCptPremier && (
+                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                          {eff === 1 ? (
+                            <CcQualifiedBadge />
+                          ) : cptPts ? (
+                            <span style={{
+                              fontFamily: T.fDisplay, fontSize: 15, fontWeight: 700,
+                              color: cptPts >= 100 ? T.gold : cptPts >= 50 ? '#60a5fa' : T.muted,
+                            }}>
+                              {cptPts}
+                            </span>
+                          ) : (
+                            <span style={{ fontFamily: T.fDisplay, fontSize: 13, color: T.dim }}>—</span>
+                          )}
+                        </td>
+                      )}
+                      {/* Expand indicator */}
+                      <td style={{ padding: '12px 8px', textAlign: 'center', width: 32, color: T.muted, fontSize: 11 }}>
+                        {isExpanded ? '▲' : '▼'}
+                      </td>
+                    </tr>
+
+                    {/* ── アコーディオン: 対戦履歴 ── */}
+                    {isExpanded && (
+                      <tr className="match-history-row">
+                        <td
+                          colSpan={colCount}
+                          style={{
+                            background: 'rgba(255,255,255,0.025)',
+                            padding: '12px 16px 16px',
+                            borderBottom: `1px solid ${T.border}`,
+                          }}
+                        >
+                          {playerSets.length === 0 ? (
+                            <div style={{ fontFamily: T.fBody, fontSize: 13, color: T.dim }}>
+                              対戦データなし
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {playerSets.map(s => {
+                                const win = s.winnerId === p.id
+                                const oppHandle = win ? s.loserHandle : s.winnerHandle
+                                const charUsed  = win ? s.winnerCharacter : s.loserCharacter
+                                const roundLabel = s.roundText || s.inferredRoundLabel || '?'
+                                const scoreW = win ? s.winnerScore : s.loserScore
+                                const scoreL = win ? s.loserScore : s.winnerScore
+                                return (
+                                  <div key={s.id} className="match-card" style={{
+                                    display: 'flex', alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '7px 12px',
+                                    background: 'rgba(255,255,255,0.04)',
+                                    borderRadius: 6, gap: 12,
+                                  }}>
+                                    {/* Round */}
+                                    <span style={{
+                                      fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
+                                      color: T.dim, letterSpacing: '0.06em',
+                                      minWidth: 130, flexShrink: 0,
+                                    }}>{roundLabel}</span>
+                                    {/* W/L + opponent */}
+                                    <span style={{ flex: 1, minWidth: 0, fontFamily: T.fDisplay, fontSize: 13 }}>
+                                      <span style={{
+                                        fontWeight: 800,
+                                        color: win ? '#4ade80' : '#f87171',
+                                        marginRight: 6,
+                                      }}>{win ? 'W' : 'L'}</span>
+                                      <span style={{ color: T.muted }}>vs </span>
+                                      <span style={{ color: T.text, fontWeight: 600 }}>{oppHandle}</span>
+                                    </span>
+                                    {/* Score */}
+                                    <span style={{
+                                      fontFamily: T.fDisplay, fontWeight: 700, fontSize: 14,
+                                      color: win ? '#4ade80' : T.text,
+                                      flexShrink: 0,
+                                    }}>{scoreW} – {scoreL}</span>
+                                    {/* Char */}
+                                    {charUsed && (
+                                      <span style={{
+                                        fontFamily: T.fDisplay, fontSize: 11, color: T.dim,
+                                        flexShrink: 0, minWidth: 60, textAlign: 'right',
+                                      }}>{charUsed}</span>
+                                    )}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                  </React.Fragment>
                 )
               })}
             </tbody>
@@ -957,46 +1056,16 @@ function StandingsTable({
         </div>
       </div>
 
-      {/* Show all / summary footer */}
-      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+      {/* Summary footer */}
+      <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: T.fDisplay, fontSize: 12, color: T.dim, letterSpacing: '0.06em' }}>
           {sorted.length} / {entrants.length} {UI_TEXT.playersDisplayed}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          {!hasAnyPlacement && entrants.length > 0 && (
-            <span style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim }}>
-              {UI_TEXT.estimatedPlacementNote}
-            </span>
-          )}
-          {cappedForCpt && hiddenCount > 0 && (
-            <button
-              onClick={() => setShowAll(true)}
-              style={{
-                fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
-                letterSpacing: '0.08em', textTransform: 'uppercase',
-                color: T.accent, background: 'transparent',
-                border: `1px solid ${T.accent}50`, borderRadius: 6,
-                padding: '5px 14px', cursor: 'pointer',
-              }}
-            >
-              {UI_TEXT.showAllPlayers} (+{hiddenCount})
-            </button>
-          )}
-          {showAll && isCptPremier && (
-            <button
-              onClick={() => setShowAll(false)}
-              style={{
-                fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700,
-                letterSpacing: '0.08em', textTransform: 'uppercase',
-                color: T.muted, background: 'transparent',
-                border: `1px solid ${T.border}`, borderRadius: 6,
-                padding: '5px 14px', cursor: 'pointer',
-              }}
-            >
-              {UI_TEXT.showTopPlayers}
-            </button>
-          )}
-        </div>
+        {!hasAnyPlacement && entrants.length > 0 && (
+          <span style={{ fontFamily: T.fBody, fontSize: 11, color: T.dim }}>
+            {UI_TEXT.estimatedPlacementNote}
+          </span>
+        )}
       </div>
     </div>
   )
@@ -1901,6 +1970,9 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
         ::-webkit-scrollbar-thumb { background: var(--sf6-surface3); border-radius: 3px; }
         input::placeholder { color: var(--sf6-text-dim); }
         * { box-sizing: border-box; }
+        .match-history-row td { transition: padding 0.15s; }
+        .match-card { transition: background 0.1s; }
+        .match-card:hover { background: rgba(255,255,255,0.07) !important; }
 
         /* ── モバイルレスポンシブ (768px以下) ── */
         @media (max-width: 768px) {
@@ -1961,6 +2033,13 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
           }
           /* キャラ統計: 数値が重ならないよう調整 */
           .char-stat-row { padding: 10px 14px !important; }
+          /* アコーディオン対戦履歴 */
+          .match-history-row td { padding: 8px 10px !important; }
+          .match-card {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 4px !important;
+          }
 
           /* ── ポディアムカード ── */
           /* チャンピオンカード: 縦方向に再整理 */
@@ -2066,6 +2145,7 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
               tournamentId={data.tournament.id}
               isCptPremier={data.tournament.cptEventType === 'premier'}
               ewcQualifyingSpots={data.tournament.ewcQualifyingSpots ?? null}
+              sets={data.sets}
             />
           </>
         )}
