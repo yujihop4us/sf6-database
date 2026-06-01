@@ -573,7 +573,7 @@ function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | n
       <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
           <span style={{ fontSize: 28 }}>{flag(p.countryCode)}</span>
-          <h3 style={{
+          <h3 className="podium-player-name" style={{
             fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
             fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
           }}>{p.handle}</h3>
@@ -584,11 +584,11 @@ function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | n
       </div>
       {/* Prize + badges */}
       <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
+        <div className="podium-prize" style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
           {p.prize}
         </div>
         {(p.cptPts !== null || showEwc) && (
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
+          <div className="podium-badges" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
             {p.cptPts !== null && <CcQualifiedBadge />}
             {showEwc && <EwcBadge />}
           </div>
@@ -635,17 +635,17 @@ function PodiumRunner({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | nul
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <span style={{ fontSize: 18 }}>{flag(p.countryCode)}</span>
-          <span style={{
+          <span className="podium-player-name" style={{
             fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
             fontSize: 22, color: T.text,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>{p.handle}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div className="podium-badges" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <CharPill name={p.char} />
           {showEwc && <EwcBadge />}
           {p.prize !== '—' && (
-            <span style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
+            <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
               {p.prize}
             </span>
           )}
@@ -1953,6 +1953,40 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
           }
           /* キャラ統計: 数値が重ならないよう調整 */
           .char-stat-row { padding: 10px 14px !important; }
+
+          /* ── ポディアムカード ── */
+          /* チャンピオンカード: 縦方向に再整理 */
+          .podium-champion {
+            flex-wrap: wrap !important;
+            gap: 12px !important;
+          }
+          /* Prize + badges ブロック: 横幅いっぱいに伸ばして左揃えに */
+          .podium-champion > div:last-child {
+            flex: 1 1 100% !important;
+            text-align: left !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 12px !important;
+            flex-wrap: wrap !important;
+          }
+          /* 選手名: チャンピオン */
+          .podium-player-name {
+            font-size: 28px !important;
+          }
+          /* 賞金額 */
+          .podium-prize {
+            font-size: 18px !important;
+          }
+          /* バッジコンテナ */
+          .podium-badges {
+            gap: 6px !important;
+            margin-top: 4px !important;
+          }
+          /* バッジ内の span（CcQualifiedBadge, EwcBadge） */
+          .podium-badges > span {
+            font-size: 10px !important;
+            padding: 2px 6px !important;
+          }
         }
 
         /* ── 小型スマホ (480px以下) ── */
@@ -1973,8 +2007,10 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
           .standings-table td:nth-child(3) { display: none !important; }
           .podium-champion {
             padding: 14px 14px !important;
-            gap: 12px !important;
+            gap: 10px !important;
           }
+          .podium-player-name { font-size: 22px !important; }
+          .podium-prize       { font-size: 16px !important; }
           .char-stat-row { padding: 8px 10px !important; }
         }
       `}</style>
