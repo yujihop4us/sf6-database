@@ -186,6 +186,28 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
   },
 
+  'blink-respawn-2026': {
+    name: 'BLINK RESPAWN 2026',
+    streamPlatform: 'twitch', streamChannel: 'blinkesportsrd',
+    twitchChannels: [
+      { name: 'Blink Esports (メイン)', channel: 'blinkesportsrd' },
+    ],
+    twitchChatChannels: ['blinkesportsrd'],
+    startDate: '2026-06-05', endDate: '2026-06-07',
+    timezone: 'America/Santo_Domingo', locationLabel: 'Santo Domingo, Dominican Republic',
+    totalDays: 3,
+    streamStartTime: '2026-06-06T10:00:00-04:00',
+    startggEventId: 1537500, dbTournamentId: 43,
+    ewcQualifier: false, ewcSlots: 0,
+    cptPremier: true,
+    phases: [
+      { name: 'Pools',  format: 'Double Elimination', groups: [{ name: 'Pools',  players: [], matches: [] }] },
+      { name: 'Top 32', format: 'Double Elimination', groups: [{ name: 'Top 32', players: [], matches: [] }] },
+      { name: 'Top 8',  format: 'Double Elimination Ft5', groups: [{ name: 'Top 8', players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
   'combo-breaker-2026': {
     name: 'COMBO BREAKER 2026',
     streamPlatform: 'twitch', streamChannel: 'capcomfighters',
