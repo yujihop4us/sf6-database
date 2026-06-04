@@ -535,135 +535,280 @@ interface PodiumEntry {
   playerId: number | null
 }
 
-function PodiumChampion({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | null }) {
-  const [hovered, setHovered] = useState(false)
-  const showEwc = ewcSpots != null && p.rank <= ewcSpots
-  const inner = (
-    <div
-      className="podium-champion"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative', overflow: 'hidden', borderRadius: 12,
-        border: '1px solid rgba(245,200,66,0.45)',
-        background: 'linear-gradient(120deg, rgba(245,200,66,0.15) 0%, rgba(245,200,66,0.03) 46%, rgba(14,20,25,1) 78%)',
-        padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 26,
-        cursor: p.playerId ? 'pointer' : 'default',
-        transition: 'filter 0.15s, transform 0.15s',
-        filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
-        transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
-      }}
-    >
-      <Stripes style={{ top: 0, right: 0, bottom: 0, width: '30%', zIndex: 0 }} />
-      {/* Ghost rank numeral */}
-      <div style={{
-        position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)',
-        pointerEvents: 'none', zIndex: 0,
-        fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 170, lineHeight: 1,
-        color: 'transparent', WebkitTextStroke: '2px rgba(245,200,66,0.16)',
-      }}>1</div>
-      {/* Trophy */}
-      <div style={{ position: 'relative', zIndex: 1, flexShrink: 0, textAlign: 'center' }}>
-        <div style={{ fontSize: 48, lineHeight: 1 }}>🏆</div>
-        <div style={{ fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', color: T.gold, marginTop: 6 }}>
-          CHAMPION
-        </div>
+// ─── 対戦履歴パネル（ポディウム・順位表共通）────────────────────────
+
+function MatchHistoryPanel({ playerId, sets }: { playerId: number; sets: SetRow[] }) {
+  const playerSets = sets
+    .filter(s => s.winnerId === playerId || s.loserId === playerId)
+    .sort((a, b) => b.id - a.id)
+
+  if (playerSets.length === 0) {
+    return (
+      <div style={{ fontFamily: T.fBody, fontSize: 13, color: T.dim, padding: '4px 0' }}>
+        対戦データなし
       </div>
-      {/* Identity */}
-      <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-          <span style={{ fontSize: 28 }}>{flag(p.countryCode)}</span>
-          <h3 className="podium-player-name" style={{
-            fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
-            fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
-          }}>{p.handle}</h3>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <CharPill name={p.char} />
-        </div>
-      </div>
-      {/* Prize + badges */}
-      <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
-        {p.prize && (
-          <div className="podium-prize" style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
-            {p.prize}
+    )
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {playerSets.map(s => {
+        const win       = s.winnerId === playerId
+        const oppHandle = win ? s.loserHandle  : s.winnerHandle
+        const charUsed  = win ? s.winnerCharacter : s.loserCharacter
+        const roundLabel = s.roundText || s.inferredRoundLabel || '?'
+        const scoreW = win ? s.winnerScore : s.loserScore
+        const scoreL = win ? s.loserScore  : s.winnerScore
+        return (
+          <div key={s.id} className="match-card" style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '7px 12px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: 6, gap: 12,
+          }}>
+            <span style={{
+              fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
+              color: T.dim, letterSpacing: '0.06em',
+              minWidth: 130, flexShrink: 0,
+            }}>{roundLabel}</span>
+            <span style={{ flex: 1, minWidth: 0, fontFamily: T.fDisplay, fontSize: 13 }}>
+              <span style={{ fontWeight: 800, color: win ? '#4ade80' : '#f87171', marginRight: 6 }}>
+                {win ? 'W' : 'L'}
+              </span>
+              <span style={{ color: T.muted }}>vs </span>
+              <span style={{ color: T.text, fontWeight: 600 }}>{oppHandle}</span>
+            </span>
+            <span style={{
+              fontFamily: T.fDisplay, fontWeight: 700, fontSize: 14,
+              color: win ? '#4ade80' : T.text, flexShrink: 0,
+            }}>{scoreW} – {scoreL}</span>
+            {charUsed && (
+              <span style={{
+                fontFamily: T.fDisplay, fontSize: 11, color: T.dim,
+                flexShrink: 0, minWidth: 60, textAlign: 'right',
+              }}>{charUsed}</span>
+            )}
           </div>
-        )}
-        {(p.cptPts !== null || showEwc) && (
-          <div className="podium-badges" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
-            {p.cptPts !== null && <CcQualifiedBadge />}
-            {showEwc && <EwcBadge />}
-          </div>
-        )}
-      </div>
+        )
+      })}
     </div>
   )
-  return p.playerId
-    ? <Link href={`/player/${p.playerId}`} style={{ display: 'block', textDecoration: 'none' }}>{inner}</Link>
-    : inner
 }
 
-function PodiumRunner({ p, ewcSpots }: { p: PodiumEntry; ewcSpots?: number | null }) {
+// ─── ポディウムカード ──────────────────────────────────────────────
+
+function PodiumChampion({
+  p, ewcSpots, sets = [], expandedPlayerId, setExpandedPlayerId,
+}: {
+  p: PodiumEntry
+  ewcSpots?: number | null
+  sets?: SetRow[]
+  expandedPlayerId: number | null
+  setExpandedPlayerId: (id: number | null) => void
+}) {
+  const [hovered, setHovered] = useState(false)
+  const showEwc  = ewcSpots != null && p.rank <= ewcSpots
+  const isExpanded = p.playerId != null && expandedPlayerId === p.playerId
+  const toggle = () => {
+    if (!p.playerId) return
+    setExpandedPlayerId(isExpanded ? null : p.playerId)
+  }
+
+  return (
+    <div>
+      <div
+        className="podium-champion"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={toggle}
+        style={{
+          position: 'relative', overflow: 'hidden',
+          borderRadius: isExpanded ? '12px 12px 0 0' : 12,
+          border: '1px solid rgba(245,200,66,0.45)',
+          background: 'linear-gradient(120deg, rgba(245,200,66,0.15) 0%, rgba(245,200,66,0.03) 46%, rgba(14,20,25,1) 78%)',
+          padding: '22px 28px', display: 'flex', alignItems: 'center', gap: 26,
+          cursor: p.playerId ? 'pointer' : 'default',
+          transition: 'filter 0.15s, transform 0.15s',
+          filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
+          transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
+        }}
+      >
+        <Stripes style={{ top: 0, right: 0, bottom: 0, width: '30%', zIndex: 0 }} />
+        {/* Ghost rank numeral */}
+        <div style={{
+          position: 'absolute', right: 36, top: '50%', transform: 'translateY(-50%)',
+          pointerEvents: 'none', zIndex: 0,
+          fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 170, lineHeight: 1,
+          color: 'transparent', WebkitTextStroke: '2px rgba(245,200,66,0.16)',
+        }}>1</div>
+        {/* Expand indicator */}
+        <div style={{
+          position: 'absolute', top: 10, right: 14, zIndex: 2,
+          fontFamily: T.fDisplay, fontSize: 12,
+          color: 'rgba(255,255,255,0.35)',
+        }}>{isExpanded ? '▲' : '▼'}</div>
+        {/* Trophy */}
+        <div style={{ position: 'relative', zIndex: 1, flexShrink: 0, textAlign: 'center' }}>
+          <div style={{ fontSize: 48, lineHeight: 1 }}>🏆</div>
+          <div style={{ fontFamily: T.fDisplay, fontSize: 11, fontWeight: 800, letterSpacing: '0.2em', color: T.gold, marginTop: 6 }}>
+            CHAMPION
+          </div>
+        </div>
+        {/* Identity */}
+        <div style={{ position: 'relative', zIndex: 1, flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <span style={{ fontSize: 28 }}>{flag(p.countryCode)}</span>
+            {p.playerId
+              ? <Link href={`/player/${p.playerId}`} onClick={e => e.stopPropagation()} style={{ textDecoration: 'none' }}>
+                  <h3 className="podium-player-name podium-name-link" style={{
+                    fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+                    fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
+                  }}>{p.handle}</h3>
+                </Link>
+              : <h3 className="podium-player-name" style={{
+                  fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+                  fontSize: 44, color: T.gold, letterSpacing: '-0.01em', lineHeight: 0.96, margin: 0,
+                }}>{p.handle}</h3>
+            }
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <CharPill name={p.char} />
+          </div>
+        </div>
+        {/* Prize + badges */}
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'right', flexShrink: 0 }}>
+          {p.prize && (
+            <div className="podium-prize" style={{ fontFamily: T.fTitle, fontStyle: 'italic', fontSize: 32, color: T.gold, letterSpacing: '-0.01em', lineHeight: 1 }}>
+              {p.prize}
+            </div>
+          )}
+          {(p.cptPts !== null || showEwc) && (
+            <div className="podium-badges" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 8 }}>
+              {p.cptPts !== null && <CcQualifiedBadge />}
+              {showEwc && <EwcBadge />}
+            </div>
+          )}
+        </div>
+      </div>
+      {/* アコーディオン展開パネル */}
+      {isExpanded && p.playerId && (
+        <div className="match-history-panel" style={{
+          background: 'rgba(255,255,255,0.025)',
+          borderRadius: '0 0 12px 12px',
+          padding: '12px 16px 16px',
+          border: '1px solid rgba(245,200,66,0.25)',
+          borderTop: 'none',
+        }}>
+          <MatchHistoryPanel playerId={p.playerId} sets={sets} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PodiumRunner({
+  p, ewcSpots, sets = [], expandedPlayerId, setExpandedPlayerId,
+}: {
+  p: PodiumEntry
+  ewcSpots?: number | null
+  sets?: SetRow[]
+  expandedPlayerId: number | null
+  setExpandedPlayerId: (id: number | null) => void
+}) {
   const [hovered, setHovered] = useState(false)
   const isSilver   = p.rank === 2
   const medalColor = isSilver ? T.silver : T.bronze
   const medal      = isSilver ? '🥈' : '🥉'
   const showEwc    = ewcSpots != null && p.rank <= ewcSpots
-  const inner = (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative', overflow: 'hidden',
-        flex: '1 1 240px', minWidth: 0, borderRadius: 10,
-        border: `1px solid ${medalColor}55`,
-        background: isSilver
-          ? 'linear-gradient(120deg, rgba(160,176,191,0.13) 0%, rgba(14,20,25,1) 62%)'
-          : 'linear-gradient(120deg, rgba(205,140,82,0.13) 0%, rgba(14,20,25,1) 62%)',
-        boxShadow: `inset 3px 0 0 ${medalColor}`,
-        padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16,
-        cursor: p.playerId ? 'pointer' : 'default',
-        transition: 'filter 0.15s, transform 0.15s',
-        filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
-        transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
-      }}
-    >
-      {/* Outlined rank numeral */}
-      <div style={{
-        flexShrink: 0, fontFamily: T.fTitle, fontStyle: 'italic',
-        fontSize: 44, lineHeight: 1,
-        color: 'transparent', WebkitTextStroke: `2px ${medalColor}`,
-      }}>{p.rank}</div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 18 }}>{flag(p.countryCode)}</span>
-          <span className="podium-player-name" style={{
-            fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
-            fontSize: 22, color: T.text,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{p.handle}</span>
+  const isExpanded = p.playerId != null && expandedPlayerId === p.playerId
+  const toggle = () => {
+    if (!p.playerId) return
+    setExpandedPlayerId(isExpanded ? null : p.playerId)
+  }
+
+  return (
+    <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={toggle}
+        style={{
+          position: 'relative', overflow: 'hidden',
+          borderRadius: isExpanded ? '10px 10px 0 0' : 10,
+          border: `1px solid ${medalColor}55`,
+          background: isSilver
+            ? 'linear-gradient(120deg, rgba(160,176,191,0.13) 0%, rgba(14,20,25,1) 62%)'
+            : 'linear-gradient(120deg, rgba(205,140,82,0.13) 0%, rgba(14,20,25,1) 62%)',
+          boxShadow: `inset 3px 0 0 ${medalColor}`,
+          padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16,
+          cursor: p.playerId ? 'pointer' : 'default',
+          transition: 'filter 0.15s, transform 0.15s',
+          filter: hovered && p.playerId ? 'brightness(1.08)' : 'brightness(1)',
+          transform: hovered && p.playerId ? 'scale(1.005)' : 'scale(1)',
+        }}
+      >
+        {/* Expand indicator */}
+        <div style={{
+          position: 'absolute', top: 8, right: 12, zIndex: 2,
+          fontFamily: T.fDisplay, fontSize: 11,
+          color: 'rgba(255,255,255,0.30)',
+        }}>{isExpanded ? '▲' : '▼'}</div>
+        {/* Outlined rank numeral */}
+        <div style={{
+          flexShrink: 0, fontFamily: T.fTitle, fontStyle: 'italic',
+          fontSize: 44, lineHeight: 1,
+          color: 'transparent', WebkitTextStroke: `2px ${medalColor}`,
+        }}>{p.rank}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>{flag(p.countryCode)}</span>
+            {p.playerId
+              ? <Link href={`/player/${p.playerId}`} onClick={e => e.stopPropagation()} style={{ textDecoration: 'none' }}>
+                  <span className="podium-player-name podium-name-link" style={{
+                    fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+                    fontSize: 22, color: T.text,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    display: 'block',
+                  }}>{p.handle}</span>
+                </Link>
+              : <span className="podium-player-name" style={{
+                  fontFamily: T.fTitle, fontStyle: 'italic', textTransform: 'uppercase',
+                  fontSize: 22, color: T.text,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{p.handle}</span>
+            }
+          </div>
+          <div className="podium-badges" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <CharPill name={p.char} />
+            {showEwc && <EwcBadge />}
+            {p.prize && (
+              <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
+                {p.prize}
+              </span>
+            )}
+            {p.cptPts != null && (
+              <span style={{ fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700, color: T.accent }}>
+                {p.cptPts.toLocaleString()} PTS
+              </span>
+            )}
+          </div>
         </div>
-        <div className="podium-badges" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <CharPill name={p.char} />
-          {showEwc && <EwcBadge />}
-          {p.prize && (
-            <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
-              {p.prize}
-            </span>
-          )}
-          {p.cptPts != null && (
-            <span style={{ fontFamily: T.fDisplay, fontSize: 12, fontWeight: 700, color: T.accent }}>
-              {p.cptPts.toLocaleString()} PTS
-            </span>
-          )}
-        </div>
+        <div style={{ fontSize: 22, flexShrink: 0 }}>{medal}</div>
       </div>
-      <div style={{ fontSize: 22, flexShrink: 0 }}>{medal}</div>
+      {/* アコーディオン展開パネル */}
+      {isExpanded && p.playerId && (
+        <div className="match-history-panel" style={{
+          background: 'rgba(255,255,255,0.025)',
+          borderRadius: '0 0 10px 10px',
+          padding: '12px 16px 16px',
+          border: `1px solid ${medalColor}33`,
+          borderTop: 'none',
+        }}>
+          <MatchHistoryPanel playerId={p.playerId} sets={sets} />
+        </div>
+      )}
     </div>
   )
-  return p.playerId
-    ? <Link href={`/player/${p.playerId}`} style={{ display: 'block', textDecoration: 'none', flex: '1 1 240px', minWidth: 0 }}>{inner}</Link>
-    : inner
 }
 
 // ─── Standings ────────────────────────────────────────────────────
@@ -792,10 +937,27 @@ function StandingsTable({
                                           .sort((a, b) => (effectivePlacement(a) ?? 9) - (effectivePlacement(b) ?? 9))
             return (
               <>
-                {champ && <PodiumChampion p={toPodiumEntry(champ)} ewcSpots={ewcQualifyingSpots} />}
+                {champ && (
+                  <PodiumChampion
+                    p={toPodiumEntry(champ)}
+                    ewcSpots={ewcQualifyingSpots}
+                    sets={sets}
+                    expandedPlayerId={expandedPlayerId}
+                    setExpandedPlayerId={setExpandedPlayerId}
+                  />
+                )}
                 {runners.length > 0 && (
                   <div className="podium-runners" style={{ display: 'flex', gap: 12, marginTop: 12, flexWrap: 'wrap' }}>
-                    {runners.map(e => <PodiumRunner key={e.entrantId} p={toPodiumEntry(e)} ewcSpots={ewcQualifyingSpots} />)}
+                    {runners.map(e => (
+                      <PodiumRunner
+                        key={e.entrantId}
+                        p={toPodiumEntry(e)}
+                        ewcSpots={ewcQualifyingSpots}
+                        sets={sets}
+                        expandedPlayerId={expandedPlayerId}
+                        setExpandedPlayerId={setExpandedPlayerId}
+                      />
+                    ))}
                   </div>
                 )}
               </>
@@ -854,11 +1016,6 @@ function StandingsTable({
                 const medal = eff === 1 ? '🥇' : eff === 2 ? '🥈' : eff === 3 ? '🥉' : null
                 const cptPts = isCptPremier ? (eff === 1 ? null : (eff ? CPT_PREMIER_POINTS[eff] ?? 0 : 0)) : null
                 const prizeAmt = eff ? (prizeMap[eff] ?? e.prizeAmount ?? null) : (e.prizeAmount ?? null)
-
-                // この選手の対戦履歴を sets から抽出（id降順 = 最新ラウンド先頭）
-                const playerSets = sets
-                  .filter(s => s.winnerId === p.id || s.loserId === p.id)
-                  .sort((a, b) => b.id - a.id)
 
                 const isFirst = eff === 1
                 return (
@@ -979,7 +1136,7 @@ function StandingsTable({
                       </td>
                     </tr>
 
-                    {/* ── アコーディオン: 対戦履歴 ── */}
+                    {/* ── アコーディオン: 対戦履歴（共通コンポーネント使用）── */}
                     {isExpanded && (
                       <tr className="match-history-row">
                         <td
@@ -990,61 +1147,7 @@ function StandingsTable({
                             borderBottom: `1px solid ${T.border}`,
                           }}
                         >
-                          {playerSets.length === 0 ? (
-                            <div style={{ fontFamily: T.fBody, fontSize: 13, color: T.dim }}>
-                              対戦データなし
-                            </div>
-                          ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {playerSets.map(s => {
-                                const win = s.winnerId === p.id
-                                const oppHandle = win ? s.loserHandle : s.winnerHandle
-                                const charUsed  = win ? s.winnerCharacter : s.loserCharacter
-                                const roundLabel = s.roundText || s.inferredRoundLabel || '?'
-                                const scoreW = win ? s.winnerScore : s.loserScore
-                                const scoreL = win ? s.loserScore : s.winnerScore
-                                return (
-                                  <div key={s.id} className="match-card" style={{
-                                    display: 'flex', alignItems: 'center',
-                                    justifyContent: 'space-between',
-                                    padding: '7px 12px',
-                                    background: 'rgba(255,255,255,0.04)',
-                                    borderRadius: 6, gap: 12,
-                                  }}>
-                                    {/* Round */}
-                                    <span style={{
-                                      fontFamily: T.fDisplay, fontSize: 11, fontWeight: 700,
-                                      color: T.dim, letterSpacing: '0.06em',
-                                      minWidth: 130, flexShrink: 0,
-                                    }}>{roundLabel}</span>
-                                    {/* W/L + opponent */}
-                                    <span style={{ flex: 1, minWidth: 0, fontFamily: T.fDisplay, fontSize: 13 }}>
-                                      <span style={{
-                                        fontWeight: 800,
-                                        color: win ? '#4ade80' : '#f87171',
-                                        marginRight: 6,
-                                      }}>{win ? 'W' : 'L'}</span>
-                                      <span style={{ color: T.muted }}>vs </span>
-                                      <span style={{ color: T.text, fontWeight: 600 }}>{oppHandle}</span>
-                                    </span>
-                                    {/* Score */}
-                                    <span style={{
-                                      fontFamily: T.fDisplay, fontWeight: 700, fontSize: 14,
-                                      color: win ? '#4ade80' : T.text,
-                                      flexShrink: 0,
-                                    }}>{scoreW} – {scoreL}</span>
-                                    {/* Char */}
-                                    {charUsed && (
-                                      <span style={{
-                                        fontFamily: T.fDisplay, fontSize: 11, color: T.dim,
-                                        flexShrink: 0, minWidth: 60, textAlign: 'right',
-                                      }}>{charUsed}</span>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                          <MatchHistoryPanel playerId={p.id} sets={sets} />
                         </td>
                       </tr>
                     )}
@@ -1973,6 +2076,7 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
         .match-history-row td { transition: padding 0.15s; }
         .match-card { transition: background 0.1s; }
         .match-card:hover { background: rgba(255,255,255,0.07) !important; }
+        .podium-name-link:hover { text-decoration: underline; opacity: 0.9; }
 
         /* ── モバイルレスポンシブ (768px以下) ── */
         @media (max-width: 768px) {
@@ -2039,6 +2143,14 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
             flex-direction: column !important;
             align-items: flex-start !important;
             gap: 4px !important;
+          }
+          /* ポディウムカードのアコーディオンパネル */
+          .match-history-panel {
+            padding: 8px 10px !important;
+            font-size: 12px !important;
+          }
+          .match-history-panel .match-card {
+            font-size: 12px !important;
           }
 
           /* ── ポディアムカード ── */
