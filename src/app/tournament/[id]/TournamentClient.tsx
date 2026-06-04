@@ -537,10 +537,28 @@ interface PodiumEntry {
 
 // ─── 対戦履歴パネル（ポディウム・順位表共通）────────────────────────
 
+/** ラウンドの重要度スコア（高いほど決勝に近い） */
+function roundPriority(s: SetRow): number {
+  const rt = (s.roundText || s.inferredRoundLabel || '').toLowerCase()
+  if (rt.includes('reset'))                             return 100
+  if (s.isGrandFinal || rt.includes('grand final'))    return  99
+  if (rt.includes('winners final'))                    return  90
+  if (rt.includes('losers final'))                     return  89
+  if (rt.includes('winners semi'))                     return  80
+  if (rt.includes('losers semi'))                      return  79
+  if (rt.includes('winners quarter'))                  return  70
+  if (rt.includes('losers quarter'))                   return  69
+  const lrM = rt.match(/losers round (\d+)/)
+  if (lrM) return 60 + parseInt(lrM[1], 10)
+  const wrM = rt.match(/winners round (\d+)/)
+  if (wrM) return 50 + parseInt(wrM[1], 10)
+  return s.id  // fallback: higher id = later in event
+}
+
 function MatchHistoryPanel({ playerId, sets }: { playerId: number; sets: SetRow[] }) {
   const playerSets = sets
     .filter(s => s.winnerId === playerId || s.loserId === playerId)
-    .sort((a, b) => b.id - a.id)
+    .sort((a, b) => roundPriority(b) - roundPriority(a))
 
   if (playerSets.length === 0) {
     return (
@@ -782,7 +800,7 @@ function PodiumRunner({
             <CharPill name={p.char} />
             {showEwc && <EwcBadge />}
             {p.prize && (
-              <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 13, fontWeight: 600, color: T.muted, letterSpacing: '0.04em' }}>
+              <span className="podium-prize" style={{ fontFamily: T.fDisplay, fontSize: 14, fontWeight: 700, color: T.accent, letterSpacing: '0.02em' }}>
                 {p.prize}
               </span>
             )}
