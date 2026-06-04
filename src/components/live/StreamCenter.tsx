@@ -194,7 +194,7 @@ export function StreamCenter({
         width: '100%', height: '100%', minHeight: 0,
         overflow: 'hidden',
       }}>
-        <div style={{
+        <div className="stream-player-wrapper" style={{
           aspectRatio: '16/9',
           height: '100%', width: 'auto',
           maxWidth: '100%', maxHeight: '100%',
@@ -409,7 +409,7 @@ export function StreamCenter({
           )}
 
           {/* ストリーム埋め込み */}
-          <div style={{
+          <div className="stream-player-wrapper" style={{
             position: 'relative', width: '100%', aspectRatio: '16/9',
             background: V.surface2,
             border: `1px solid ${V.border}`, borderTop: 'none',
@@ -469,7 +469,7 @@ export function StreamCenter({
           </div>
 
           {/* H2H バー */}
-          <div style={{
+          <div className="h2h-score-bar" style={{
             background: V.surface, border: `1px solid ${V.border}`,
             borderTop: 'none', borderRadius: '0 0 10px 10px',
             padding: '14px 20px',

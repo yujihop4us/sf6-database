@@ -134,7 +134,7 @@ export function LiveStandings({
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{
+    <div className="live-standings" style={{
       background: V.surface, border: `1px solid ${V.border}`, borderRadius: 10,
       overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
     }}>

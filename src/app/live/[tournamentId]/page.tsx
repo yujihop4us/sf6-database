@@ -147,7 +147,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
   // ── レンダー ──────────────────────────────────────────────────────────────
   return (
-    <div style={{
+    <div className="live-page" style={{
       background: V.bg, color: V.text, fontFamily: V.FB,
       height: '100dvh', overflow: 'hidden',
       display: 'flex', flexDirection: 'column',
@@ -171,6 +171,128 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         }
         button { font-family: inherit; }
         input  { font-family: inherit; }
+
+        /* ============================================
+           MOBILE RESPONSIVE - LIVE PAGE  ≤768px
+           ============================================ */
+        @media (max-width: 768px) {
+          /* --- ページ全体: スクロール可能に --- */
+          .live-page {
+            height: auto !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            padding: 0 !important;
+          }
+          /* メインコンテンツ枠 */
+          .live-page > div:last-child {
+            overflow: visible !important;
+            padding: 4px 8px 80px !important;
+            min-height: 0 !important;
+          }
+
+          /* --- Twitch プレイヤー sticky 固定 (Pools モード) --- */
+          .stream-container {
+            position: sticky !important;
+            top: 52px !important;
+            z-index: 50 !important;
+            background: #080c14 !important;
+            margin: 0 -8px !important;
+            padding: 0 !important;
+            display: block !important;
+            grid-template-rows: unset !important;
+          }
+
+          /* --- ストリームプレイヤーラッパー: 16:9 --- */
+          .stream-player-wrapper {
+            width: 100% !important;
+            height: 0 !important;
+            padding-bottom: 56.25% !important;
+            position: relative !important;
+            aspect-ratio: unset !important;
+          }
+          .stream-player-wrapper iframe {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+          }
+
+          /* --- H2H モード: 3カラム → 縦積み --- */
+          .h2h-faceoff {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-columns: unset !important;
+            overflow: visible !important;
+          }
+
+          /* --- PlayerBand 非表示 --- */
+          .player-band {
+            display: none !important;
+          }
+
+          /* --- H2H スコアバー: コンパクト化 --- */
+          .h2h-score-bar {
+            padding: 8px 12px !important;
+          }
+
+          /* --- セカンダリ: 縦積み --- */
+          .h2h-secondary {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-columns: unset !important;
+            gap: 8px !important;
+            overflow: visible !important;
+            min-height: 0 !important;
+            height: auto !important;
+          }
+
+          /* --- Twitch チャット: 非表示 --- */
+          .live-chat-panel {
+            display: none !important;
+          }
+
+          /* --- 順位表: フル幅・スクロール解除 --- */
+          .live-standings {
+            width: 100% !important;
+            max-height: 500px !important;
+            overflow: auto !important;
+            flex: none !important;
+            min-height: 200px !important;
+          }
+
+          /* --- Pools モード: 縦積み --- */
+          .pools-layout {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-columns: unset !important;
+            overflow: visible !important;
+          }
+
+          /* --- モード切替トグル --- */
+          .mode-toggle {
+            flex-wrap: wrap !important;
+            gap: 4px !important;
+          }
+          .mode-toggle button {
+            padding: 4px 10px !important;
+            font-size: 11px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .live-page > div:last-child {
+            padding: 2px 4px 60px !important;
+          }
+          .stream-container {
+            margin: 0 -4px !important;
+          }
+          .h2h-score-bar {
+            padding: 6px 8px !important;
+          }
+          .mode-toggle button {
+            padding: 3px 8px !important;
+            font-size: 10px !important;
+          }
+        }
       `}</style>
 
       {/* 選手検索モーダル */}
@@ -195,7 +317,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         {/* ── モード切替トグル ── */}
         {config.startggEventId && (
-          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+          <div className="mode-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
             <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em' }}>
               {poolsData ? `Phase: ${poolsData.currentPhase}` : ''}
             </span>
@@ -226,14 +348,14 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
              POOLS モード: 2カラム (配信+チャット 左 / PoolsDashboard 右)
              PlayerBand・H2Hバーは非表示。右パネルが画面上から下まで全高さ
           ══════════════════════════════════════════════════════════ */
-          <div style={{
+          <div className="pools-layout" style={{
             flex: 1, minHeight: 0,
             display: 'grid',
             gridTemplateColumns: 'minmax(0, 1fr) 380px',
             gap: 12,
           }}>
             {/* 左カラム: 配信映像(上) + チャット(下) */}
-            <div style={{
+            <div className="stream-container" style={{
               display: 'grid',
               gridTemplateRows: '1.8fr 1fr',
               gap: 12,
@@ -320,7 +442,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             )}
 
             {/* 3カラム フェイスオフ */}
-            <div style={{
+            <div className="h2h-faceoff" style={{
               display: 'grid',
               gridTemplateColumns: '220px 1fr 220px',
               gap: 0, borderRadius: 12, overflow: 'hidden',
@@ -369,7 +491,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             </div>
 
             {/* セカンダリ: H2H */}
-            <div style={{
+            <div className="h2h-secondary" style={{
               flex: 1, minHeight: 0,
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
             }}>

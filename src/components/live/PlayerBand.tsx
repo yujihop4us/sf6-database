@@ -20,7 +20,7 @@ export function PlayerBand({
   const flag      = codeToFlag(player?.country_code)
 
   return (
-    <div style={{
+    <div className="player-band" style={{
       position: 'relative', overflow: 'hidden',
       background: isLeft
         ? `linear-gradient(to right, ${sideColor}28 0%, ${sideColor}0a 55%, transparent 100%)`

@@ -11,7 +11,7 @@ export function SidePanelLeft({
   twitchChatChannels?: string[]
 }) {
   return (
-    <div style={{
+    <div className="live-chat-panel" style={{
       background: V.surface, border: `1px solid ${V.border}`, borderRadius: 10,
       overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0,
     }}>
