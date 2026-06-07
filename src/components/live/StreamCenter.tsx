@@ -537,52 +537,74 @@ export function StreamCenter({
 
             {summary && total > 0 ? (
               <>
-                {/* 勝敗数 */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p1color }}>{summary.player1_wins}</span>
-                    <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
-                  </div>
-                  <div style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: V.dim }}>
-                    通算 H2H · {total}戦
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
-                    <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p2color }}>{summary.player2_wins}</span>
-                  </div>
-                </div>
-
-                {/* セグメントバー: マゼンタ(P1) / ブルー(P2) */}
-                <div style={{ height: 8, display: 'flex', borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
-                  <div style={{
-                    width: `${Math.round(summary.player1_wins / total * 100)}%`,
-                    background: `linear-gradient(90deg, ${p1color}cc, ${p1color})`,
-                    transition: 'width 1s ease',
-                  }} />
-                  <div style={{ flex: 1, background: `linear-gradient(90deg, ${p2color}, ${p2color}cc)` }} />
-                </div>
-
-                {/* 直近10試合カラーブロック */}
-                {recent10.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em', marginRight: 4, flexShrink: 0 }}>
-                      直近{recent10.length}試合
+                {/* モバイル: コンパクト1行表示 */}
+                <div className="h2h-score-compact">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                    <span style={{ fontFamily: V.FD, fontWeight: 900, color: p1color, flexShrink: 0 }}>{summary.player1_wins}</span>
+                    <span style={{ fontFamily: V.FD, color: V.dim, flexShrink: 0 }}>勝</span>
+                    <span style={{ fontFamily: V.FD, fontWeight: 700, color: V.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                      {player1?.handle ?? 'P1'}
                     </span>
-                    {recent10.map((r, i) => (
-                      <div key={i} style={{
-                        width: 22, height: 22, borderRadius: 4, flexShrink: 0,
-                        background: r === 'p1' ? p1color : p2color,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontFamily: V.FD, fontSize: 10, fontWeight: 900, color: '#fff',
-                        boxShadow: r === 'p1' ? `0 0 6px ${p1color}60` : `0 0 6px ${p2color}60`,
-                      }}>
-                        {r === 'p1'
-                          ? (player1?.handle?.charAt(0) ?? 'P')
-                          : (player2?.handle?.charAt(0) ?? 'P')}
-                      </div>
-                    ))}
                   </div>
-                )}
+                  <div style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, flexShrink: 0, letterSpacing: '0.1em' }}>H2H·{total}戦</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, justifyContent: 'flex-end' }}>
+                    <span style={{ fontFamily: V.FD, fontWeight: 700, color: V.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                      {player2?.handle ?? 'P2'}
+                    </span>
+                    <span style={{ fontFamily: V.FD, color: V.dim, flexShrink: 0 }}>勝</span>
+                    <span style={{ fontFamily: V.FD, fontWeight: 900, color: p2color, flexShrink: 0 }}>{summary.player2_wins}</span>
+                  </div>
+                </div>
+
+                {/* PC: 詳細表示 */}
+                <div className="h2h-score-large">
+                  {/* 勝敗数 */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p1color }}>{summary.player1_wins}</span>
+                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
+                    </div>
+                    <div style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: V.dim }}>
+                      通算 H2H · {total}戦
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
+                      <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p2color }}>{summary.player2_wins}</span>
+                    </div>
+                  </div>
+
+                  {/* セグメントバー: マゼンタ(P1) / ブルー(P2) */}
+                  <div style={{ height: 8, display: 'flex', borderRadius: 4, overflow: 'hidden', marginBottom: 10 }}>
+                    <div style={{
+                      width: `${Math.round(summary.player1_wins / total * 100)}%`,
+                      background: `linear-gradient(90deg, ${p1color}cc, ${p1color})`,
+                      transition: 'width 1s ease',
+                    }} />
+                    <div style={{ flex: 1, background: `linear-gradient(90deg, ${p2color}, ${p2color}cc)` }} />
+                  </div>
+
+                  {/* 直近10試合カラーブロック */}
+                  {recent10.length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em', marginRight: 4, flexShrink: 0 }}>
+                        直近{recent10.length}試合
+                      </span>
+                      {recent10.map((r, i) => (
+                        <div key={i} style={{
+                          width: 22, height: 22, borderRadius: 4, flexShrink: 0,
+                          background: r === 'p1' ? p1color : p2color,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: V.FD, fontSize: 10, fontWeight: 900, color: '#fff',
+                          boxShadow: r === 'p1' ? `0 0 6px ${p1color}60` : `0 0 6px ${p2color}60`,
+                        }}>
+                          {r === 'p1'
+                            ? (player1?.handle?.charAt(0) ?? 'P')
+                            : (player2?.handle?.charAt(0) ?? 'P')}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </>
             ) : (
               <div style={{ fontFamily: V.FD, fontSize: 12, color: V.dim, textAlign: 'center', padding: '4px 0' }}>
