@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import HomeClient from './HomeClient'
+import { isTournamentLive } from '@/lib/utils'
 
 export const revalidate = 60
 
@@ -97,16 +98,6 @@ async function fetchHomeData(): Promise<HomeData> {
   )
   const countMap: Record<number, number> = Object.fromEntries(countEntries)
 
-  function isLive(t: typeof tourns[0]): boolean {
-    if (!t.start_date) return false
-    const start = new Date(t.start_date).getTime()
-    const end = t.end_date
-      ? new Date(t.end_date).getTime()
-      : start + 3 * 24 * 60 * 60 * 1000
-    const nowMs = Date.now()
-    return nowMs >= start && nowMs <= end
-  }
-
   const mapped: HomeTournament[] = tourns.map(t => {
     const series = getTournamentSeries(t.name)
     return {
@@ -117,7 +108,7 @@ async function fetchHomeData(): Promise<HomeData> {
       location: t.location ?? null,
       totalPrizeUsd: t.total_prize_usd ?? null,
       isOnline: t.is_online ?? false,
-      isLive: isLive(t),
+      isLive: isTournamentLive(t.start_date, t.end_date),
       entrantCount: countMap[t.id] ?? 0,
       series,
       ewcQual: hasEwcQual(t.name, series),

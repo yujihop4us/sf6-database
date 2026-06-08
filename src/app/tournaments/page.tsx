@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import TournamentsClient from './TournamentsClient'
 import { getTournamentSeries, hasEwcQual, type TournamentSeries } from '@/app/page'
+import { isTournamentLive } from '@/lib/utils'
 
 export const revalidate = 60
 
@@ -55,17 +56,6 @@ async function fetchTournaments(): Promise<TournamentRow[]> {
   )
   const countMap: Record<number, number> = Object.fromEntries(countEntries)
 
-  type TRow = { start_date: string | null; end_date: string | null }
-  function isLive(t: TRow): boolean {
-    if (!t.start_date) return false
-    const start = new Date(t.start_date).getTime()
-    const end = t.end_date
-      ? new Date(t.end_date).getTime()
-      : start + 3 * 24 * 60 * 60 * 1000
-    const nowMs = Date.now()
-    return nowMs >= start && nowMs <= end
-  }
-
   return data.map(t => {
     const series = getTournamentSeries(t.name)
     const override = TOURNAMENT_REAL_STATS[t.id]
@@ -80,7 +70,7 @@ async function fetchTournaments(): Promise<TournamentRow[]> {
       format: t.format ?? null,
       region: t.region ?? null,
       entrantCount: override?.numEntrants ?? countMap[t.id] ?? 0,
-      isLive: isLive(t),
+      isLive: isTournamentLive(t.start_date, t.end_date),
       series,
       ewcQual: hasEwcQual(t.name, series),
       startggSlug: (t as { startgg_slug?: string | null }).startgg_slug ?? null,
