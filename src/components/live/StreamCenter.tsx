@@ -163,17 +163,8 @@ export function StreamCenter({
     return () => clearInterval(id)
   }, [tournamentSlug, onStreamQueueMatch])
 
-  // ── liveScore 変更時のパルスアニメーション ────────────────────────────────
-  // key を変えることで CSS animation を再トリガー
-  const prevScoreRef = useRef<string>('')
-  const [scoreAnimKey, setScoreAnimKey] = useState(0)
-  const scoreStr = liveScore ? `${liveScore.p1}-${liveScore.p2}` : ''
-  useEffect(() => {
-    if (scoreStr && scoreStr !== prevScoreRef.current) {
-      prevScoreRef.current = scoreStr
-      setScoreAnimKey(k => k + 1)
-    }
-  }, [scoreStr])
+  // liveScore は将来の拡張用に prop として保持（現在 H2H バーでは非表示）
+  void liveScore
 
   // H2H バーは P1/P2 固定カラーで統一（キャラカラーではなく）
   const p1color = V.P1   // マゼンタ
@@ -476,68 +467,10 @@ export function StreamCenter({
           <div className="h2h-score-bar" style={{
             background: V.surface, border: `1px solid ${V.border}`,
             borderTop: 'none', borderRadius: '0 0 10px 10px',
-            padding: '14px 20px',
+            padding: '12px 20px',
           }}>
-            {/* ── リアルタイムゲームスコア (liveScore がある場合のみ表示) ── */}
-            {liveScore !== null && (
-              <>
-                <style>{`
-                  @keyframes sc-score-pulse {
-                    0%   { transform: scale(1.22); opacity: 0.6; }
-                    60%  { transform: scale(1.05); opacity: 1; }
-                    100% { transform: scale(1);    opacity: 1; }
-                  }
-                  .sc-score-pulse { animation: sc-score-pulse 0.35s ease-out; }
-                `}</style>
-                <div className="live-game-score" style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  gap: 0, marginBottom: 14,
-                }}>
-                  {/* ゲームスコアブロック */}
-                  <div
-                    key={scoreAnimKey}
-                    className="sc-score-pulse"
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 4,
-                      background: V.surface2, border: `1px solid ${V.border2}`,
-                      borderRadius: 10, padding: '6px 18px',
-                    }}
-                  >
-                    {/* ラベル */}
-                    <div style={{
-                      fontFamily: V.FD, fontSize: 9, fontWeight: 800,
-                      letterSpacing: '0.18em', textTransform: 'uppercase' as const,
-                      color: V.dim, marginRight: 10,
-                    }}>GAME</div>
-
-                    {/* P1 score */}
-                    <span style={{
-                      fontFamily: V.FD, fontSize: 32, fontWeight: 900,
-                      lineHeight: 1,
-                      color: liveScore.p1 > liveScore.p2 ? V.accent
-                           : liveScore.p1 === liveScore.p2 ? V.text
-                           : V.dim,
-                      minWidth: 22, textAlign: 'center' as const,
-                    }}>{liveScore.p1}</span>
-
-                    <span style={{
-                      fontFamily: V.FD, fontSize: 20, fontWeight: 700,
-                      color: V.dim, margin: '0 6px', lineHeight: 1,
-                    }}>-</span>
-
-                    {/* P2 score */}
-                    <span style={{
-                      fontFamily: V.FD, fontSize: 32, fontWeight: 900,
-                      lineHeight: 1,
-                      color: liveScore.p2 > liveScore.p1 ? V.accent
-                           : liveScore.p2 === liveScore.p1 ? V.text
-                           : V.dim,
-                      minWidth: 22, textAlign: 'center' as const,
-                    }}>{liveScore.p2}</span>
-                  </div>
-                </div>
-              </>
-            )}
+            {/* ── リアルタイムゲームスコア: H2Hモードでは非表示、PC版のみ表示 ── */}
+            {/* (live-game-score class で CSS から制御) */}
 
             {summary && total > 0 ? (
               <>
@@ -562,18 +495,27 @@ export function StreamCenter({
 
                 {/* PC: 詳細表示 */}
                 <div className="h2h-score-large">
-                  {/* 勝敗数 */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p1color }}>{summary.player1_wins}</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
+                  {/* 勝敗数 — 3カラム均等配置 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    {/* P1 側 */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                      <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 700, color: V.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                        {player1?.handle ?? 'P1'}
+                      </span>
+                      <span style={{ fontFamily: V.FD, fontSize: 26, fontWeight: 900, color: p1color, lineHeight: 1, flexShrink: 0 }}>{summary.player1_wins}</span>
+                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' as const, flexShrink: 0 }}>勝</span>
                     </div>
-                    <div style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: V.dim }}>
-                      通算 H2H · {total}戦
+                    {/* 中央 */}
+                    <div style={{ textAlign: 'center' as const, fontFamily: V.FD, fontSize: 9, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.dim, whiteSpace: 'nowrap' as const }}>
+                      H2H · {total}戦
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' }}>勝</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 20, fontWeight: 900, color: p2color }}>{summary.player2_wins}</span>
+                    {/* P2 側 */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: 8 }}>
+                      <span style={{ fontFamily: V.FD, fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: V.dim, textTransform: 'uppercase' as const, flexShrink: 0 }}>勝</span>
+                      <span style={{ fontFamily: V.FD, fontSize: 26, fontWeight: 900, color: p2color, lineHeight: 1, flexShrink: 0 }}>{summary.player2_wins}</span>
+                      <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 700, color: V.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                        {player2?.handle ?? 'P2'}
+                      </span>
                     </div>
                   </div>
 
@@ -627,7 +569,7 @@ export function StreamCenter({
                   100% { transform: translateX(-50%); }
                 }
                 .h2h-ticker-track {
-                  animation: h2hTickerScroll ${Math.max(12, h2hData.sets.length * 4)}s linear infinite;
+                  animation: h2hTickerScroll ${Math.max(30, h2hData.sets.length * 8)}s linear infinite;
                 }
                 .h2h-ticker-track:hover {
                   animation-play-state: paused;
@@ -640,14 +582,14 @@ export function StreamCenter({
                 borderLeft: `1px solid ${V.border}`,
                 borderRight: `1px solid ${V.border}`,
                 borderRadius: '0 0 10px 10px',
-                height: 28, display: 'flex', alignItems: 'center',
+                height: 32, display: 'flex', alignItems: 'center',
                 position: 'relative',
               }}>
                 {/* "H2H" ラベル（左端固定） */}
                 <div className="h2h-ticker-label" style={{
                   position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 2,
-                  display: 'flex', alignItems: 'center', padding: '0 12px 0 10px',
-                  background: `linear-gradient(90deg, rgba(15,17,25,1) 70%, transparent)`,
+                  display: 'flex', alignItems: 'center', padding: '0 14px 0 10px',
+                  background: `linear-gradient(90deg, rgba(15,17,25,1) 75%, transparent)`,
                   fontFamily: V.FD, fontSize: 10, fontWeight: 700,
                   letterSpacing: '0.12em', textTransform: 'uppercase' as const,
                   color: V.dim,
@@ -656,7 +598,7 @@ export function StreamCenter({
                 {/* スクロールトラック（2回繰り返してシームレスループ） */}
                 <div className="h2h-ticker-track" style={{
                   display: 'inline-flex', alignItems: 'center',
-                  gap: 36, paddingLeft: 52,
+                  gap: 60, paddingLeft: 52,
                 }}>
                   {[...[...h2hData.sets].reverse(), ...[...h2hData.sets].reverse()].map((set, i) => {
                     const isP1win = set.winner_id === player1.id
@@ -665,31 +607,31 @@ export function StreamCenter({
                     return (
                       <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         {/* 大会名 */}
-                        <span style={{ fontFamily: V.FD, fontSize: 11, color: V.dim }}>
+                        <span style={{ fontFamily: V.FD, fontSize: 12, color: '#9ca3af' }}>
                           {set.tournament_name}
                         </span>
-                        <span style={{ color: `${V.dim}55` }}>·</span>
+                        <span style={{ color: '#6b7280', fontSize: 11 }}>·</span>
                         {/* ラウンド */}
-                        <span style={{ fontFamily: V.FD, fontSize: 10, color: `${V.dim}88` }}>
+                        <span style={{ fontFamily: V.FD, fontSize: 11, color: '#9ca3af' }}>
                           {set.round_text}
                         </span>
-                        <span style={{ color: `${V.dim}44`, margin: '0 2px' }}>|</span>
+                        <span style={{ color: '#6b7280', margin: '0 3px', fontSize: 12 }}>▸</span>
                         {/* P1 */}
                         <span style={{
-                          fontFamily: V.FD, fontSize: 12,
+                          fontFamily: V.FD, fontSize: 13,
                           fontWeight: isP1win ? 800 : 400,
-                          color: isP1win ? '#4ade80' : '#9ca3af',
+                          color: isP1win ? '#4ade80' : '#d1d5db',
                         }}>{player1.handle}</span>
                         {/* スコア */}
                         <span style={{
-                          fontFamily: V.FD, fontSize: 13, fontWeight: 900,
-                          color: V.text, margin: '0 2px',
+                          fontFamily: V.FD, fontSize: 13, fontWeight: 700,
+                          color: '#ffffff', margin: '0 2px',
                         }}>{p1score}–{p2score}</span>
                         {/* P2 */}
                         <span style={{
-                          fontFamily: V.FD, fontSize: 12,
+                          fontFamily: V.FD, fontSize: 13,
                           fontWeight: isP1win ? 400 : 800,
-                          color: isP1win ? '#9ca3af' : '#4ade80',
+                          color: isP1win ? '#d1d5db' : '#4ade80',
                         }}>{player2.handle}</span>
                         {/* 日付 */}
                         <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, marginLeft: 2 }}>

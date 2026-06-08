@@ -393,7 +393,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             display: none !important;
           }
           .h2h-ticker-container {
-            height: 24px !important;
+            height: 28px !important;
           }
           .h2h-ticker-label {
             font-size: 9px !important;
