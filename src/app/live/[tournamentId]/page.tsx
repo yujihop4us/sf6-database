@@ -176,79 +176,76 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
            MOBILE RESPONSIVE - LIVE PAGE  ≤768px
            ============================================ */
 
-        /* PC: h2h-score-compact は非表示 */
-        .h2h-score-compact { display: none !important; }
+        /* PC default: compact非表示 */
+        .h2h-score-compact { display: none; }
 
         @media (max-width: 768px) {
-          /* ===== ページ全体 ===== */
+          /* ===== ページ全体: 100dvh固定 + flex縦積み ===== */
           .live-page {
-            height: auto !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
             padding: 0 !important;
             display: flex !important;
             flex-direction: column !important;
           }
+          /* 内側コンテナ（mode-toggle + コンテンツ）もflex縦積み */
           .live-page > div:last-child {
-            overflow: visible !important;
-            padding: 4px 8px 80px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 !important;
             min-height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
           }
 
           /* ===== 固定エリア: 配信 + H2Hバー ===== */
           .stream-and-h2h-sticky {
-            position: sticky !important;
-            top: 52px !important;
+            position: relative !important;
+            flex-shrink: 0 !important;
             z-index: 50 !important;
             background: #0a0c14 !important;
-            flex-shrink: 0 !important;
+            width: 100% !important;
           }
 
-          /* ===== 配信プレイヤー 16:9 ===== */
+          /* 配信プレイヤー 16:9 フル幅 */
           .stream-container {
             position: relative !important;
-            top: unset !important;
-            z-index: unset !important;
-            width: 100vw !important;
+            width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             display: block !important;
             grid-template-rows: unset !important;
-            background: #080c14 !important;
           }
           .stream-player-wrapper {
             width: 100% !important;
             height: 0 !important;
             padding-bottom: 56.25% !important;
             position: relative !important;
+            min-height: unset !important;
+            max-height: unset !important;
             aspect-ratio: unset !important;
           }
           .stream-player-wrapper iframe {
             position: absolute !important;
-            top: 0 !important; left: 0 !important;
-            width: 100% !important; height: 100% !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
             border: none !important;
           }
 
-          /* ===== H2H モード: faceoff は sticky ラッパー内で縦積み ===== */
-          .h2h-faceoff {
-            display: flex !important;
-            flex-direction: column !important;
-            grid-template-columns: unset !important;
-            overflow: visible !important;
-            border: none !important;
-            border-radius: 0 !important;
-          }
-
-          /* ===== PlayerBand 非表示 ===== */
-          .player-band {
-            display: none !important;
-          }
-
-          /* ===== H2H スコアバー: コンパクト表示に切替 ===== */
+          /* ===== H2H スコアバー ===== */
           .h2h-score-bar {
-            padding: 8px 12px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            padding: 6px 10px !important;
+            gap: 8px !important;
+            background: rgba(15,17,25,0.95) !important;
+            border-bottom: 1px solid rgba(255,255,255,0.1) !important;
             border-radius: 0 !important;
+            font-size: 13px !important;
+            flex-shrink: 0 !important;
           }
           .h2h-score-large {
             display: none !important;
@@ -259,66 +256,81 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             justify-content: space-between !important;
             gap: 8px !important;
             width: 100% !important;
-            font-size: 13px !important;
           }
 
-          /* ===== セカンダリ: スクロールエリア ===== */
+          /* H2H 3カラム → 1カラム */
+          .h2h-faceoff {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-columns: unset !important;
+            overflow: visible !important;
+            border: none !important;
+            border-radius: 0 !important;
+            gap: 0 !important;
+          }
+
+          /* PlayerBand 非表示 */
+          .player-band {
+            display: none !important;
+          }
+
+          /* ===== スクロールエリア: flex:1 + overflow-y:auto ===== */
           .h2h-secondary {
+            flex: 1 !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
             display: flex !important;
             flex-direction: column !important;
             grid-template-columns: unset !important;
             gap: 0 !important;
-            overflow: visible !important;
-            min-height: 0 !important;
-            height: auto !important;
             padding: 8px !important;
+            min-height: 0 !important;
           }
 
-          /* ===== チャット非表示 ===== */
+          /* チャットパネル非表示 */
           .live-chat-panel {
             display: none !important;
           }
 
-          /* ===== 順位表: フル幅・スクロール解除 ===== */
+          /* 順位表フル幅 */
           .live-standings {
             width: 100% !important;
             max-height: none !important;
             overflow: visible !important;
-            flex: none !important;
           }
 
-          /* ===== Pools モード: 縦積み ===== */
+          /* ===== Pools モード ===== */
           .pools-layout {
             display: flex !important;
             flex-direction: column !important;
             grid-template-columns: unset !important;
-            gap: 8px !important;
-            padding: 8px !important;
-            overflow: visible !important;
+            flex: 1 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            gap: 0 !important;
+            padding: 0 !important;
           }
 
           /* ===== モード切替トグル ===== */
           .mode-toggle {
-            flex-wrap: wrap !important;
+            padding: 4px 8px !important;
             gap: 4px !important;
+            flex-wrap: wrap !important;
             justify-content: center !important;
+            flex-shrink: 0 !important;
           }
           .mode-toggle button {
-            padding: 6px 12px !important;
+            padding: 5px 10px !important;
             font-size: 11px !important;
             border-radius: 6px !important;
           }
         }
 
         @media (max-width: 480px) {
-          .live-page > div:last-child {
-            padding: 2px 4px 60px !important;
-          }
           .h2h-score-bar {
-            padding: 6px 8px !important;
-          }
-          .h2h-score-compact {
             font-size: 12px !important;
+            padding: 4px 8px !important;
             gap: 6px !important;
           }
           .mode-toggle button {
