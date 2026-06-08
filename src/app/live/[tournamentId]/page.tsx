@@ -17,6 +17,47 @@ import { StreamCenter } from '@/components/live/StreamCenter'
 import { SidePanelLeft } from '@/components/live/SidePanelLeft'
 import { normalizePlayerName } from '@/lib/normalizePlayerName'
 
+// ── Demo mock data ─────────────────────────────────────────────────────────────
+
+const now = () => Date.now() / 1000
+
+const DEMO_PLAYER1: Player = { id: 9001, handle: 'Punk',    country_code: 'US', main_character: 'Cammy' }
+const DEMO_PLAYER2: Player = { id: 9002, handle: 'XiaoHai', country_code: 'CN', main_character: 'Mai'   }
+
+const DEMO_H2H: H2HData = {
+  player1: DEMO_PLAYER1,
+  player2: DEMO_PLAYER2,
+  summary: { player1_wins: 3, player2_wins: 2, total_sets: 5 },
+  sets: [
+    { id: 1, tournament_id: 48, round_text: 'Winners Final',      winner_id: 9001, loser_id: 9002, winner_score: 3, loser_score: 1, display_score: 'Punk 3-1 XiaoHai', tournament_name: 'COMBO BREAKER 2026',  tournament_date: '2026-05' },
+    { id: 2, tournament_id: 40, round_text: 'Winners Semi-Final', winner_id: 9002, loser_id: 9001, winner_score: 3, loser_score: 2, display_score: 'XiaoHai 3-2 Punk', tournament_name: 'EVO Japan 2026',       tournament_date: '2026-05' },
+    { id: 3, tournament_id: 9,  round_text: 'Grand Final',        winner_id: 9001, loser_id: 9002, winner_score: 3, loser_score: 2, display_score: 'Punk 3-2 XiaoHai', tournament_name: 'Capcom Cup 12',        tournament_date: '2026-03' },
+    { id: 4, tournament_id: 36, round_text: 'Losers Final',       winner_id: 9002, loser_id: 9001, winner_score: 3, loser_score: 0, display_score: 'XiaoHai 3-0 Punk', tournament_name: 'UFA 2025',             tournament_date: '2025-09' },
+    { id: 5, tournament_id: 25, round_text: 'Losers Semi-Final',  winner_id: 9001, loser_id: 9002, winner_score: 3, loser_score: 1, display_score: 'Punk 3-1 XiaoHai', tournament_name: 'Evo France 2025',      tournament_date: '2025-10' },
+  ],
+}
+
+const DEMO_STARTGG_MATCHES = [
+  // 進行中
+  { id: 'm001', status: 'live',      round: 'Grand Final',         round_text: 'Grand Final',         player1_handle: 'XiaoHai', player2_handle: 'Punk',     score: '2-1', winner_is_p1: null,  winner: null,      completedAt: null,           player1_startggId: null, player2_startggId: null },
+  // 完了セット (standings 計算用 — Losers 側から埋める)
+  { id: 'm002', status: 'completed', round: 'Losers Final',        round_text: 'Losers Final',        player1_handle: 'Punk',    player2_handle: 'MenaRD',   score: '3-2', winner_is_p1: true,  winner: 'Punk',    completedAt: now() - 1800,   player1_startggId: null, player2_startggId: null },
+  { id: 'm003', status: 'completed', round: 'Winners Final',       round_text: 'Winners Final',       player1_handle: 'XiaoHai', player2_handle: 'Tokido',   score: '3-0', winner_is_p1: true,  winner: 'XiaoHai', completedAt: now() - 3600,   player1_startggId: null, player2_startggId: null },
+  { id: 'm004', status: 'completed', round: 'Losers Semi-Final',   round_text: 'Losers Semi-Final',   player1_handle: 'Punk',    player2_handle: 'Higuchi',  score: '3-1', winner_is_p1: true,  winner: 'Punk',    completedAt: now() - 5400,   player1_startggId: null, player2_startggId: null },
+  { id: 'm005', status: 'completed', round: 'Losers Semi-Final',   round_text: 'Losers Semi-Final',   player1_handle: 'MenaRD',  player2_handle: 'Riddles',  score: '3-2', winner_is_p1: true,  winner: 'MenaRD',  completedAt: now() - 4800,   player1_startggId: null, player2_startggId: null },
+  { id: 'm006', status: 'completed', round: 'Winners Semi-Final',  round_text: 'Winners Semi-Final',  player1_handle: 'XiaoHai', player2_handle: 'MenaRD',   score: '3-1', winner_is_p1: true,  winner: 'XiaoHai', completedAt: now() - 7200,   player1_startggId: null, player2_startggId: null },
+  { id: 'm007', status: 'completed', round: 'Winners Semi-Final',  round_text: 'Winners Semi-Final',  player1_handle: 'Tokido',  player2_handle: 'Punk',     score: '2-3', winner_is_p1: false, winner: 'Punk',    completedAt: now() - 6600,   player1_startggId: null, player2_startggId: null },
+  { id: 'm008', status: 'completed', round: 'Losers Quarter-Final',round_text: 'Losers Quarter-Final',player1_handle: 'Higuchi', player2_handle: 'Tokido',   score: '2-3', winner_is_p1: false, winner: 'Tokido',  completedAt: now() - 9000,   player1_startggId: null, player2_startggId: null },
+  { id: 'm009', status: 'completed', round: 'Losers Quarter-Final',round_text: 'Losers Quarter-Final',player1_handle: 'Riddles', player2_handle: 'NuckleDu', score: '2-0', winner_is_p1: true,  winner: 'Riddles', completedAt: now() - 8400,   player1_startggId: null, player2_startggId: null },
+  { id: 'm010', status: 'completed', round: 'Losers Quarter-Final',round_text: 'Losers Quarter-Final',player1_handle: 'MenaRD',  player2_handle: 'Nephew',   score: '3-1', winner_is_p1: true,  winner: 'MenaRD',  completedAt: now() - 7800,   player1_startggId: null, player2_startggId: null },
+  { id: 'm011', status: 'completed', round: 'Losers Quarter-Final',round_text: 'Losers Quarter-Final',player1_handle: 'Punk',    player2_handle: 'Phenom',   score: '3-0', winner_is_p1: true,  winner: 'Punk',    completedAt: now() - 7000,   player1_startggId: null, player2_startggId: null },
+]
+
+const DEMO_UP_NEXT = [
+  { status: 'live',     round: 'Grand Final',       round_text: 'Grand Final',       player1_handle: 'XiaoHai', player2_handle: 'Punk',    score: '2-1' },
+  { status: 'upcoming', round: 'Grand Final Reset',  round_text: 'Grand Final Reset', player1_handle: 'XiaoHai', player2_handle: 'Punk',    score: null },
+]
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function LivePage({ params }: { params: Promise<{ tournamentId: string }> }) {
@@ -37,6 +78,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
   // ── 大会設定 (tournamentConfig.ts から) ──────────────────────────────────
   const { config, configKey } = resolveTournamentConfig(tournamentId)
+  const isDemo = config.isDemo === true
 
   // stream-queue API 用スラッグ: 数値 ID の場合でも slug キーを取得
   const effectiveTournamentSlug: string | undefined = isNaN(Number(tournamentId))
@@ -47,28 +89,33 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const streamChannel  = config.streamChannel
 
   // ── フック: pools-dashboard / startgg ポーリング ─────────────────────────
+  // デモモード時は undefined を渡してAPIコールを抑止
   const {
     poolsData, displayMode, setDisplayMode,
     displayModeManual, setDisplayModeManual,
     streamToast, setStreamToast, streamToastTimer,
-  } = usePoolsDashboard(config.dbTournamentId)
+  } = usePoolsDashboard(isDemo ? undefined : config.dbTournamentId)
 
   const {
-    startggMatches, cc12Matches, cc12LastUpdated,
-    mergedPhases, upNextMatches, featuredMode,
+    startggMatches: realStartggMatches, cc12Matches, cc12LastUpdated,
+    mergedPhases, upNextMatches: realUpNextMatches, featuredMode,
   } = useStartggPolling({
-    startggEventId: config.startggEventId,
+    startggEventId: isDemo ? undefined : config.startggEventId,
     endDate: config.endDate,
     phases: config.phases,
-    hasStream,
+    hasStream: isDemo ? false : hasStream,
     searchQuery,
   })
 
+  // デモモードではモックデータを使用
+  const startggMatches = isDemo ? DEMO_STARTGG_MATCHES : realStartggMatches
+  const upNextMatches  = isDemo ? DEMO_UP_NEXT         : realUpNextMatches
+
   // クロックは StreamCenter 内で timezone ベースに計算
 
-  // ── Twitch ポーリング (30秒) ──────────────────────────────────────────────
+  // ── Twitch ポーリング (30秒) — デモ時はスキップ ──────────────────────────
   useEffect(() => {
-    if (!config.streamChannel || config.streamPlatform !== 'twitch') return
+    if (isDemo || !config.streamChannel || config.streamPlatform !== 'twitch') return
     const check = async () => {
       try {
         const res  = await fetch('/api/twitch?channel=' + config.streamChannel)
@@ -80,29 +127,42 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     check()
     const id = setInterval(check, 30000)
     return () => clearInterval(id)
-  }, [config.streamChannel, config.streamPlatform])
+  }, [isDemo, config.streamChannel, config.streamPlatform])
 
-  // ── H2H フェッチ ─────────────────────────────────────────────────────────
+  // ── デモモード: 初期選手・H2H・スコアをマウント時にセット ─────────────────
+  useEffect(() => {
+    if (!isDemo) return
+    setPlayer1(DEMO_PLAYER1)
+    setPlayer2(DEMO_PLAYER2)
+    setH2hData(DEMO_H2H)
+    setScore({ p1: 2, p2: 1 })
+    setIsStreamLive(true)
+    setStreamInfo({ title: 'SF6 Grand Finals — DEMO', viewerCount: 12345, gameName: 'Street Fighter 6' })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo])
+
+  // ── H2H フェッチ (デモ時はスキップ) ─────────────────────────────────────
   const fetchH2H = useCallback(async (p1Id: number, p2Id: number) => {
     const res  = await fetch(`/api/head-to-head?p1=${p1Id}&p2=${p2Id}`)
     const data = await res.json()
     setH2hData(data)
   }, [])
   useEffect(() => {
+    if (isDemo) return
     if (player1 && player2) fetchH2H(player1.id, player2.id)
     else setH2hData(null)
-  }, [player1, player2, fetchH2H])
+  }, [isDemo, player1, player2, fetchH2H])
 
   // ── 選手検索 (300ms デバウンス) ──────────────────────────────────────────
   useEffect(() => {
-    if (searchQuery.length < 2) { setSearchResults([]); return }
+    if (isDemo || searchQuery.length < 2) { setSearchResults([]); return }
     const t = setTimeout(async () => {
       const res  = await fetch(`/api/players/search?q=${encodeURIComponent(searchQuery)}`)
       const data = await res.json()
       setSearchResults(data.players || [])
     }, 300)
     return () => clearTimeout(t)
-  }, [searchQuery])
+  }, [isDemo, searchQuery])
 
 
   // ── ヘルパー ──────────────────────────────────────────────────────────────
@@ -138,10 +198,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     find(p1n, 'p1', p1StartggId); find(p2n, 'p2', p2StartggId)
   }
 
-  // ── start.gg 自動検知 ────────────────────────────────────────────────────
+  // ── start.gg 自動検知 (デモ時は無効) ─────────────────────────────────────
   const { autoDetected, liveScore, setManualMode } = useAutoDetect(
-    startggMatches,
-    config.startggEventId,
+    isDemo ? [] : startggMatches,
+    isDemo ? undefined : config.startggEventId,
     (p1, p2, p1Id, p2Id) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2, p1Id, p2Id) },
   )
 
@@ -352,6 +412,22 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
       {/* ナビバー: ● LIVE + 大会名 を右端に表示 */}
       <SiteNavbar activePage="live" isLive={isStreamLive} breadcrumb={[{ label: config.name }]} />
 
+      {/* デモバナー */}
+      {isDemo && (
+        <div style={{
+          flexShrink: 0,
+          background: 'linear-gradient(90deg, #7c3aed, #9333ea)',
+          color: '#fff', textAlign: 'center',
+          padding: '5px 12px', fontSize: 11, fontFamily: V.FD,
+          fontWeight: 700, letterSpacing: '0.12em',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 14 }}>🎮</span>
+          DEMO MODE — モックデータで表示中。実際の大会ではありません。
+          <span style={{ fontSize: 14 }}>🎮</span>
+        </div>
+      )}
+
       {/* メインコンテンツ: navbar の下に残り全高さを使う */}
       <div style={{
         flex: 1, minHeight: 0, overflow: 'hidden',
@@ -526,7 +602,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 tournamentSlug={effectiveTournamentSlug}
                 onStreamQueueMatch={(p1h, p2h, p1Id, p2Id) => handleMatchClick(p1h, p2h, p1Id, p2Id)}
                 streamToast={null}
-                liveScore={liveScore}
+                liveScore={isDemo ? { p1: 2, p2: 1 } : liveScore}
               />
               <PlayerBand
                 player={player2} score={score.p2} side="right"

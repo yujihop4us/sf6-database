@@ -20,6 +20,8 @@ export interface TournamentConfig {
   totalDays: number
   phases: any[]
   results: any[]
+  /** デモモードフラグ: 実データAPIを一切呼ばずモックデータで動作 */
+  isDemo?: boolean
 }
 
 export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
@@ -230,6 +232,25 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
       { name: 'Top 8',   format: 'Double Elimination Ft5',   groups: [{ name: 'Top 8',   players: [], matches: [] }] },
     ],
     results: [],
+  },
+
+  // ── DEMO MODE ─────────────────────────────────────────────────────────────
+  'demo': {
+    name: 'DEMO MODE',
+    streamPlatform: 'twitch', streamChannel: 'capcomfighters',
+    twitchChannels: [
+      { name: 'Capcom Fighters (デモ)', channel: 'capcomfighters' },
+    ],
+    twitchChatChannels: ['capcomfighters'],
+    // startggEventId, dbTournamentId は意図的に未設定（APIポーリング抑止）
+    startDate: '2026-01-01', endDate: '2099-12-31',
+    timezone: 'UTC', locationLabel: 'DEMO — どこでもない',
+    totalDays: 1,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    phases: [],
+    results: [],
+    isDemo: true,
   },
 }
 
