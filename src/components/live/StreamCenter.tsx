@@ -510,30 +510,31 @@ export function StreamCenter({
             /* タイ */
             .h2h-wins-tied .h2h-win-count { font-size: 22px; color: #e2e8f0; }
 
-            /* 中央バッジ — 1行横並び */
+            /* 中央バッジ — 縦3段（⚔ / HEAD TO HEAD / N戦） */
             .h2h-center-badge {
-              display: flex; flex-direction: row;
-              align-items: center; gap: 6px;
-              padding: 2px 12px;
+              display: flex; flex-direction: column;
+              align-items: center; gap: 0px;
+              padding: 2px 20px;
             }
             @keyframes vsGlow {
               from { filter: drop-shadow(0 0 4px rgba(251,191,36,0.4)); transform: scale(1); }
               to   { filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)) drop-shadow(0 0 22px rgba(251,191,36,0.35)); transform: scale(1.12); }
             }
             .h2h-vs-icon {
-              font-size: 18px;
+              font-size: 22px; line-height: 1;
               animation: vsGlow 2s ease-in-out infinite alternate;
               display: inline-block;
             }
             .h2h-label {
               font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 8px; font-weight: 700; letter-spacing: 2px;
-              text-transform: uppercase; color: rgba(255,255,255,0.4);
-              white-space: nowrap;
+              font-size: 11px; font-weight: 800; letter-spacing: 4px;
+              text-transform: uppercase; color: rgba(255,255,255,0.7);
+              white-space: nowrap; line-height: 1; margin-top: 1px;
             }
             .h2h-match-count {
               font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.6);
+              font-size: 13px; font-weight: 700; color: #fbbf24;
+              line-height: 1; margin-top: 2px;
             }
 
             /* セグメントバー */
@@ -546,18 +547,20 @@ export function StreamCenter({
               .h2h-win-count { font-size: 16px !important; }
               .h2h-wins-leading .h2h-win-count { font-size: 20px !important; }
               .h2h-wins-tied .h2h-win-count { font-size: 18px !important; }
-              .h2h-vs-icon { font-size: 14px !important; }
-              .h2h-label { font-size: 6px !important; letter-spacing: 1.5px !important; }
-              .h2h-match-count { font-size: 9px !important; }
-              .h2h-center-badge { padding: 2px 8px !important; gap: 4px !important; }
               .h2h-player-name { font-size: 10px !important; max-width: 80px !important; }
+              .h2h-center-badge { flex-direction: column !important; gap: 0px !important; padding: 2px 12px !important; }
+              .h2h-vs-icon { font-size: 16px !important; }
+              .h2h-label { font-size: 8px !important; letter-spacing: 2.5px !important; }
+              .h2h-match-count { font-size: 11px !important; }
             }
             /* モバイル 480px */
             @media (max-width: 480px) {
               .h2h-win-count { font-size: 14px !important; }
               .h2h-wins-leading .h2h-win-count { font-size: 18px !important; }
-              .h2h-center-badge { padding: 2px 5px !important; gap: 3px !important; }
-              .h2h-label { display: none !important; }
+              .h2h-center-badge { padding: 2px 8px !important; }
+              .h2h-vs-icon { font-size: 14px !important; }
+              .h2h-label { font-size: 7px !important; letter-spacing: 2px !important; display: block !important; }
+              .h2h-match-count { font-size: 10px !important; }
               .h2h-player-name { max-width: 60px !important; }
             }
 
@@ -574,7 +577,7 @@ export function StreamCenter({
           <div className="h2h-score-bar" style={{
             border: `1px solid ${V.border}`,
             borderRadius: total > 0 ? '0' : '0 0 10px 10px',
-            padding: '4px 16px',
+            padding: '6px 16px',
           }}>
             {total > 0 ? (
               (() => {
