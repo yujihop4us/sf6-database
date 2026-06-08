@@ -238,7 +238,6 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         /* PC default */
         .h2h-score-compact { display: none; }
-        .mobile-h2h-detail { display: none; }
 
         @media (max-width: 768px) {
           /* ===== ページ全体: 100dvh固定 + flex縦積み ===== */
@@ -388,19 +387,17 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           }
         }
 
-        /* モバイル: GAME スコア非表示 + H2H 詳細表示 */
+        /* モバイル: GAME スコア非表示 + ティッカー調整 */
         @media (max-width: 768px) {
           .live-game-score {
             display: none !important;
           }
-          .mobile-h2h-detail {
-            display: block !important;
-            padding: 8px 0;
-            margin-bottom: 4px;
+          .h2h-ticker-container {
+            height: 24px !important;
           }
-          /* PC H2H詳細はモバイルでは非表示（mobile-h2h-detail で代替） */
-          .h2h-recent-detail {
-            display: none !important;
+          .h2h-ticker-label {
+            font-size: 9px !important;
+            padding: 0 10px 0 8px !important;
           }
         }
 
@@ -638,65 +635,6 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               flex: 1, minHeight: 0,
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
             }}>
-
-              {/* ── モバイル専用: H2H 過去対戦詳細（PCでは非表示） ── */}
-              {h2hData && player1 && player2 && (
-                <div className="mobile-h2h-detail" style={{ gridColumn: '1 / -1' }}>
-                  <div style={{
-                    fontFamily: V.FD, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em',
-                    textTransform: 'uppercase' as const, color: V.dim,
-                    padding: '0 4px 8px',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    <span>⚔️</span>
-                    <span>過去の対戦</span>
-                    <span style={{ background: V.surface2, border: `1px solid ${V.border}`, borderRadius: 4, padding: '1px 7px', fontSize: 10 }}>
-                      通算 {h2hData.summary.player1_wins + h2hData.summary.player2_wins}戦
-                    </span>
-                    <span style={{ color: V.P1, fontWeight: 900 }}>{h2hData.summary.player1_wins}勝</span>
-                    <span style={{ color: V.dim }}>-</span>
-                    <span style={{ color: V.P2, fontWeight: 900 }}>{h2hData.summary.player2_wins}勝</span>
-                  </div>
-                  {[...h2hData.sets].reverse().slice(0, 5).map((set, i) => {
-                    const isP1win = set.winner_id === player1.id
-                    const p1score = isP1win ? set.winner_score : set.loser_score
-                    const p2score = isP1win ? set.loser_score  : set.winner_score
-                    return (
-                      <div key={i} style={{
-                        background: 'rgba(255,255,255,0.04)',
-                        border: `1px solid ${V.border}`,
-                        borderRadius: 8, padding: '8px 12px',
-                        marginBottom: 6,
-                      }}>
-                        {/* 大会名 · ラウンド */}
-                        <div style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, marginBottom: 5 }}>
-                          {set.tournament_name}
-                          {set.round_text ? ` · ${set.round_text}` : ''}
-                        </div>
-                        {/* P1 スコア P2 */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{
-                            flex: 1, textAlign: 'right' as const,
-                            fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 800 : 400,
-                            color: isP1win ? '#4ade80' : V.muted,
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-                          }}>{player1.handle}</span>
-                          <span style={{
-                            fontFamily: V.FD, fontSize: 16, fontWeight: 900, color: V.text,
-                            flexShrink: 0, minWidth: 36, textAlign: 'center' as const,
-                          }}>{p1score}–{p2score}</span>
-                          <span style={{
-                            flex: 1,
-                            fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 400 : 800,
-                            color: isP1win ? V.muted : '#4ade80',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-                          }}>{player2.handle}</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
 
               <SidePanelLeft
                 player1={player1} player2={player2}

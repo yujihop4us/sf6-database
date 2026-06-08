@@ -609,53 +609,6 @@ export function StreamCenter({
                     </div>
                   )}
 
-                  {/* 直近5試合 詳細リスト */}
-                  {(h2hData?.sets?.length ?? 0) > 0 && (
-                    <div className="h2h-recent-detail" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      <div style={{ fontFamily: V.FD, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.dim, marginBottom: 2 }}>
-                        直近の対戦
-                      </div>
-                      {[...(h2hData?.sets ?? [])].reverse().slice(0, 5).map((set, i) => {
-                        const isP1win = set.winner_id === player1?.id
-                        const p1score = isP1win ? set.winner_score : set.loser_score
-                        const p2score = isP1win ? set.loser_score  : set.winner_score
-                        return (
-                          <div key={i} style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '5px 10px',
-                            background: 'rgba(255,255,255,0.03)',
-                            borderRadius: 6, fontSize: 11,
-                            border: `1px solid ${V.border}`,
-                          }}>
-                            {/* 大会名 */}
-                            <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                              {set.tournament_name}
-                            </span>
-                            {/* ラウンド */}
-                            <span style={{ fontFamily: V.FD, fontSize: 10, color: `${V.dim}88`, minWidth: 40, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                              {set.round_text}
-                            </span>
-                            {/* P1 名 */}
-                            <span style={{ flex: 1, textAlign: 'right' as const, fontFamily: V.FD, fontWeight: isP1win ? 800 : 400, color: isP1win ? '#4ade80' : V.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                              {player1?.handle ?? 'P1'}
-                            </span>
-                            {/* スコア */}
-                            <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 900, color: V.text, flexShrink: 0, minWidth: 28, textAlign: 'center' as const }}>
-                              {p1score}–{p2score}
-                            </span>
-                            {/* P2 名 */}
-                            <span style={{ flex: 1, fontFamily: V.FD, fontWeight: isP1win ? 400 : 800, color: isP1win ? V.muted : '#4ade80', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                              {player2?.handle ?? 'P2'}
-                            </span>
-                            {/* 日付 */}
-                            <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, flexShrink: 0 }}>
-                              {set.tournament_date}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
                 </div>
               </>
             ) : (
@@ -664,6 +617,91 @@ export function StreamCenter({
               </div>
             )}
           </div>
+
+          {/* ── H2H ティッカー: 過去対戦を横スクロールで表示 ── */}
+          {h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 && (
+            <>
+              <style>{`
+                @keyframes h2hTickerScroll {
+                  0%   { transform: translateX(0); }
+                  100% { transform: translateX(-50%); }
+                }
+                .h2h-ticker-track {
+                  animation: h2hTickerScroll ${Math.max(12, h2hData.sets.length * 4)}s linear infinite;
+                }
+                .h2h-ticker-track:hover {
+                  animation-play-state: paused;
+                }
+              `}</style>
+              <div className="h2h-ticker-container" style={{
+                overflow: 'hidden', whiteSpace: 'nowrap',
+                background: 'rgba(0,0,0,0.35)',
+                borderBottom: `1px solid ${V.border}`,
+                borderLeft: `1px solid ${V.border}`,
+                borderRight: `1px solid ${V.border}`,
+                borderRadius: '0 0 10px 10px',
+                height: 28, display: 'flex', alignItems: 'center',
+                position: 'relative',
+              }}>
+                {/* "H2H" ラベル（左端固定） */}
+                <div className="h2h-ticker-label" style={{
+                  position: 'absolute', left: 0, top: 0, bottom: 0, zIndex: 2,
+                  display: 'flex', alignItems: 'center', padding: '0 12px 0 10px',
+                  background: `linear-gradient(90deg, rgba(15,17,25,1) 70%, transparent)`,
+                  fontFamily: V.FD, fontSize: 10, fontWeight: 700,
+                  letterSpacing: '0.12em', textTransform: 'uppercase' as const,
+                  color: V.dim,
+                }}>H2H</div>
+
+                {/* スクロールトラック（2回繰り返してシームレスループ） */}
+                <div className="h2h-ticker-track" style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  gap: 36, paddingLeft: 52,
+                }}>
+                  {[...[...h2hData.sets].reverse(), ...[...h2hData.sets].reverse()].map((set, i) => {
+                    const isP1win = set.winner_id === player1.id
+                    const p1score = isP1win ? set.winner_score : set.loser_score
+                    const p2score = isP1win ? set.loser_score  : set.winner_score
+                    return (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                        {/* 大会名 */}
+                        <span style={{ fontFamily: V.FD, fontSize: 11, color: V.dim }}>
+                          {set.tournament_name}
+                        </span>
+                        <span style={{ color: `${V.dim}55` }}>·</span>
+                        {/* ラウンド */}
+                        <span style={{ fontFamily: V.FD, fontSize: 10, color: `${V.dim}88` }}>
+                          {set.round_text}
+                        </span>
+                        <span style={{ color: `${V.dim}44`, margin: '0 2px' }}>|</span>
+                        {/* P1 */}
+                        <span style={{
+                          fontFamily: V.FD, fontSize: 12,
+                          fontWeight: isP1win ? 800 : 400,
+                          color: isP1win ? '#4ade80' : '#9ca3af',
+                        }}>{player1.handle}</span>
+                        {/* スコア */}
+                        <span style={{
+                          fontFamily: V.FD, fontSize: 13, fontWeight: 900,
+                          color: V.text, margin: '0 2px',
+                        }}>{p1score}–{p2score}</span>
+                        {/* P2 */}
+                        <span style={{
+                          fontFamily: V.FD, fontSize: 12,
+                          fontWeight: isP1win ? 400 : 800,
+                          color: isP1win ? '#9ca3af' : '#4ade80',
+                        }}>{player2.handle}</span>
+                        {/* 日付 */}
+                        <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, marginLeft: 2 }}>
+                          {set.tournament_date}
+                        </span>
+                      </span>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
