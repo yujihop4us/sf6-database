@@ -20,6 +20,7 @@ export function StreamCenter({
   streamToast,
   poolsMode,
   liveScore = null,
+  isDemo,
 }: {
   score: { p1: number; p2: number }
   centerTab: 'stream' | 'bracket'
@@ -53,6 +54,8 @@ export function StreamCenter({
   poolsMode?: boolean
   /** start.gg games データから算出したリアルタイムゲームスコア */
   liveScore?: { p1: number; p2: number } | null
+  /** デモモード: APIを呼ばずモックデータを表示 */
+  isDemo?: boolean
 }) {
   // マルチチャンネル: 選択中のチャンネルインデックス
   const [activeChanIdx, setActiveChanIdx] = useState(0)
@@ -375,6 +378,7 @@ export function StreamCenter({
             tournamentId={tournamentId}
             dbTournamentId={dbTournamentId}
             onMatchClick={onMatchClick}
+            isDemo={isDemo}
           />
         </div>
       )}
@@ -485,7 +489,7 @@ export function StreamCenter({
                   }
                   .sc-score-pulse { animation: sc-score-pulse 0.35s ease-out; }
                 `}</style>
-                <div style={{
+                <div className="live-game-score" style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   gap: 0, marginBottom: 14,
                 }}>
@@ -602,6 +606,54 @@ export function StreamCenter({
                             : (player2?.handle?.charAt(0) ?? 'P')}
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 直近5試合 詳細リスト */}
+                  {(h2hData?.sets?.length ?? 0) > 0 && (
+                    <div className="h2h-recent-detail" style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ fontFamily: V.FD, fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' as const, color: V.dim, marginBottom: 2 }}>
+                        直近の対戦
+                      </div>
+                      {[...(h2hData?.sets ?? [])].reverse().slice(0, 5).map((set, i) => {
+                        const isP1win = set.winner_id === player1?.id
+                        const p1score = isP1win ? set.winner_score : set.loser_score
+                        const p2score = isP1win ? set.loser_score  : set.winner_score
+                        return (
+                          <div key={i} style={{
+                            display: 'flex', alignItems: 'center', gap: 8,
+                            padding: '5px 10px',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: 6, fontSize: 11,
+                            border: `1px solid ${V.border}`,
+                          }}>
+                            {/* 大会名 */}
+                            <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, minWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                              {set.tournament_name}
+                            </span>
+                            {/* ラウンド */}
+                            <span style={{ fontFamily: V.FD, fontSize: 10, color: `${V.dim}88`, minWidth: 40, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                              {set.round_text}
+                            </span>
+                            {/* P1 名 */}
+                            <span style={{ flex: 1, textAlign: 'right' as const, fontFamily: V.FD, fontWeight: isP1win ? 800 : 400, color: isP1win ? '#4ade80' : V.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                              {player1?.handle ?? 'P1'}
+                            </span>
+                            {/* スコア */}
+                            <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 900, color: V.text, flexShrink: 0, minWidth: 28, textAlign: 'center' as const }}>
+                              {p1score}–{p2score}
+                            </span>
+                            {/* P2 名 */}
+                            <span style={{ flex: 1, fontFamily: V.FD, fontWeight: isP1win ? 400 : 800, color: isP1win ? V.muted : '#4ade80', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                              {player2?.handle ?? 'P2'}
+                            </span>
+                            {/* 日付 */}
+                            <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, flexShrink: 0 }}>
+                              {set.tournament_date}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </div>

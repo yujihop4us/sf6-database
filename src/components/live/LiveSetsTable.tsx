@@ -4,6 +4,15 @@ import { useState, useEffect } from 'react'
 import { V, CHAR_COLORS, cc, codeToFlag } from './tokens'
 import { CharPill } from './CharPill'
 
+// ── デモ用モックセット ────────────────────────────────────────────────────────
+const DEMO_SETS: DbSet[] = [
+  { id: 1, round_text: 'Grand Final',       phase_name: 'Top 8', display_score: null, winner_id: null, loser_id: null, winner_score: null,  loser_score: null,  winner_character: 'Cammy', loser_character: 'Mai',    created_at: new Date(Date.now()-300000).toISOString(),  winner_handle: null,       winner_country: null, winner_main_char: null, loser_handle: null,     loser_country: null, loser_main_char: null },
+  { id: 2, round_text: 'Winners Final',     phase_name: 'Top 8', display_score: '3-0', winner_id: null, loser_id: null, winner_score: 3,    loser_score: 0,     winner_character: 'Mai',   loser_character: 'Blanka', created_at: new Date(Date.now()-1800000).toISOString(), winner_handle: 'XiaoHai', winner_country: 'CN', winner_main_char: 'Mai',    loser_handle: 'MenaRD',  loser_country: 'DO', loser_main_char: 'Blanka' },
+  { id: 3, round_text: 'Losers Final',      phase_name: 'Top 8', display_score: '3-2', winner_id: null, loser_id: null, winner_score: 3,    loser_score: 2,     winner_character: 'Cammy', loser_character: 'Blanka', created_at: new Date(Date.now()-3600000).toISOString(), winner_handle: 'Punk',    winner_country: 'US', winner_main_char: 'Cammy',  loser_handle: 'MenaRD',  loser_country: 'DO', loser_main_char: 'Blanka' },
+  { id: 4, round_text: 'Winners Semi-Final',phase_name: 'Top 8', display_score: '3-1', winner_id: null, loser_id: null, winner_score: 3,    loser_score: 1,     winner_character: 'Cammy', loser_character: 'Ken',    created_at: new Date(Date.now()-5400000).toISOString(), winner_handle: 'Punk',    winner_country: 'US', winner_main_char: 'Cammy',  loser_handle: 'Tokido',  loser_country: 'JP', loser_main_char: 'Ken' },
+  { id: 5, round_text: 'Winners Semi-Final',phase_name: 'Top 8', display_score: '3-0', winner_id: null, loser_id: null, winner_score: 3,    loser_score: 0,     winner_character: 'Mai',   loser_character: 'Guile',  created_at: new Date(Date.now()-6000000).toISOString(), winner_handle: 'XiaoHai', winner_country: 'CN', winner_main_char: 'Mai',    loser_handle: 'Higuchi', loser_country: 'JP', loser_main_char: 'Guile' },
+]
+
 export interface DbSet {
   id:               number
   round_text:       string | null
@@ -28,10 +37,13 @@ export function LiveSetsTable({
   tournamentId,
   dbTournamentId,
   onMatchClick,
+  isDemo,
 }: {
   tournamentId: string
   dbTournamentId?: number   // Supabase numeric ID。設定されていればこちらを優先
   onMatchClick: (p1: string, p2: string) => void
+  /** デモモード: APIフェッチなしでモックデータを表示 */
+  isDemo?: boolean
 }) {
   const [sets,          setSets]          = useState<DbSet[]>([])
   const [total,         setTotal]         = useState(0)
@@ -46,8 +58,17 @@ export function LiveSetsTable({
     return () => clearTimeout(t)
   }, [searchQuery])
 
+  // ── デモモード: モックデータをそのまま表示 ───────────────────────────────
+  useEffect(() => {
+    if (!isDemo) return
+    setSets(DEMO_SETS)
+    setTotal(DEMO_SETS.length)
+    setLoading(false)
+  }, [isDemo])
+
   // ── fetch (debouncedSearch が変わるたびに再実行) ──────────────────────────
   useEffect(() => {
+    if (isDemo) return   // デモ時はAPIを叩かない
     let cancelled = false
 
     const doFetch = async () => {
@@ -79,7 +100,7 @@ export function LiveSetsTable({
       return () => { cancelled = true; clearInterval(id) }
     }
     return () => { cancelled = true }
-  }, [tournamentId, debouncedSearch])
+  }, [isDemo, tournamentId, dbTournamentId, debouncedSearch])
 
   // ── ローディング / 空状態 ─────────────────────────────────────────────────
   if (!loading && sets.length === 0 && !debouncedSearch) {
