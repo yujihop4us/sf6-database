@@ -22,6 +22,10 @@ export interface TournamentInfo {
   totalSetsOverride?: number
   /** EWC出場権付き順位枠数（例: 2 → 1位・2位にEWCバッジ表示） */
   ewcQualifyingSpots?: number | null
+  /** 現在開催中かどうか（ライブページリンク表示用） */
+  isLive?: boolean
+  /** ライブページURL用スラッグ（startgg_slug）。isLive=true のとき使用 */
+  liveSlug?: string | null
 }
 
 export interface PlayerInfo {

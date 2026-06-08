@@ -16,9 +16,11 @@ interface SiteNavbarProps {
   breadcrumb?: BreadcrumbItem[]
   activePage?: 'home' | 'tournaments' | 'live' | 'players' | 'characters' | 'stats'
   isLive?: boolean
+  /** 開催中大会のライブページスラッグ。設定時はナビにLIVEリンクを表示 */
+  liveSlug?: string | null
 }
 
-export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: SiteNavbarProps) {
+export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liveSlug }: SiteNavbarProps) {
   const { lang, setLang, t } = useLocale()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -128,6 +130,23 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
               </Link>
             )
           })}
+          {/* 🔴 LIVE リンク: 開催中かつライブページ以外で表示 */}
+          {liveSlug && !onLivePage && (
+            <Link href={`/live/${liveSlug}`} style={{
+              display: 'flex', alignItems: 'center', gap: 5,
+              fontFamily: fDisplay, fontSize: 13, fontWeight: 800,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: '#ef4444', textDecoration: 'none',
+              padding: '14px 10px',
+              borderBottom: '2px solid transparent',
+            }}>
+              <span className="nav-live-dot-anim" style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: '#ef4444', display: 'inline-block', flexShrink: 0,
+              }} />
+              LIVE
+            </Link>
+          )}
         </div>
 
         {/* Right side (PC) */}
@@ -247,6 +266,25 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false }: S
                 </Link>
               )
             })}
+            {/* 🔴 LIVE リンク（モバイル） */}
+            {liveSlug && !onLivePage && (
+              <Link
+                href={`/live/${liveSlug}`}
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  fontFamily: fDisplay, fontSize: 15, fontWeight: 800,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  color: '#ef4444', textDecoration: 'none',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}
+              >
+                <span className="nav-live-dot-anim" style={{
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: '#ef4444', display: 'inline-block', flexShrink: 0,
+                }} />
+                LIVE配信を見る
+              </Link>
+            )}
             {/* JA/EN 切替 */}
             <div className="nav-mobile-lang">
               {(['ja', 'en'] as const).map(l => (

@@ -51,7 +51,7 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   // Tournament info (stable columns)
   const { data: tournament, error: tErr } = await supabase
     .from('tournaments')
-    .select('id, name, start_date, end_date, location, total_prize_usd, is_online, format, region')
+    .select('id, name, start_date, end_date, location, total_prize_usd, is_online, format, region, startgg_slug')
     .eq('id', numericId)
     .single()
 
@@ -503,6 +503,17 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
       ewcQualifyingSpots:  (meta as { ewc_qualifying_spots?: number | null } | null)?.ewc_qualifying_spots ?? metaFb?.ewcQualifyingSpots ?? null,
       numEntrantsOverride: TOURNAMENT_REAL_STATS[numericId]?.numEntrants,
       totalSetsOverride:   TOURNAMENT_REAL_STATS[numericId]?.totalSets,
+      // LIVE判定: start_date <= 今日 <= end_date
+      isLive: (() => {
+        const s = tournament.start_date
+        const e = tournament.end_date
+        if (!s) return false
+        const now = Date.now()
+        const start = new Date(s).getTime()
+        const end = e ? new Date(e + 'T23:59:59').getTime() : start + 3 * 24 * 60 * 60 * 1000
+        return now >= start && now <= end
+      })(),
+      liveSlug: (tournament as { startgg_slug?: string | null }).startgg_slug ?? null,
     },
     entrants,
     sets,

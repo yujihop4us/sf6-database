@@ -24,6 +24,8 @@ export type TournamentRow = {
   isLive: boolean
   series: TournamentSeries
   ewcQual: boolean
+  /** ライブページURL用スラッグ */
+  startggSlug: string | null
 }
 
 async function fetchTournaments(): Promise<TournamentRow[]> {
@@ -34,7 +36,7 @@ async function fetchTournaments(): Promise<TournamentRow[]> {
 
   const { data } = await supabase
     .from('tournaments')
-    .select('id, name, start_date, end_date, location, total_prize_usd, is_online, format, region')
+    .select('id, name, start_date, end_date, location, total_prize_usd, is_online, format, region, startgg_slug')
     .order('start_date', { ascending: false })
     .limit(100)
 
@@ -81,6 +83,7 @@ async function fetchTournaments(): Promise<TournamentRow[]> {
       isLive: isLive(t),
       series,
       ewcQual: hasEwcQual(t.name, series),
+      startggSlug: (t as { startgg_slug?: string | null }).startgg_slug ?? null,
     }
   })
 }

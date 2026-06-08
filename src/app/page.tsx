@@ -42,6 +42,8 @@ export type HomeTournament = {
   entrantCount: number
   series: TournamentSeries
   ewcQual: boolean
+  /** ライブページURL用スラッグ */
+  startggSlug: string | null
 }
 
 export type RecentResult = {
@@ -73,13 +75,14 @@ async function fetchHomeData(): Promise<HomeData> {
   // All tournaments
   const { data: tournsRaw } = await supabase
     .from('tournaments')
-    .select('id, name, start_date, end_date, location, total_prize_usd, is_online')
+    .select('id, name, start_date, end_date, location, total_prize_usd, is_online, startgg_slug')
     .order('start_date', { ascending: false })
     .limit(60)
 
   const tourns = (tournsRaw ?? []) as {
     id: number; name: string; start_date: string | null; end_date: string | null
     location: string | null; total_prize_usd: number | null; is_online: boolean | null
+    startgg_slug: string | null
   }[]
 
   // Entrant counts — use HEAD requests per tournament to avoid the 1000-row default limit
@@ -118,6 +121,7 @@ async function fetchHomeData(): Promise<HomeData> {
       entrantCount: countMap[t.id] ?? 0,
       series,
       ewcQual: hasEwcQual(t.name, series),
+      startggSlug: t.startgg_slug ?? null,
     }
   })
 

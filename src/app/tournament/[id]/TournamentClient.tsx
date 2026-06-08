@@ -376,6 +376,26 @@ function HeroSection({ data }: { data: TournamentData }) {
               {tournament.location}
             </span>
           )}
+          {/* 🔴 LIVE配信ボタン: 開催中のみ表示 */}
+          {tournament.isLive && tournament.liveSlug && (
+            <a href={`/live/${tournament.liveSlug}`} className="hero-live-btn" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+              padding: '6px 16px',
+              background: 'rgba(239,68,68,0.88)',
+              border: '1px solid rgba(239,68,68,0.6)',
+              borderRadius: 20, color: '#fff',
+              fontFamily: T.fDisplay, fontWeight: 800, fontSize: 12,
+              letterSpacing: '0.12em', textTransform: 'uppercase',
+              textDecoration: 'none',
+              animation: 'hero-live-pulse 2s ease-in-out infinite',
+            }}>
+              <span className="hero-live-dot" style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#fff', display: 'inline-block', flexShrink: 0,
+              }} />
+              LIVE配信を見る
+            </a>
+          )}
         </div>
 
         {/* Title — バナー縮小に合わせてフォントサイズ削減 */}
@@ -2095,6 +2115,10 @@ export function TournamentClient({ data }: { data: TournamentData | null }) {
         .match-card { transition: background 0.1s; }
         .match-card:hover { background: rgba(255,255,255,0.07) !important; }
         .podium-name-link:hover { text-decoration: underline; opacity: 0.9; }
+        @keyframes hero-live-pulse { 0%,100%{opacity:0.9;box-shadow:0 0 0 rgba(239,68,68,0)} 50%{opacity:1;box-shadow:0 0 14px rgba(239,68,68,0.5)} }
+        @keyframes hero-live-dot-anim { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        .hero-live-btn:hover { opacity: 0.92 !important; }
+        .hero-live-dot { animation: hero-live-dot-anim 1.4s ease-in-out infinite; }
 
         /* ── モバイルレスポンシブ (768px以下) ── */
         @media (max-width: 768px) {

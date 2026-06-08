@@ -112,7 +112,7 @@ function LiveBanner({ tournament }: { tournament: HomeTournament }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
-        <Link href={`/live/${tournament.id}`} style={{
+        <Link href={`/live/${tournament.startggSlug ?? tournament.id}`} style={{
           fontFamily: D.fDisplay, fontSize: 13, fontWeight: 700,
           letterSpacing: '0.08em', textTransform: 'uppercase',
           color: '#000', background: D.red, textDecoration: 'none',
@@ -416,7 +416,7 @@ export default function HomeClient({ data }: { data: HomeData }) {
         .sf6-pulse-dot { animation: sf6-pulse-dot 1.5s ease-in-out infinite; }
       `}</style>
 
-      <SiteNavbar activePage="home" isLive={!!data.liveTournament} />
+      <SiteNavbar activePage="home" isLive={!!data.liveTournament} liveSlug={data.liveTournament?.startggSlug ?? null} />
 
       {/* Site Hero */}
       <div style={{

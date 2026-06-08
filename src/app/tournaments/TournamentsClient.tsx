@@ -122,7 +122,7 @@ export default function TournamentsClient({ tournaments }: { tournaments: Tourna
         .live-dot { animation: pulse-dot 1.2s ease-in-out infinite; }
       `}</style>
 
-      <SiteNavbar activePage="tournaments" isLive={live.length > 0} />
+      <SiteNavbar activePage="tournaments" isLive={live.length > 0} liveSlug={live[0]?.startggSlug ?? null} />
 
       {/* Hero */}
       <div style={{
@@ -166,7 +166,7 @@ export default function TournamentsClient({ tournaments }: { tournaments: Tourna
             </div>
             <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))' }}>
               {live.map(tournament => (
-                <Link key={tournament.id} href={`/live/${tournament.id}`} style={{ textDecoration: 'none' }}>
+                <Link key={tournament.id} href={`/live/${tournament.startggSlug ?? tournament.id}`} style={{ textDecoration: 'none' }}>
                   <div style={{
                     background: 'rgba(255,77,106,0.06)',
                     border: `1px solid rgba(255,77,106,0.35)`,
