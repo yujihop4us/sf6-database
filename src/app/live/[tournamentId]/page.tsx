@@ -373,9 +373,8 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         /* モバイル: ティッカー調整 */
         @media (max-width: 768px) {
           .h2h-ticker-container {
-            height: 28px !important;
+            height: 24px !important;
           }
-          /* セグメントバー + 直近ブロックをモバイルで非表示 */
           .h2h-seg-bar { height: 3px !important; }
         }
 

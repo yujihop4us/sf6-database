@@ -463,7 +463,7 @@ export function StreamCenter({
 
           </div>
 
-          {/* ── H2H バー (VS画面リデザイン) ── */}
+          {/* ── H2H バー (1行コンパクト) ── */}
           <style>{`
             /* ===== H2H バー ===== */
             .h2h-score-bar {
@@ -476,25 +476,59 @@ export function StreamCenter({
               border-bottom: 1px solid rgba(251,191,36,0.18) !important;
             }
 
-            /* 中央バッジ */
-            .h2h-center-badge {
-              display: flex; flex-direction: column;
-              align-items: center; gap: 2px;
-              padding: 2px 16px;
+            /* 勝敗エリア — 1行横並び */
+            .h2h-wins-left {
+              display: flex; flex-direction: row;
+              align-items: center; justify-content: flex-end;
+              gap: 6px; min-width: auto;
             }
-            /* ⚔ グロウアニメーション */
+            .h2h-wins-right {
+              display: flex; flex-direction: row;
+              align-items: center; justify-content: flex-start;
+              gap: 6px; min-width: auto;
+            }
+            .h2h-player-name {
+              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+              font-size: 12px; font-weight: 500;
+              color: rgba(255,255,255,0.55);
+              overflow: hidden; text-overflow: ellipsis;
+              white-space: nowrap; max-width: 110px;
+              margin-bottom: 0;
+            }
+            .h2h-win-count {
+              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+              font-size: 20px; font-weight: 800;
+              color: #ffffff; line-height: 1;
+              transition: all 0.3s ease;
+            }
+            /* 勝ち越し — ゴールド＋グロウ */
+            .h2h-wins-leading .h2h-win-count {
+              font-size: 26px; color: #fbbf24;
+              text-shadow: 0 0 8px rgba(251,191,36,0.55), 0 0 18px rgba(251,191,36,0.3);
+            }
+            .h2h-wins-leading .h2h-player-name { color: #fcd34d; font-weight: 700; }
+            /* タイ */
+            .h2h-wins-tied .h2h-win-count { font-size: 22px; color: #e2e8f0; }
+
+            /* 中央バッジ — 1行横並び */
+            .h2h-center-badge {
+              display: flex; flex-direction: row;
+              align-items: center; gap: 6px;
+              padding: 2px 12px;
+            }
             @keyframes vsGlow {
               from { filter: drop-shadow(0 0 4px rgba(251,191,36,0.4)); transform: scale(1); }
               to   { filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)) drop-shadow(0 0 22px rgba(251,191,36,0.35)); transform: scale(1.12); }
             }
             .h2h-vs-icon {
+              font-size: 18px;
               animation: vsGlow 2s ease-in-out infinite alternate;
               display: inline-block;
             }
             .h2h-label {
               font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 8px; font-weight: 700; letter-spacing: 2.5px;
-              text-transform: uppercase; color: rgba(255,255,255,0.45);
+              font-size: 8px; font-weight: 700; letter-spacing: 2px;
+              text-transform: uppercase; color: rgba(255,255,255,0.4);
               white-space: nowrap;
             }
             .h2h-match-count {
@@ -502,58 +536,29 @@ export function StreamCenter({
               font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.6);
             }
 
-            /* 勝敗エリア */
-            .h2h-wins-left, .h2h-wins-right {
-              display: flex; flex-direction: column;
-              align-items: center; gap: 1px;
-              min-width: 90px;
-            }
-            .h2h-player-name {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 12px; font-weight: 500;
-              color: rgba(255,255,255,0.55);
-              overflow: hidden; text-overflow: ellipsis;
-              white-space: nowrap; max-width: 120px;
-            }
-            .h2h-win-count {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 24px; font-weight: 800;
-              color: #ffffff; line-height: 1;
-              transition: all 0.3s ease;
-            }
-            /* 勝ち越し — ゴールド＋グロウ */
-            .h2h-wins-leading .h2h-win-count {
-              font-size: 32px; color: #fbbf24;
-              text-shadow: 0 0 8px rgba(251,191,36,0.55), 0 0 18px rgba(251,191,36,0.3);
-            }
-            .h2h-wins-leading .h2h-player-name { color: #fcd34d; font-weight: 700; }
-            /* タイ — 両方やや大きく */
-            .h2h-wins-tied .h2h-win-count { font-size: 28px; color: #e2e8f0; }
-
             /* セグメントバー */
             .h2h-seg-bar {
-              height: 4px; display: flex; border-radius: 2px; overflow: hidden;
-              margin-top: 6px; width: 100%;
+              height: 4px; display: flex; border-radius: 2px; overflow: hidden; width: 100%;
             }
 
-            /* モバイル */
+            /* モバイル 768px */
             @media (max-width: 768px) {
-              .h2h-vs-icon { font-size: 18px !important; }
-              .h2h-label { font-size: 7px !important; letter-spacing: 2px !important; }
-              .h2h-match-count { font-size: 9px !important; }
-              .h2h-win-count { font-size: 18px !important; }
-              .h2h-wins-leading .h2h-win-count { font-size: 24px !important; }
-              .h2h-wins-tied .h2h-win-count { font-size: 20px !important; }
-              .h2h-wins-left, .h2h-wins-right { min-width: 60px !important; }
-              .h2h-player-name { font-size: 10px !important; }
-              .h2h-center-badge { padding: 2px 10px !important; }
-            }
-            @media (max-width: 480px) {
-              .h2h-vs-icon { font-size: 15px !important; }
-              .h2h-label { font-size: 6px !important; letter-spacing: 1.5px !important; }
-              .h2h-win-count { font-size: 15px !important; }
+              .h2h-win-count { font-size: 16px !important; }
               .h2h-wins-leading .h2h-win-count { font-size: 20px !important; }
-              .h2h-center-badge { padding: 2px 6px !important; }
+              .h2h-wins-tied .h2h-win-count { font-size: 18px !important; }
+              .h2h-vs-icon { font-size: 14px !important; }
+              .h2h-label { font-size: 6px !important; letter-spacing: 1.5px !important; }
+              .h2h-match-count { font-size: 9px !important; }
+              .h2h-center-badge { padding: 2px 8px !important; gap: 4px !important; }
+              .h2h-player-name { font-size: 10px !important; max-width: 80px !important; }
+            }
+            /* モバイル 480px */
+            @media (max-width: 480px) {
+              .h2h-win-count { font-size: 14px !important; }
+              .h2h-wins-leading .h2h-win-count { font-size: 18px !important; }
+              .h2h-center-badge { padding: 2px 5px !important; gap: 3px !important; }
+              .h2h-label { display: none !important; }
+              .h2h-player-name { max-width: 60px !important; }
             }
 
             /* ティッカー */
@@ -569,10 +574,9 @@ export function StreamCenter({
           <div className="h2h-score-bar" style={{
             border: `1px solid ${V.border}`,
             borderRadius: total > 0 ? '0' : '0 0 10px 10px',
-            padding: '10px 16px',
+            padding: '4px 16px',
           }}>
             {total > 0 ? (
-              /* ── 3カラム VS レイアウト ── */
               (() => {
                 const p1w = summary!.player1_wins
                 const p2w = summary!.player2_wins
@@ -584,25 +588,21 @@ export function StreamCenter({
                     display: 'grid', gridTemplateColumns: '1fr auto 1fr',
                     alignItems: 'center', gap: 8,
                   }}>
-                    {/* P1 */}
-                    <div className={`h2h-wins-left${p1Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}
-                      style={{ justifySelf: 'flex-end', alignSelf: 'center', textAlign: 'right' as const }}>
+                    {/* P1: 名前 → 勝数 */}
+                    <div className={`h2h-wins-left${p1Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
                       <span className="h2h-player-name">{player1?.handle ?? 'P1'}</span>
                       <span className="h2h-win-count">{p1w}</span>
                     </div>
-
-                    {/* 中央バッジ */}
+                    {/* 中央バッジ: ⚔ HEAD TO HEAD 5戦 */}
                     <div className="h2h-center-badge">
-                      <span className="h2h-vs-icon" style={{ fontSize: 22 }}>⚔</span>
+                      <span className="h2h-vs-icon">⚔</span>
                       <span className="h2h-label">HEAD TO HEAD</span>
                       <span className="h2h-match-count">{total}戦</span>
                     </div>
-
-                    {/* P2 */}
-                    <div className={`h2h-wins-right${p2Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}
-                      style={{ justifySelf: 'flex-start', alignSelf: 'center', textAlign: 'left' as const }}>
-                      <span className="h2h-player-name">{player2?.handle ?? 'P2'}</span>
+                    {/* P2: 勝数 → 名前 */}
+                    <div className={`h2h-wins-right${p2Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
                       <span className="h2h-win-count">{p2w}</span>
+                      <span className="h2h-player-name">{player2?.handle ?? 'P2'}</span>
                     </div>
                   </div>
                 )
@@ -614,14 +614,13 @@ export function StreamCenter({
             )}
           </div>
 
-          {/* セグメントバー + 直近ブロック (データがある場合) */}
+          {/* セグメントバー（カラーブロックは削除して1段に圧縮） */}
           {total > 0 && (
             <div style={{
               background: V.surface, border: `1px solid ${V.border}`, borderTop: 'none',
               borderRadius: h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 ? '0' : '0 0 10px 10px',
-              padding: '6px 16px 8px',
+              padding: '5px 16px 6px',
             }}>
-              {/* セグメントバー */}
               <div className="h2h-seg-bar">
                 <div style={{
                   width: `${Math.round(summary!.player1_wins / total * 100)}%`,
@@ -630,25 +629,6 @@ export function StreamCenter({
                 }} />
                 <div style={{ flex: 1, background: `linear-gradient(90deg, ${p2color}, ${p2color}cc)` }} />
               </div>
-              {/* 直近10試合カラーブロック */}
-              {recent10.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6 }}>
-                  <span style={{ fontFamily: V.FD, fontSize: 9, color: V.dim, letterSpacing: '0.08em', marginRight: 3, flexShrink: 0 }}>
-                    直近{recent10.length}
-                  </span>
-                  {recent10.map((r, i) => (
-                    <div key={i} style={{
-                      width: 18, height: 18, borderRadius: 3, flexShrink: 0,
-                      background: r === 'p1' ? p1color : p2color,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: V.FD, fontSize: 9, fontWeight: 900, color: '#fff',
-                      boxShadow: r === 'p1' ? `0 0 5px ${p1color}55` : `0 0 5px ${p2color}55`,
-                    }}>
-                      {r === 'p1' ? (player1?.handle?.charAt(0) ?? 'P') : (player2?.handle?.charAt(0) ?? 'P')}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 
