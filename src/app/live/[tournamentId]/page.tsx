@@ -294,28 +294,11 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             border: none !important;
           }
 
-          /* ===== H2H スコアバー ===== */
+          /* ===== H2H スコアバー（VS レイアウト） ===== */
           .h2h-score-bar {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
             padding: 6px 10px !important;
-            gap: 8px !important;
-            background: rgba(15,17,25,0.95) !important;
-            border-bottom: 1px solid rgba(255,255,255,0.1) !important;
             border-radius: 0 !important;
-            font-size: 13px !important;
             flex-shrink: 0 !important;
-          }
-          .h2h-score-large {
-            display: none !important;
-          }
-          .h2h-score-compact {
-            display: flex !important;
-            align-items: center !important;
-            justify-content: space-between !important;
-            gap: 8px !important;
-            width: 100% !important;
           }
 
           /* H2H 3カラム → 1カラム */
@@ -387,26 +370,16 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           }
         }
 
-        /* モバイル: GAME スコア非表示 + ティッカー調整 */
+        /* モバイル: ティッカー調整 */
         @media (max-width: 768px) {
-          .live-game-score {
-            display: none !important;
-          }
           .h2h-ticker-container {
             height: 28px !important;
           }
-          .h2h-ticker-label {
-            font-size: 9px !important;
-            padding: 0 10px 0 8px !important;
-          }
+          /* セグメントバー + 直近ブロックをモバイルで非表示 */
+          .h2h-seg-bar { height: 3px !important; }
         }
 
         @media (max-width: 480px) {
-          .h2h-score-bar {
-            font-size: 12px !important;
-            padding: 4px 8px !important;
-            gap: 6px !important;
-          }
           .mode-toggle button {
             padding: 4px 8px !important;
             font-size: 10px !important;
