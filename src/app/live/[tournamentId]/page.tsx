@@ -448,7 +448,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
       }}>
 
         {/* ── モード切替トグル ── */}
-        {config.startggEventId && (
+        {(config.startggEventId || isDemo) && (
           <div className="mode-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
             {/* モード切替: デモのみ手動切替可、本番はAUTOのみ */}
             {isDemo ? (
