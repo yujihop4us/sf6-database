@@ -25,7 +25,7 @@ export interface TournamentConfig {
 }
 
 export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
-  '9': {
+  'capcom-cup-12': {
     name: 'Capcom Cup 12',
     streamPlatform: null, streamChannel: null,
     startDate: '2026-03-11', endDate: '2026-03-15',
@@ -143,7 +143,7 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
   },
 
-  '40': {
+  'evo-japan-2026': {
     name: 'EVO Japan 2026',
     streamPlatform: 'twitch', streamChannel: 'evo',
     twitchChannels: [
@@ -252,6 +252,17 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
     isDemo: true,
   },
+}
+
+/**
+ * 旧キー（数値ID・旧slug）→ 正規slug のリダイレクトマップ。
+ * /live/9 → /live/capcom-cup-12 などのURL正規化に使用。
+ */
+export const SLUG_REDIRECTS: Record<string, string> = {
+  '9':  'capcom-cup-12',
+  '40': 'evo-japan-2026',
+  '43': 'blink-respawn-2026',
+  '48': 'combo-breaker-2026',
 }
 
 /** tournamentId (slug or numeric string) から config を解決する */

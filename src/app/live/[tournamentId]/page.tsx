@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { use } from 'react'
+import { useRouter } from 'next/navigation'
 import SiteNavbar from '@/components/SiteNavbar'
 import { PoolsDashboard, type PoolsData, type ToastEvent } from '@/components/live/PoolsDashboard'
-import { resolveTournamentConfig } from './tournamentConfig'
+import { resolveTournamentConfig, SLUG_REDIRECTS } from './tournamentConfig'
 import { usePoolsDashboard } from '@/hooks/usePoolsDashboard'
 import { useStartggPolling }  from '@/hooks/useStartggPolling'
 import { useAutoDetect }      from '@/hooks/useAutoDetect'
@@ -87,6 +88,13 @@ const DEMO_POOLS_DATA: PoolsData = {
 
 export default function LivePage({ params }: { params: Promise<{ tournamentId: string }> }) {
   const { tournamentId } = use(params)
+  const router = useRouter()
+
+  // 旧キー（数値ID等）を正規slugにリダイレクト
+  useEffect(() => {
+    const slug = SLUG_REDIRECTS[tournamentId]
+    if (slug) router.replace(`/live/${slug}`)
+  }, [tournamentId, router])
 
   const [player1, setPlayer1]           = useState<Player | null>(null)
   const [player2, setPlayer2]           = useState<Player | null>(null)
@@ -102,6 +110,9 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const [centerTab, setCenterTab]       = useState<'stream' | 'bracket'>('stream')
 
   // ── 大会設定 (tournamentConfig.ts から) ──────────────────────────────────
+  // リダイレクト対象なら何も描画しない
+  if (SLUG_REDIRECTS[tournamentId]) return null
+
   const { config, configKey } = resolveTournamentConfig(tournamentId)
   const isDemo = config.isDemo === true
 
@@ -119,7 +130,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     poolsData, displayMode, setDisplayMode,
     displayModeManual, setDisplayModeManual,
     streamToast, setStreamToast, streamToastTimer,
-  } = usePoolsDashboard(isDemo ? undefined : config.dbTournamentId)
+  } = usePoolsDashboard(isDemo ? undefined : config.dbTournamentId, isDemo ? undefined : config.endDate)
 
   const {
     startggMatches: realStartggMatches, cc12Matches, cc12LastUpdated,

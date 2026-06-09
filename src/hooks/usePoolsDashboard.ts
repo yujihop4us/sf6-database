@@ -14,7 +14,17 @@ export interface UsePoolsDashboardReturn {
   streamToastTimer:      React.MutableRefObject<ReturnType<typeof setTimeout> | null>
 }
 
-export function usePoolsDashboard(dbTournamentId: number | undefined): UsePoolsDashboardReturn {
+/** endDate (YYYY-MM-DD) + 24h バッファを過ぎているか判定 */
+function isTournamentEnded(endDate: string | undefined): boolean {
+  if (!endDate) return false
+  const end = new Date(endDate + 'T23:59:59Z').getTime() + 24 * 60 * 60 * 1000
+  return Date.now() > end
+}
+
+export function usePoolsDashboard(
+  dbTournamentId: number | undefined,
+  endDate?: string,
+): UsePoolsDashboardReturn {
   const [poolsData,            setPoolsData]           = useState<PoolsData | null>(null)
   const [displayMode,          setDisplayMode]          = useState<'h2h' | 'pools'>('h2h')
   const [displayModeManual,    setDisplayModeManual]    = useState(false)
@@ -27,6 +37,13 @@ export function usePoolsDashboard(dbTournamentId: number | undefined): UsePoolsD
 
   useEffect(() => {
     if (!dbTournamentId) return
+
+    // 終了した大会: H2H固定でポーリングなし
+    if (isTournamentEnded(endDate)) {
+      setDisplayMode('h2h')
+      return
+    }
+
     const url = '/api/pools-dashboard?tournamentId=' + dbTournamentId
 
     const fetchData = async () => {
@@ -69,7 +86,7 @@ export function usePoolsDashboard(dbTournamentId: number | undefined): UsePoolsD
     const id = setInterval(fetchData, 15000)
     return () => clearInterval(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbTournamentId])
+  }, [dbTournamentId, endDate])
 
   return {
     poolsData,
