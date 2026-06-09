@@ -10,7 +10,6 @@ import { useStartggPolling }  from '@/hooks/useStartggPolling'
 import { useAutoDetect }      from '@/hooks/useAutoDetect'
 import { V, type Player, type H2HData } from '@/components/live/tokens'
 import { PlayerBand } from '@/components/live/PlayerBand'
-import { FeaturedMatchesPanel } from '@/components/live/FeaturedMatchesPanel'
 import { LiveStandings } from '@/components/live/LiveStandings'
 import { SearchModal } from '@/components/live/SearchModal'
 import { StreamCenter } from '@/components/live/StreamCenter'
@@ -58,6 +57,32 @@ const DEMO_UP_NEXT = [
   { status: 'upcoming', round: 'Grand Final Reset',  round_text: 'Grand Final Reset', player1_handle: 'XiaoHai', player2_handle: 'Punk',    score: null },
 ]
 
+const DEMO_POOLS_DATA: PoolsData = {
+  currentPhase: 'Round Robin Pools',
+  overallProgress: {
+    'Round Robin Pools': { completed: 15, total: 24, percent: 63 },
+  },
+  feed: [
+    { type: 'QUALIFIED_W', priority: 'HIGH',   timestamp: now() - 300,  pool: 'Pool A', phase: 'Round Robin Pools', round: 'Final Round',  message: 'XiaoHai が Pool A を首位通過 (5-0)',  players: [{ name: 'XiaoHai', handle: 'XiaoHai', seed: 2  }], score: '3-0' },
+    { type: 'UPSET',       priority: 'HIGH',   timestamp: now() - 900,  pool: 'Pool B', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Riddles が Higuchi を撃破',            players: [{ name: 'Riddles', handle: 'Riddles',  seed: 8  }, { name: 'Higuchi', handle: 'Higuchi', seed: 3 }], score: '3-2' },
+    { type: 'QUALIFIED_W', priority: 'MEDIUM', timestamp: now() - 1800, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 5',      message: 'Punk が Pool A 2位で通過 (4-1)',      players: [{ name: 'Punk',    handle: 'Punk',    seed: 1  }], score: '3-1' },
+    { type: 'ELIMINATED',  priority: 'MEDIUM', timestamp: now() - 2700, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Kobayan が敗退',                       players: [{ name: 'Kobayan', handle: 'Kobayan', seed: 24 }], score: '0-3' },
+    { type: 'MARQUEE_RESULT', priority: 'HIGH', timestamp: now() - 3600, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 3',    message: 'Punk vs MenaRD — 激戦の末Punkが制す', players: [{ name: 'Punk', handle: 'Punk', seed: 1 }, { name: 'MenaRD', handle: 'MenaRD', seed: 5 }], score: '3-2' },
+  ],
+  qualified: [
+    { name: 'XiaoHai', handle: 'XiaoHai', seed: 2,  side: 'winners', pool: 'Pool A', phase: 'Round Robin Pools' },
+    { name: 'Punk',    handle: 'Punk',    seed: 1,  side: 'winners', pool: 'Pool A', phase: 'Round Robin Pools' },
+    { name: 'MenaRD',  handle: 'MenaRD',  seed: 5,  side: 'losers',  pool: 'Pool A', phase: 'Round Robin Pools' },
+  ],
+  pools: [
+    { id: 'pool-a', phase: 'Round Robin Pools', completed: 10, total: 10, percent: 100 },
+    { id: 'pool-b', phase: 'Round Robin Pools', completed: 5,  total: 10, percent: 50  },
+    { id: 'pool-c', phase: 'Round Robin Pools', completed: 0,  total: 10, percent: 0   },
+  ],
+  lastUpdated: new Date().toISOString(),
+  setsAnalyzed: 15,
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function LivePage({ params }: { params: Promise<{ tournamentId: string }> }) {
@@ -84,7 +109,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const effectiveTournamentSlug: string | undefined = isNaN(Number(tournamentId))
     ? tournamentId
     : (configKey && isNaN(Number(configKey)) ? configKey : undefined)
-  const hasStream      = !!config.streamPlatform && !!config.streamChannel
+  const hasStream      = isDemo ? true : (!!config.streamPlatform && !!config.streamChannel)
   const streamPlatform = config.streamPlatform
   const streamChannel  = config.streamChannel
 
@@ -425,26 +450,29 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         {/* ── モード切替トグル ── */}
         {config.startggEventId && (
           <div className="mode-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-            <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em' }}>
-              {poolsData ? `Phase: ${poolsData.currentPhase}` : ''}
-            </span>
-            {(['h2h', 'pools'] as const).map(mode => (
-              <button key={mode} onClick={() => { setDisplayMode(mode); setDisplayModeManual(true) }} style={{
-                background: displayMode === mode ? V.surface3 : 'transparent',
-                border: `1px solid ${displayMode === mode ? V.border2 : V.border}`,
-                borderRadius: 5, padding: '3px 10px', cursor: 'pointer',
-                fontFamily: V.FD, fontSize: 10, fontWeight: 700,
-                letterSpacing: '0.1em', textTransform: 'uppercase' as const,
-                color: displayMode === mode ? V.accent : V.dim,
-              }}>
-                {mode === 'h2h' ? '📺 H2H' : '📊 POOLS'}
-              </button>
-            ))}
-            {displayModeManual && (
-              <button onClick={() => setDisplayModeManual(false)} style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                color: V.dim, fontSize: 11, padding: '0 4px',
-              }} title="自動判定に戻す">AUTO</button>
+            {/* モード切替: デモのみ手動切替可、本番はAUTOのみ */}
+            {isDemo ? (
+              <>
+                <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em' }}>
+                  DEMO MODE
+                </span>
+                {(['h2h', 'pools'] as const).map(mode => (
+                  <button key={mode} onClick={() => { setDisplayMode(mode); setDisplayModeManual(true) }} style={{
+                    background: displayMode === mode ? V.surface3 : 'transparent',
+                    border: `1px solid ${displayMode === mode ? V.border2 : V.border}`,
+                    borderRadius: 5, padding: '3px 10px', cursor: 'pointer',
+                    fontFamily: V.FD, fontSize: 10, fontWeight: 700,
+                    letterSpacing: '0.1em', textTransform: 'uppercase' as const,
+                    color: displayMode === mode ? V.accent : V.dim,
+                  }}>
+                    {mode === 'h2h' ? '📺 H2H' : '📊 POOLS'}
+                  </button>
+                ))}
+              </>
+            ) : (
+              <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em' }}>
+                {poolsData ? `Phase: ${poolsData.currentPhase}` : ''}
+              </span>
             )}
           </div>
         )}
@@ -498,12 +526,13 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               <SidePanelLeft
                 player1={player1} player2={player2}
                 twitchChatChannels={config.twitchChatChannels}
+                isDemo={isDemo}
               />
             </div>
 
             {/* 右カラム: PoolsDashboard 全高さ */}
             <PoolsDashboard
-              data={poolsData}
+              data={isDemo ? DEMO_POOLS_DATA : poolsData}
               onToast={(ev) => {
                 setStreamToast(ev)
                 if (streamToastTimer.current) clearTimeout(streamToastTimer.current)
@@ -611,6 +640,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               <SidePanelLeft
                 player1={player1} player2={player2}
                 twitchChatChannels={config.twitchChatChannels}
+                isDemo={isDemo}
               />
               <LiveStandings
                 startggMatches={startggMatches}
