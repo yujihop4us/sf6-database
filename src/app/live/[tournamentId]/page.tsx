@@ -385,10 +385,57 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             flex-direction: column !important;
             grid-template-columns: unset !important;
             flex: 1 !important;
+            height: 100% !important;
             min-height: 0 !important;
             overflow: hidden !important;
             gap: 0 !important;
             padding: 0 !important;
+          }
+
+          /* 配信+チャットの親gridを縦積みに */
+          .pools-layout > div:first-child {
+            display: flex !important;
+            flex-direction: column !important;
+            grid-template-rows: unset !important;
+            flex-shrink: 0 !important;
+          }
+
+          /* 配信エリア 16:9 固定 */
+          .pools-layout .stream-container {
+            width: 100% !important;
+            flex-shrink: 0 !important;
+          }
+          .pools-layout .stream-player-wrapper {
+            position: relative !important;
+            width: 100% !important;
+            padding-bottom: 56.25% !important;
+            height: 0 !important;
+          }
+          .pools-layout .stream-player-wrapper iframe {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important;
+            width: 100% !important; height: 100% !important;
+          }
+
+          /* チャットパネルはモバイルで非表示 */
+          .pools-layout .live-chat-panel {
+            display: none !important;
+          }
+
+          /* PoolsDashboard をスクロール可能エリアに */
+          .pools-layout > div:last-child {
+            flex: 1 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            min-height: 0 !important;
+            width: 100% !important;
+          }
+
+          /* HighlightCard の位置を正常化 */
+          .highlight-card {
+            position: relative !important;
+            width: 100% !important;
+            margin: 0 !important;
           }
 
           /* ===== モード切替トグル ===== */

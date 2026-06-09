@@ -190,6 +190,7 @@ function HighlightCard({ event }: { event: ToastEvent | null }) {
   return (
     <div
       key={animKey}
+      className="highlight-card"
       style={{
         position: 'relative', overflow: 'hidden',
         background: `linear-gradient(135deg, ${glowSoft} 0%, rgba(0,0,0,0) 60%), ${V.surface}`,
