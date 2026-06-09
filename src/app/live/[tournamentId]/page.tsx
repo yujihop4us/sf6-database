@@ -555,7 +555,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             <div className="h2h-faceoff" style={{
               display: 'grid',
               gridTemplateColumns: '220px 1fr 220px',
-              gap: 0, borderRadius: 12, overflow: 'hidden',
+              gap: 0, borderRadius: 12, overflow: 'visible',
               border: `1px solid ${V.border}`,
               flexShrink: 0,
             }}>

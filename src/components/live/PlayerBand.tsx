@@ -22,6 +22,7 @@ export function PlayerBand({
   return (
     <div className="player-band" style={{
       position: 'relative', overflow: 'hidden',
+      borderRadius: isLeft ? '12px 0 0 12px' : '0 12px 12px 0',
       background: isLeft
         ? `linear-gradient(to right, ${sideColor}28 0%, ${sideColor}0a 55%, transparent 100%)`
         : `linear-gradient(to left,  ${sideColor}28 0%, ${sideColor}0a 55%, transparent 100%)`,
