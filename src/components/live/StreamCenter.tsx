@@ -489,7 +489,7 @@ export function StreamCenter({
             }
             .h2h-player-name {
               font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 14px; font-weight: 500;
+              font-size: 16px; font-weight: 600;
               color: rgba(255,255,255,0.55);
               overflow: hidden; text-overflow: ellipsis;
               white-space: nowrap; max-width: 110px;
@@ -547,7 +547,7 @@ export function StreamCenter({
               .h2h-win-count { font-size: 16px !important; }
               .h2h-wins-leading .h2h-win-count { font-size: 20px !important; }
               .h2h-wins-tied .h2h-win-count { font-size: 18px !important; }
-              .h2h-player-name { font-size: 12px !important; max-width: 80px !important; }
+              .h2h-player-name { font-size: 13px !important; font-weight: 600 !important; max-width: 80px !important; }
               .h2h-center-badge { flex-direction: column !important; gap: 0px !important; padding: 2px 12px !important; }
               .h2h-vs-icon { font-size: 16px !important; }
               .h2h-label { font-size: 8px !important; letter-spacing: 2.5px !important; }
@@ -561,7 +561,7 @@ export function StreamCenter({
               .h2h-vs-icon { font-size: 14px !important; }
               .h2h-label { font-size: 7px !important; letter-spacing: 2px !important; display: block !important; }
               .h2h-match-count { font-size: 10px !important; }
-              .h2h-player-name { font-size: 11px !important; max-width: 60px !important; }
+              .h2h-player-name { font-size: 12px !important; font-weight: 600 !important; max-width: 60px !important; }
             }
 
             /* ティッカー */
