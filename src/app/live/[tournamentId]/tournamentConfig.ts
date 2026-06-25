@@ -234,6 +234,28 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
   },
 
+  'evo-2026': {
+    name: 'EVO 2026',
+    streamPlatform: 'twitch', streamChannel: 'evo',
+    twitchChannels: [
+      { name: 'EVO (EN メイン)', channel: 'evo' },
+      { name: 'EVO (JP)',       channel: 'evojp' },
+    ],
+    twitchChatChannels: ['evo'],
+    startDate: '2026-08-22', endDate: '2026-08-25',
+    timezone: 'America/Los_Angeles', locationLabel: 'Las Vegas, NV',
+    totalDays: 4,
+    startggEventId: 1516198,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    phases: [
+      { name: 'Pools',  format: 'Double Elimination',      groups: [{ name: 'Pools',  players: [], matches: [] }] },
+      { name: 'Top 64', format: 'Double Elimination',      groups: [{ name: 'Top 64', players: [], matches: [] }] },
+      { name: 'Top 8',  format: 'Double Elimination Ft5',  groups: [{ name: 'Top 8',  players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
   // ── DEMO MODE ─────────────────────────────────────────────────────────────
   'demo': {
     name: 'DEMO MODE',
