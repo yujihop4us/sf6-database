@@ -246,6 +246,7 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     timezone: 'America/Los_Angeles', locationLabel: 'Las Vegas, NV',
     totalDays: 4,
     startggEventId: 1516198,
+    dbTournamentId: 10,
     cptPremier: true,
     ewcQualifier: false, ewcSlots: 0,
     phases: [
