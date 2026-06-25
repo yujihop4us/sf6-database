@@ -242,7 +242,7 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
       { name: 'EVO (JP)',       channel: 'evojp' },
     ],
     twitchChatChannels: ['evo'],
-    startDate: '2026-08-22', endDate: '2026-08-25',
+    startDate: '2026-06-26', endDate: '2026-06-28',
     timezone: 'America/Los_Angeles', locationLabel: 'Las Vegas, NV',
     totalDays: 4,
     startggEventId: 1516198,
