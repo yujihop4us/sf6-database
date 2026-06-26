@@ -277,10 +277,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         /* PC版: 配信+H2Hバーの高さを制限して下部コンテンツを確保 */
         .stream-and-h2h-sticky {
-          max-height: 65vh;
+          max-height: 75vh;
         }
         .stream-and-h2h-sticky .h2h-faceoff {
-          max-height: calc(65vh - 80px);
+          max-height: calc(75vh - 80px);
           overflow: hidden;
         }
         .stream-and-h2h-sticky .h2h-faceoff .stream-player-wrapper {
