@@ -283,6 +283,13 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           flex-shrink: 0 !important;
         }
 
+        /* 中画面 (769px〜1280px): PlayerBand をさらに縮小 */
+        @media (min-width: 769px) and (max-width: 1280px) {
+          .h2h-faceoff {
+            grid-template-columns: minmax(120px, 12vw) 1fr minmax(120px, 12vw) !important;
+          }
+        }
+
         /* h2h-secondary に最小高さを確保 */
         .h2h-secondary {
           min-height: 200px !important;
@@ -654,7 +661,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             {/* 3カラム フェイスオフ */}
             <div className="h2h-faceoff" style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(220px, 20vw) 1fr minmax(220px, 20vw)',
+              gridTemplateColumns: 'minmax(160px, 15vw) 1fr minmax(160px, 15vw)',
               gap: 0, borderRadius: '12px 12px 0 0', overflow: 'hidden',
               border: `1px solid ${V.border}`,
               flexShrink: 0,
