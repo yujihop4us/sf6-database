@@ -275,6 +275,22 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         /* PC default */
         .h2h-score-compact { display: none; }
 
+        /* PC版: 配信+H2Hバーの高さを制限して下部コンテンツを確保 */
+        .stream-and-h2h-sticky {
+          max-height: 65vh;
+        }
+        .stream-and-h2h-sticky .h2h-faceoff {
+          max-height: calc(65vh - 80px);
+          overflow: hidden;
+        }
+        .stream-and-h2h-sticky .h2h-faceoff .stream-player-wrapper {
+          height: 100%;
+        }
+        .stream-and-h2h-sticky .h2h-faceoff .stream-player-wrapper iframe {
+          width: 100%;
+          height: 100%;
+        }
+
         @media (max-width: 768px) {
           /* ===== ページ全体: 100dvh固定 + flex縦積み ===== */
           .live-page {
