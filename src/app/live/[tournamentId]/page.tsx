@@ -13,7 +13,7 @@ import { V, type Player, type H2HData } from '@/components/live/tokens'
 import { PlayerBand } from '@/components/live/PlayerBand'
 import { LiveStandings } from '@/components/live/LiveStandings'
 import { SearchModal } from '@/components/live/SearchModal'
-import { StreamCenter } from '@/components/live/StreamCenter'
+import { StreamCenter, H2HBars } from '@/components/live/StreamCenter'
 import { SidePanelLeft } from '@/components/live/SidePanelLeft'
 import { normalizePlayerName } from '@/lib/normalizePlayerName'
 
@@ -642,7 +642,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             <div className="h2h-faceoff" style={{
               display: 'grid',
               gridTemplateColumns: '220px 1fr 220px',
-              gap: 0, borderRadius: 12, overflow: 'visible',
+              gap: 0, borderRadius: '12px 12px 0 0', overflow: 'hidden',
               border: `1px solid ${V.border}`,
               flexShrink: 0,
             }}>
@@ -687,6 +687,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                 onScoreChange={d => setScore(s => ({ ...s, p2: Math.max(0, s.p2 + d) }))}
               />
             </div>
+            <H2HBars player1={player1} player2={player2} h2hData={h2hData} />
             </div>{/* /stream-and-h2h-sticky */}
 
             {/* セカンダリ: H2H */}

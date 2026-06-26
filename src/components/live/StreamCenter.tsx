@@ -463,215 +463,231 @@ export function StreamCenter({
 
           </div>
 
-          {/* ── H2H バー (1行コンパクト) ── */}
-          <style>{`
-            /* ===== H2H バー ===== */
-            .h2h-score-bar {
-              background: linear-gradient(90deg,
-                rgba(99,102,241,0.08) 0%,
-                rgba(251,191,36,0.06) 50%,
-                rgba(239,68,68,0.08) 100%
-              ) !important;
-              border-top: none !important;
-              border-bottom: 1px solid rgba(251,191,36,0.18) !important;
-            }
-
-            /* 勝敗エリア — 1行横並び */
-            .h2h-wins-left {
-              display: flex; flex-direction: row;
-              align-items: center; justify-content: flex-end;
-              gap: 6px; min-width: auto;
-            }
-            .h2h-wins-right {
-              display: flex; flex-direction: row;
-              align-items: center; justify-content: flex-start;
-              gap: 6px; min-width: auto;
-            }
-            .h2h-player-name {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 16px; font-weight: 600;
-              color: rgba(255,255,255,0.55);
-              overflow: hidden; text-overflow: ellipsis;
-              white-space: nowrap; max-width: 110px;
-              margin-bottom: 0;
-            }
-            .h2h-win-count {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 20px; font-weight: 800;
-              color: #ffffff; line-height: 1;
-              transition: all 0.3s ease;
-            }
-            /* 勝ち越し — ゴールド＋グロウ */
-            .h2h-wins-leading .h2h-win-count {
-              font-size: 26px; color: #fbbf24;
-              text-shadow: 0 0 8px rgba(251,191,36,0.55), 0 0 18px rgba(251,191,36,0.3);
-            }
-            .h2h-wins-leading .h2h-player-name { color: #fcd34d; font-weight: 700; }
-            /* タイ */
-            .h2h-wins-tied .h2h-win-count { font-size: 22px; color: #e2e8f0; }
-
-            /* 中央バッジ — 縦3段（⚔ / HEAD TO HEAD / N戦） */
-            .h2h-center-badge {
-              display: flex; flex-direction: column;
-              align-items: center; gap: 0px;
-              padding: 2px 20px;
-            }
-            @keyframes vsGlow {
-              from { filter: drop-shadow(0 0 4px rgba(251,191,36,0.4)); transform: scale(1); }
-              to   { filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)) drop-shadow(0 0 22px rgba(251,191,36,0.35)); transform: scale(1.12); }
-            }
-            .h2h-vs-icon {
-              font-size: 22px; line-height: 1;
-              animation: vsGlow 2s ease-in-out infinite alternate;
-              display: inline-block;
-            }
-            .h2h-label {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 11px; font-weight: 800; letter-spacing: 4px;
-              text-transform: uppercase; color: rgba(255,255,255,0.7);
-              white-space: nowrap; line-height: 1; margin-top: 1px;
-            }
-            .h2h-match-count {
-              font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
-              font-size: 13px; font-weight: 700; color: #fbbf24;
-              line-height: 1; margin-top: 2px;
-            }
-
-            /* セグメントバー */
-            .h2h-seg-bar {
-              height: 4px; display: flex; border-radius: 2px; overflow: hidden; width: 100%;
-            }
-
-            /* モバイル 768px */
-            @media (max-width: 768px) {
-              .h2h-win-count { font-size: 16px !important; }
-              .h2h-wins-leading .h2h-win-count { font-size: 20px !important; }
-              .h2h-wins-tied .h2h-win-count { font-size: 18px !important; }
-              .h2h-player-name { font-size: 13px !important; font-weight: 600 !important; max-width: 80px !important; }
-              .h2h-center-badge { flex-direction: column !important; gap: 0px !important; padding: 2px 12px !important; }
-              .h2h-vs-icon { font-size: 16px !important; }
-              .h2h-label { font-size: 8px !important; letter-spacing: 2.5px !important; }
-              .h2h-match-count { font-size: 11px !important; }
-            }
-            /* モバイル 480px */
-            @media (max-width: 480px) {
-              .h2h-win-count { font-size: 14px !important; }
-              .h2h-wins-leading .h2h-win-count { font-size: 18px !important; }
-              .h2h-center-badge { padding: 2px 8px !important; }
-              .h2h-vs-icon { font-size: 14px !important; }
-              .h2h-label { font-size: 7px !important; letter-spacing: 2px !important; display: block !important; }
-              .h2h-match-count { font-size: 10px !important; }
-              .h2h-player-name { font-size: 12px !important; font-weight: 600 !important; max-width: 60px !important; }
-            }
-
-            /* ティッカー */
-            @keyframes h2hTickerScroll {
-              0%   { transform: translateX(0); }
-              100% { transform: translateX(-50%); }
-            }
-            .h2h-ticker-track {
-              animation: h2hTickerScroll ${Math.max(30, (h2hData?.sets?.length ?? 5) * 8)}s linear infinite;
-            }
-            .h2h-ticker-track:hover { animation-play-state: paused; }
-          `}</style>
-          <div className="h2h-score-bar" style={{
-            border: `1px solid ${V.border}`,
-            borderRadius: total > 0 ? '0' : '0 0 10px 10px',
-            padding: '6px 16px',
-          }}>
-            {total > 0 ? (
-              (() => {
-                const p1w = summary!.player1_wins
-                const p2w = summary!.player2_wins
-                const p1Leading = p1w > p2w
-                const p2Leading = p2w > p1w
-                const tied      = p1w === p2w
-                return (
-                  <div style={{
-                    display: 'grid', gridTemplateColumns: '1fr auto 1fr',
-                    alignItems: 'center', gap: 8,
-                  }}>
-                    {/* P1: 名前 → 勝数 */}
-                    <div className={`h2h-wins-left${p1Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
-                      <span className="h2h-player-name">{player1?.handle ?? 'P1'}</span>
-                      <span className="h2h-win-count">{p1w}</span>
-                    </div>
-                    {/* 中央バッジ: ⚔ HEAD TO HEAD 5戦 */}
-                    <div className="h2h-center-badge">
-                      <span className="h2h-vs-icon">⚔</span>
-                      <span className="h2h-label">HEAD TO HEAD</span>
-                      <span className="h2h-match-count">{total}戦</span>
-                    </div>
-                    {/* P2: 勝数 → 名前 */}
-                    <div className={`h2h-wins-right${p2Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
-                      <span className="h2h-win-count">{p2w}</span>
-                      <span className="h2h-player-name">{player2?.handle ?? 'P2'}</span>
-                    </div>
-                  </div>
-                )
-              })()
-            ) : (
-              <div style={{ fontFamily: V.FD, fontSize: 12, color: V.dim, textAlign: 'center', padding: '2px 0' }}>
-                {player1 && player2 ? 'H2H データ読み込み中...' : '選手を選択して H2H を表示'}
-              </div>
-            )}
-          </div>
-
-          {/* セグメントバー（カラーブロックは削除して1段に圧縮） */}
-          {total > 0 && (
-            <div style={{
-              background: V.surface, border: `1px solid ${V.border}`, borderTop: 'none',
-              borderRadius: h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 ? '0' : '0 0 10px 10px',
-              padding: '5px 16px 6px',
-            }}>
-              <div className="h2h-seg-bar">
-                <div style={{
-                  width: `${Math.round(summary!.player1_wins / total * 100)}%`,
-                  background: `linear-gradient(90deg, ${p1color}cc, ${p1color})`,
-                  transition: 'width 1s ease',
-                }} />
-                <div style={{ flex: 1, background: `linear-gradient(90deg, ${p2color}, ${p2color}cc)` }} />
-              </div>
-            </div>
-          )}
-
-          {/* ── H2H ティッカー ── */}
-          {h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 && (
-            <div className="h2h-ticker-container" style={{
-              overflow: 'hidden', whiteSpace: 'nowrap',
-              background: 'rgba(0,0,0,0.4)',
-              border: `1px solid ${V.border}`, borderTop: 'none',
-              borderRadius: '0 0 10px 10px',
-              height: 32, display: 'flex', alignItems: 'center',
-              position: 'relative',
-            }}>
-              {/* スクロールトラック（2回繰り返してシームレスループ） */}
-              <div className="h2h-ticker-track" style={{
-                display: 'inline-flex', alignItems: 'center',
-                gap: 60, paddingLeft: 16,
-              }}>
-                {[...[...h2hData.sets].reverse(), ...[...h2hData.sets].reverse()].map((set, i) => {
-                  const isP1win = set.winner_id === player1.id
-                  const p1score = isP1win ? set.winner_score : set.loser_score
-                  const p2score = isP1win ? set.loser_score  : set.winner_score
-                  return (
-                    <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <span style={{ fontFamily: V.FD, fontSize: 12, color: '#9ca3af' }}>{set.tournament_name}</span>
-                      <span style={{ color: '#6b7280', fontSize: 11 }}>·</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 11, color: '#9ca3af' }}>{set.round_text}</span>
-                      <span style={{ color: '#6b7280', margin: '0 3px', fontSize: 12 }}>▸</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 800 : 400, color: isP1win ? '#4ade80' : '#d1d5db' }}>{player1.handle}</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 700, color: '#ffffff', margin: '0 2px' }}>{p1score}–{p2score}</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 400 : 800, color: isP1win ? '#d1d5db' : '#4ade80' }}>{player2.handle}</span>
-                      <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, marginLeft: 2 }}>{set.tournament_date}</span>
-                    </span>
-                  )
-                })}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
+  )
+}
+
+// ── H2H バー群（stream-and-h2h-sticky 内、h2h-faceoff の外に配置） ──────────
+export function H2HBars({
+  player1, player2, h2hData,
+}: {
+  player1: Player | null
+  player2: Player | null
+  h2hData: H2HData | null
+}) {
+  const p1color = V.P1
+  const p2color = V.P2
+  const summary = h2hData?.summary
+  const total   = summary ? (summary.player1_wins + summary.player2_wins) : 0
+
+  return (
+    <>
+      <style>{`
+        /* ===== H2H バー ===== */
+        .h2h-score-bar {
+          background: linear-gradient(90deg,
+            rgba(99,102,241,0.08) 0%,
+            rgba(251,191,36,0.06) 50%,
+            rgba(239,68,68,0.08) 100%
+          ) !important;
+          border-top: none !important;
+          border-bottom: 1px solid rgba(251,191,36,0.18) !important;
+        }
+
+        /* 勝敗エリア — 1行横並び */
+        .h2h-wins-left {
+          display: flex; flex-direction: row;
+          align-items: center; justify-content: flex-end;
+          gap: 6px; min-width: auto;
+        }
+        .h2h-wins-right {
+          display: flex; flex-direction: row;
+          align-items: center; justify-content: flex-start;
+          gap: 6px; min-width: auto;
+        }
+        .h2h-player-name {
+          font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+          font-size: 16px; font-weight: 600;
+          color: rgba(255,255,255,0.55);
+          overflow: hidden; text-overflow: ellipsis;
+          white-space: nowrap; max-width: 110px;
+          margin-bottom: 0;
+        }
+        .h2h-win-count {
+          font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+          font-size: 20px; font-weight: 800;
+          color: #ffffff; line-height: 1;
+          transition: all 0.3s ease;
+        }
+        /* 勝ち越し — ゴールド＋グロウ */
+        .h2h-wins-leading .h2h-win-count {
+          font-size: 26px; color: #fbbf24;
+          text-shadow: 0 0 8px rgba(251,191,36,0.55), 0 0 18px rgba(251,191,36,0.3);
+        }
+        .h2h-wins-leading .h2h-player-name { color: #fcd34d; font-weight: 700; }
+        /* タイ */
+        .h2h-wins-tied .h2h-win-count { font-size: 22px; color: #e2e8f0; }
+
+        /* 中央バッジ — 縦3段（⚔ / HEAD TO HEAD / N戦） */
+        .h2h-center-badge {
+          display: flex; flex-direction: column;
+          align-items: center; gap: 0px;
+          padding: 2px 20px;
+        }
+        @keyframes vsGlow {
+          from { filter: drop-shadow(0 0 4px rgba(251,191,36,0.4)); transform: scale(1); }
+          to   { filter: drop-shadow(0 0 12px rgba(251,191,36,0.9)) drop-shadow(0 0 22px rgba(251,191,36,0.35)); transform: scale(1.12); }
+        }
+        .h2h-vs-icon {
+          font-size: 22px; line-height: 1;
+          animation: vsGlow 2s ease-in-out infinite alternate;
+          display: inline-block;
+        }
+        .h2h-label {
+          font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+          font-size: 11px; font-weight: 800; letter-spacing: 4px;
+          text-transform: uppercase; color: rgba(255,255,255,0.7);
+          white-space: nowrap; line-height: 1; margin-top: 1px;
+        }
+        .h2h-match-count {
+          font-family: var(--font-barlow-condensed,"Barlow Condensed",sans-serif);
+          font-size: 13px; font-weight: 700; color: #fbbf24;
+          line-height: 1; margin-top: 2px;
+        }
+
+        /* セグメントバー */
+        .h2h-seg-bar {
+          height: 4px; display: flex; border-radius: 2px; overflow: hidden; width: 100%;
+        }
+
+        /* モバイル 768px */
+        @media (max-width: 768px) {
+          .h2h-win-count { font-size: 16px !important; }
+          .h2h-wins-leading .h2h-win-count { font-size: 20px !important; }
+          .h2h-wins-tied .h2h-win-count { font-size: 18px !important; }
+          .h2h-player-name { font-size: 13px !important; font-weight: 600 !important; max-width: 80px !important; }
+          .h2h-center-badge { flex-direction: column !important; gap: 0px !important; padding: 2px 12px !important; }
+          .h2h-vs-icon { font-size: 16px !important; }
+          .h2h-label { font-size: 8px !important; letter-spacing: 2.5px !important; }
+          .h2h-match-count { font-size: 11px !important; }
+        }
+        /* モバイル 480px */
+        @media (max-width: 480px) {
+          .h2h-win-count { font-size: 14px !important; }
+          .h2h-wins-leading .h2h-win-count { font-size: 18px !important; }
+          .h2h-center-badge { padding: 2px 8px !important; }
+          .h2h-vs-icon { font-size: 14px !important; }
+          .h2h-label { font-size: 7px !important; letter-spacing: 2px !important; display: block !important; }
+          .h2h-match-count { font-size: 10px !important; }
+          .h2h-player-name { font-size: 12px !important; font-weight: 600 !important; max-width: 60px !important; }
+        }
+
+        /* ティッカー */
+        @keyframes h2hTickerScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .h2h-ticker-track {
+          animation: h2hTickerScroll ${Math.max(30, (h2hData?.sets?.length ?? 5) * 8)}s linear infinite;
+        }
+        .h2h-ticker-track:hover { animation-play-state: paused; }
+      `}</style>
+
+      {/* H2H スコアバー */}
+      <div className="h2h-score-bar" style={{
+        border: `1px solid ${V.border}`,
+        borderRadius: total > 0 ? '0' : '0 0 10px 10px',
+        padding: '6px 16px',
+      }}>
+        {total > 0 ? (
+          (() => {
+            const p1w = summary!.player1_wins
+            const p2w = summary!.player2_wins
+            const p1Leading = p1w > p2w
+            const p2Leading = p2w > p1w
+            const tied      = p1w === p2w
+            return (
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+                alignItems: 'center', gap: 8,
+              }}>
+                <div className={`h2h-wins-left${p1Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
+                  <span className="h2h-player-name">{player1?.handle ?? 'P1'}</span>
+                  <span className="h2h-win-count">{p1w}</span>
+                </div>
+                <div className="h2h-center-badge">
+                  <span className="h2h-vs-icon">⚔</span>
+                  <span className="h2h-label">HEAD TO HEAD</span>
+                  <span className="h2h-match-count">{total}戦</span>
+                </div>
+                <div className={`h2h-wins-right${p2Leading ? ' h2h-wins-leading' : ''}${tied ? ' h2h-wins-tied' : ''}`}>
+                  <span className="h2h-win-count">{p2w}</span>
+                  <span className="h2h-player-name">{player2?.handle ?? 'P2'}</span>
+                </div>
+              </div>
+            )
+          })()
+        ) : (
+          <div style={{ fontFamily: V.FD, fontSize: 12, color: V.dim, textAlign: 'center', padding: '2px 0' }}>
+            {player1 && player2 ? 'H2H データ読み込み中...' : '選手を選択して H2H を表示'}
+          </div>
+        )}
+      </div>
+
+      {/* セグメントバー */}
+      {total > 0 && (
+        <div style={{
+          background: V.surface, border: `1px solid ${V.border}`, borderTop: 'none',
+          borderRadius: h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 ? '0' : '0 0 10px 10px',
+          padding: '5px 16px 6px',
+        }}>
+          <div className="h2h-seg-bar">
+            <div style={{
+              width: `${Math.round(summary!.player1_wins / total * 100)}%`,
+              background: `linear-gradient(90deg, ${p1color}cc, ${p1color})`,
+              transition: 'width 1s ease',
+            }} />
+            <div style={{ flex: 1, background: `linear-gradient(90deg, ${p2color}, ${p2color}cc)` }} />
+          </div>
+        </div>
+      )}
+
+      {/* H2H ティッカー */}
+      {h2hData?.sets && h2hData.sets.length > 0 && player1 && player2 && (
+        <div className="h2h-ticker-container" style={{
+          overflow: 'hidden', whiteSpace: 'nowrap',
+          background: 'rgba(0,0,0,0.4)',
+          border: `1px solid ${V.border}`, borderTop: 'none',
+          borderRadius: '0 0 10px 10px',
+          height: 32, display: 'flex', alignItems: 'center',
+          position: 'relative',
+        }}>
+          <div className="h2h-ticker-track" style={{
+            display: 'inline-flex', alignItems: 'center',
+            gap: 60, paddingLeft: 16,
+          }}>
+            {[...[...h2hData.sets].reverse(), ...[...h2hData.sets].reverse()].map((set, i) => {
+              const isP1win = set.winner_id === player1.id
+              const p1score = isP1win ? set.winner_score : set.loser_score
+              const p2score = isP1win ? set.loser_score  : set.winner_score
+              return (
+                <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontFamily: V.FD, fontSize: 12, color: '#9ca3af' }}>{set.tournament_name}</span>
+                  <span style={{ color: '#6b7280', fontSize: 11 }}>·</span>
+                  <span style={{ fontFamily: V.FD, fontSize: 11, color: '#9ca3af' }}>{set.round_text}</span>
+                  <span style={{ color: '#6b7280', margin: '0 3px', fontSize: 12 }}>▸</span>
+                  <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 800 : 400, color: isP1win ? '#4ade80' : '#d1d5db' }}>{player1.handle}</span>
+                  <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: 700, color: '#ffffff', margin: '0 2px' }}>{p1score}–{p2score}</span>
+                  <span style={{ fontFamily: V.FD, fontSize: 13, fontWeight: isP1win ? 400 : 800, color: isP1win ? '#d1d5db' : '#4ade80' }}>{player2.handle}</span>
+                  <span style={{ fontFamily: V.FD, fontSize: 9, color: `${V.dim}66`, marginLeft: 2 }}>{set.tournament_date}</span>
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
