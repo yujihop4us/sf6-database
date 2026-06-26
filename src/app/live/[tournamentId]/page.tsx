@@ -277,8 +277,11 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         /* PC版: 配信+H2Hの高さ制御 */
 
-        /* stream-and-h2h-sticky は縮小不可 */
+        /* stream-and-h2h-sticky: 縮小不可 + H2Hバー・ティッカーも配信と同幅に */
         .stream-and-h2h-sticky {
+          max-width: 1200px;
+          margin: 0 auto;
+          width: 100%;
           flex-shrink: 0 !important;
         }
 
@@ -291,7 +294,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         /* h2h-secondary に最小高さを確保 */
         .h2h-secondary {
-          min-height: 200px;
+          min-height: 200px !important;
         }
 
         @media (max-width: 768px) {
