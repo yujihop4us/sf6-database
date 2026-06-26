@@ -277,19 +277,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
 
         /* PC版: 配信+H2Hの高さ制御 */
 
-        /* stream-and-h2h-sticky: 縮小不可 + H2Hバー・ティッカーも配信と同幅に */
+        /* stream-and-h2h-sticky: 縮小不可・フル幅 */
         .stream-and-h2h-sticky {
-          max-width: 1200px;
-          margin: 0 auto;
           width: 100%;
           flex-shrink: 0 !important;
-        }
-
-        /* h2h-faceoff の最大幅を制限 — 16:9 高さも自動的に制限される */
-        .h2h-faceoff {
-          max-width: 1200px;
-          margin: 0 auto;
-          width: 100%;
         }
 
         /* h2h-secondary に最小高さを確保 */
@@ -501,7 +492,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
       )}
 
       {/* ナビバー: ● LIVE + 大会名 を右端に表示 */}
-      <SiteNavbar activePage="live" isLive={isStreamLive} breadcrumb={[{ label: config.name }]} />
+      <SiteNavbar compact activePage="live" isLive={isStreamLive} breadcrumb={[{ label: config.name }]} />
 
       {/* デモバナー */}
       {isDemo && (
@@ -663,7 +654,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             {/* 3カラム フェイスオフ */}
             <div className="h2h-faceoff" style={{
               display: 'grid',
-              gridTemplateColumns: '220px 1fr 220px',
+              gridTemplateColumns: 'minmax(220px, 20vw) 1fr minmax(220px, 20vw)',
               gap: 0, borderRadius: '12px 12px 0 0', overflow: 'hidden',
               border: `1px solid ${V.border}`,
               flexShrink: 0,

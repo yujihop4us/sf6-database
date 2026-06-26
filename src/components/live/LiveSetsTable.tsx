@@ -247,7 +247,7 @@ export function LiveSetsTable({
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end', minWidth: 0, overflow: 'hidden' }}>
                   {s.winner_character && <CharPill name={s.winner_character} size={10} />}
                   {s.winner_id ? (
-                    <a href={`/player/${s.winner_id}`} onClick={e => e.stopPropagation()} style={{
+                    <a href={`/player/${s.winner_id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{
                       fontFamily: V.FD, fontSize: 14, fontWeight: 800, color: V.accent,
                       textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
                     }}>{wHandle}</a>
@@ -268,7 +268,7 @@ export function LiveSetsTable({
                 <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-start', minWidth: 0, overflow: 'hidden' }}>
                   {s.loser_country && <span style={{ fontSize: 12, flexShrink: 0 }}>{codeToFlag(s.loser_country)}</span>}
                   {s.loser_id ? (
-                    <a href={`/player/${s.loser_id}`} onClick={e => e.stopPropagation()} style={{
+                    <a href={`/player/${s.loser_id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{
                       fontFamily: V.FD, fontSize: 14, fontWeight: 700, color: V.dim,
                       textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
                     }}>{lHandle}</a>

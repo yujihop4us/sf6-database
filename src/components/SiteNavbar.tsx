@@ -18,9 +18,11 @@ interface SiteNavbarProps {
   isLive?: boolean
   /** 開催中大会のライブページスラッグ。設定時はナビにLIVEリンクを表示 */
   liveSlug?: string | null
+  /** 配信ページ専用: 高さ36px・ナビリンク非表示のコンパクト表示 */
+  compact?: boolean
 }
 
-export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liveSlug }: SiteNavbarProps) {
+export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liveSlug, compact = false }: SiteNavbarProps) {
   const { lang, setLang, t } = useLocale()
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -58,6 +60,10 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liv
         .nav-hamburger { display: none; }
         .nav-mobile-menu { display: none; }
 
+        /* compact モード: ナビリンク・言語切替を非表示 */
+        .nav-compact .nav-links { display: none !important; }
+        .nav-compact .nav-lang-toggle { display: none !important; }
+
         /* モバイル (768px以下) */
         @media (max-width: 768px) {
           .nav-links { display: none !important; }
@@ -72,7 +78,7 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liv
           }
           .nav-mobile-menu {
             display: block !important;
-            position: fixed; top: 52px; left: 0; right: 0;
+            position: fixed; top: ${compact ? 36 : 52}px; left: 0; right: 0;
             background: rgba(8, 12, 20, 0.98);
             border-bottom: 1px solid rgba(255,255,255,0.1);
             z-index: 100;
@@ -91,23 +97,27 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liv
         }
       `}</style>
 
-      <nav style={{
+      <nav className={compact ? 'nav-compact' : undefined} style={{
         position: 'sticky', top: 0, zIndex: 50,
         background: 'rgba(8,12,20,0.97)', backdropFilter: 'blur(14px)',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
-        padding: '0 24px', display: 'flex', alignItems: 'center', gap: 20, height: 52,
+        padding: compact ? '0 16px' : '0 24px',
+        display: 'flex', alignItems: 'center', gap: compact ? 12 : 20,
+        height: compact ? 36 : 52,
       }}>
 
         {/* Logo */}
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', flexShrink: 0 }}>
+        <Link href="/" target={compact ? '_blank' : undefined} rel={compact ? 'noopener noreferrer' : undefined}
+          style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 10, textDecoration: 'none', flexShrink: 0 }}>
           <div style={{
-            width: 28, height: 28, borderRadius: 6, background: '#10b981',
+            width: compact ? 22 : 28, height: compact ? 22 : 28, borderRadius: 5,
+            background: '#10b981',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: fDisplay, fontWeight: 900, fontSize: 13, color: '#000',
+            fontFamily: fDisplay, fontWeight: 900, fontSize: compact ? 10 : 13, color: '#000',
             letterSpacing: '-0.04em',
           }}>SF6</div>
           <span style={{
-            fontFamily: fDisplay, fontWeight: 700, fontSize: 16,
+            fontFamily: fDisplay, fontWeight: 700, fontSize: compact ? 13 : 16,
             letterSpacing: '0.05em', color: '#edf2f7', textTransform: 'uppercase',
           }}>SF6 STATS</span>
         </Link>
@@ -243,7 +253,7 @@ export default function SiteNavbar({ breadcrumb, activePage, isLive = false, liv
         <>
           {/* オーバーレイ (メニュー外タップで閉じる) */}
           <div
-            style={{ position: 'fixed', inset: 0, zIndex: 99, top: 52 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 99, top: compact ? 36 : 52 }}
             onClick={() => setMenuOpen(false)}
           />
           <div className="nav-mobile-menu">

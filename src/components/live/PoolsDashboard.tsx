@@ -168,7 +168,7 @@ function usePoolsStyles() {
 
 function PlayerLink({ handle, dim, prefix }: { handle: string; dim?: boolean; prefix?: string }) {
   return (
-    <Link href={`/player/${encodeURIComponent(handle)}`} className={`pd-plink${dim ? ' dim' : ''}`}>
+    <Link href={`/player/${encodeURIComponent(handle)}`} target="_blank" rel="noopener noreferrer" className={`pd-plink${dim ? ' dim' : ''}`}>
       {prefix && <span style={{ color: V.dim, fontSize: '0.85em', marginRight: 3, fontWeight: 600 }}>{prefix}</span>}
       {handle}
     </Link>
@@ -476,6 +476,8 @@ function QualifiedRow({ q, flash }: { q: ApiQualifiedPlayer; flash: boolean }) {
   return (
     <Link
       href={`/player/${encodeURIComponent(q.handle)}`}
+      target="_blank"
+      rel="noopener noreferrer"
       className="pd-qualified-row"
       style={{
         display: 'flex', alignItems: 'center', gap: 7,
