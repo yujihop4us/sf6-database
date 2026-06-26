@@ -275,36 +275,23 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
         /* PC default */
         .h2h-score-compact { display: none; }
 
-        /* PC版: h2h-secondary に最小高さを確保 */
-        .h2h-secondary {
-          min-height: 220px !important;
-          flex: 1;
-          overflow-y: auto;
-        }
+        /* PC版: 配信+H2Hの高さ制御 */
 
-        /* 配信エリアは残りスペースに収まるよう flex で制御 */
+        /* stream-and-h2h-sticky は縮小不可 */
         .stream-and-h2h-sticky {
-          flex: 1 1 auto !important;
-          min-height: 0 !important;
-          overflow: hidden;
+          flex-shrink: 0 !important;
         }
 
-        /* h2h-faceoff 内の aspect-ratio を無効化し、親の高さに追従させる */
-        .stream-and-h2h-sticky .h2h-faceoff {
-          flex: 1;
-          min-height: 0;
+        /* h2h-faceoff の最大幅を制限 — 16:9 高さも自動的に制限される */
+        .h2h-faceoff {
+          max-width: 1200px;
+          margin: 0 auto;
+          width: 100%;
         }
 
-        /* StreamCenter の iframe ラッパーを親の高さに合わせる */
-        .stream-and-h2h-sticky .h2h-faceoff .stream-player-wrapper {
-          aspect-ratio: unset !important;
-          height: 100% !important;
-          width: 100% !important;
-        }
-
-        .stream-and-h2h-sticky .h2h-faceoff .stream-player-wrapper iframe {
-          width: 100% !important;
-          height: 100% !important;
+        /* h2h-secondary に最小高さを確保 */
+        .h2h-secondary {
+          min-height: 200px;
         }
 
         @media (max-width: 768px) {
