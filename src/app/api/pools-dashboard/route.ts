@@ -126,6 +126,62 @@ function cleanHandle(raw: string): string {
   return raw.trim()
 }
 
+// ── Pools フェーズの displayIdentifier 集合 (start.gg, 長期キャッシュ) ────────
+
+const STARTGG_API = 'https://api.start.gg/gql/alpha'
+const poolsPhaseCache = new Map<number, { ids: Set<string>; ts: number }>()
+const POOLS_PHASE_CACHE_TTL = 30 * 60 * 1000 // フェーズ構造は大会中不変なので30分キャッシュ
+
+async function getPoolsPhaseIdentifiers(tournamentId: number): Promise<Set<string> | null> {
+  const cached = poolsPhaseCache.get(tournamentId)
+  if (cached && Date.now() - cached.ts < POOLS_PHASE_CACHE_TTL) return cached.ids
+
+  const token = process.env.STARTGG_API_TOKEN || process.env.STARTGG_TOKEN
+  if (!token) return null
+
+  try {
+    const supabase = getSupabase()
+    const { data: t } = await supabase
+      .from('tournaments')
+      .select('startgg_event_id')
+      .eq('id', tournamentId)
+      .single()
+    const eventId = t?.startgg_event_id
+    if (!eventId) return null
+
+    const res = await fetch(STARTGG_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        query: `query($eventId: ID!) {
+          event(id: $eventId) {
+            phases { name phaseGroups { nodes { displayIdentifier } } }
+          }
+        }`,
+        variables: { eventId },
+      }),
+    })
+    const json = await res.json()
+    const phases = json?.data?.event?.phases as
+      | { name: string; phaseGroups: { nodes: { displayIdentifier: string }[] } }[]
+      | undefined
+    if (!phases) return null
+
+    const ids = new Set<string>()
+    for (const phase of phases) {
+      if (!/pool/i.test(phase.name)) continue
+      for (const g of phase.phaseGroups?.nodes ?? []) {
+        if (g.displayIdentifier) ids.add(g.displayIdentifier)
+      }
+    }
+    poolsPhaseCache.set(tournamentId, { ids, ts: Date.now() })
+    return ids
+  } catch (e) {
+    console.error('[pools-dashboard] getPoolsPhaseIdentifiers failed:', e)
+    return null
+  }
+}
+
 // ── Main data builder ─────────────────────────────────────────────────────────
 
 async function fetchPoolsData(tournamentId: number) {
@@ -403,8 +459,17 @@ async function fetchPoolsData(tournamentId: number) {
     Pools: { completed: completedOverall, total: totalOverall, percent: percentOverall },
   }
 
-  // 8. Current phase = the most recent round_text
-  const currentPhase = allSets.length > 0 ? allSets[0].round_text : 'Unknown'
+  // 8. Current phase: 実際の Pools フェーズに属する pool_identifier 集合と照合して判定。
+  //    Top 32/Top 8 などのブラケットも phaseGroup を持つため pool_identifier が非null になり得る
+  //    （例: BAM16 の Top 32 は pool_identifier="1"）。単純な null チェックでは誤判定するため、
+  //    start.gg から「Pools」フェーズ配下の displayIdentifier 集合を取得して厳密に照合する。
+  const poolsPhaseIds = await getPoolsPhaseIdentifiers(tournamentId)
+  const inPoolsPhase = poolsPhaseIds
+    ? (allSets[0]?.pool_identifier != null && poolsPhaseIds.has(allSets[0].pool_identifier))
+    : allSets.slice(0, 5).some(s => s.pool_identifier) // フォールバック: start.gg 取得失敗時
+  const currentPhase = allSets.length > 0
+    ? (inPoolsPhase ? allSets[0].round_text : 'Top Bracket')
+    : (totalOverall > 0 ? 'Pools' : 'Unknown')
 
   const newestEventTs = feed.length > 0 ? feed[0].timestamp : null
 

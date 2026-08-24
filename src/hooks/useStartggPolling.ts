@@ -6,14 +6,26 @@ export type FeaturedMode = 'live' | 'latest' | 'recent'
 
 export interface UseStartggPollingInput {
   startggEventId?: number
+  /** start.gg を使わない大会で Liquipedia から取得する場合の大会キー */
+  liquipediaTournament?: string
   endDate?: string
   phases: any[]
   hasStream: boolean
   searchQuery: string
 }
 
+export interface StartggStanding {
+  placement: number
+  /** false = まだ試合が残っており順位が変動しうる暫定順位 */
+  isFinal:   boolean
+  player:    string
+  entrantId: number | null
+  startggId: number | null
+}
+
 export interface UseStartggPollingReturn {
   startggMatches:  any[]
+  startggStandings: StartggStanding[]
   cc12Matches:     any[]
   cc12LastUpdated: string
   mergedPhases:    any[]
@@ -23,12 +35,14 @@ export interface UseStartggPollingReturn {
 
 export function useStartggPolling({
   startggEventId,
+  liquipediaTournament,
   endDate,
   phases,
   hasStream,
   searchQuery,
 }: UseStartggPollingInput): UseStartggPollingReturn {
   const [startggMatches,  setStartggMatches]  = useState<any[]>([])
+  const [startggStandings, setStartggStandings] = useState<StartggStanding[]>([])
   const [cc12Matches,     setCc12Matches]     = useState<any[]>([])
   const [cc12LastUpdated, setCc12LastUpdated] = useState('')
   // live セット検出時は 10s、通常は 15s ポーリング
@@ -52,22 +66,30 @@ export function useStartggPolling({
     return () => clearInterval(id)
   }, [hasStream])
 
-  // ── start.gg ポーリング (live セット検出時 10s / 通常 15s) ─────────────
+  // ── 試合データのポーリング ────────────────────────────────────────────
+  // start.gg 優先。start.gg を使わない大会 (EWC本戦など) は Liquipedia から取得する。
+  // どちらも /api/startgg と同じ matches 形状を返すため以降の処理は共通
   useEffect(() => {
-    if (!startggEventId) return
+    if (!startggEventId && !liquipediaTournament) return
+    const url = startggEventId
+      ? '/api/startgg?eventId=' + startggEventId + '&fresh=1'
+      : '/api/liquipedia/results?tournament=' + liquipediaTournament
     const ended = endDate && new Date() > new Date(endDate + 'T23:59:59')
     const fetchStartgg = async () => {
       try {
-        const res  = await fetch('/api/startgg?eventId=' + startggEventId + '&fresh=1')
+        const res  = await fetch(url)
         const data = await res.json()
         if (data.matches) {
           setStartggMatches(data.matches)
-          // live セットがある場合はポーリングを 10s に短縮
+          // live セットがある場合はポーリングを短縮。
+          // Liquipedia は編集反映が遅く、かつレート制限があるため長めに取る
           const hasLive = data.matches.some((m: any) => m.status === 'live')
-          setPollInterval(hasLive ? 10_000 : 15_000)
+          if (startggEventId) setPollInterval(hasLive ? 10_000 : 15_000)
+          else                setPollInterval(hasLive ? 30_000 : 60_000)
         }
+        if (Array.isArray(data.standings)) setStartggStandings(data.standings)
         if (data.lastUpdated) setCc12LastUpdated(data.lastUpdated)
-      } catch (e) { console.error('[startgg]', e) }
+      } catch (e) { console.error('[matches]', e) }
     }
     fetchStartgg()
     if (!ended) {
@@ -75,7 +97,7 @@ export function useStartggPolling({
       return () => clearInterval(id)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startggEventId, hasStream, searchQuery, pollInterval])
+  }, [startggEventId, liquipediaTournament, hasStream, searchQuery, pollInterval])
 
   // ── mergedPhases ──────────────────────────────────────────────────────────
   // フェーズ名が一致しない場合のフォールバック判定
@@ -207,6 +229,8 @@ export function useStartggPolling({
         player2_country: null,
         status:          m.status,
         completedAt:     m.completedAt ?? null,
+        // 予定時刻。UP NEXT を「本当に次の試合」順に並べるために使う
+        scheduledAt:     m.scheduledAt ?? null,
       }
     }
 
@@ -230,7 +254,18 @@ export function useStartggPolling({
     })
 
     if (live.length > 0) {
-      live.sort((a, b) => (a.status === 'live' ? -1 : b.status === 'live' ? 1 : 0))
+      // 進行中を最優先、その後は予定時刻の早い順。
+      // EWC のように「グループ順ではなく進行に応じて順番が決まる」大会では、
+      // フェーズ走査順のまま先頭を出すと選手が確定済みの試合（例: Group AA の
+      // Daigo vs Itabashi）が実際の進行と無関係にずっと表示されてしまう
+      live.sort((a, b) => {
+        const aLive = a.status === 'live' ? 0 : 1
+        const bLive = b.status === 'live' ? 0 : 1
+        if (aLive !== bLive) return aLive - bLive
+        const at = a.scheduledAt ?? Number.MAX_SAFE_INTEGER
+        const bt = b.scheduledAt ?? Number.MAX_SAFE_INTEGER
+        return at - bt
+      })
       return { upNextMatches: live.slice(0, 8), featuredMode: 'live' as const }
     }
 
@@ -251,9 +286,38 @@ export function useStartggPolling({
       return { upNextMatches: completedPhase.slice(0, 8), featuredMode: 'recent' as const }
     }
 
-    const fallback = startggMatches.filter(validMatch).slice(0, 8).map(m => toEntry(m))
-    return { upNextMatches: fallback, featuredMode: 'recent' as const }
+    // ── フォールバック ────────────────────────────────────────────────────
+    // mergedPhases は startggEventId がある大会でしか試合を持たない。
+    // Liquipedia 由来の大会 (EWC本戦など) はここに来るため、
+    // API のフェーズ記載順そのままではなく進行状況で並べ替える。
+    // これをしないと選手が確定済みの先頭の試合が実際の進行と無関係に固定表示される
+    const usable = startggMatches.filter(validMatch)
+
+    const pendingByTime = usable
+      .filter((m: any) => m.status === 'live' || m.status === 'upcoming')
+      .sort((a: any, b: any) => {
+        const aLive = a.status === 'live' ? 0 : 1
+        const bLive = b.status === 'live' ? 0 : 1
+        if (aLive !== bLive) return aLive - bLive
+        return (a.scheduledAt ?? Number.MAX_SAFE_INTEGER) - (b.scheduledAt ?? Number.MAX_SAFE_INTEGER)
+      })
+
+    if (pendingByTime.length > 0) {
+      return {
+        upNextMatches: pendingByTime.slice(0, 8).map(m => toEntry(m)),
+        featuredMode: 'live' as const,
+      }
+    }
+
+    // 未消化が無ければ直近の結果（予定時刻の新しい順）
+    const recent = usable
+      .filter((m: any) => m.status === 'completed')
+      .sort((a: any, b: any) => (b.scheduledAt ?? 0) - (a.scheduledAt ?? 0))
+    return {
+      upNextMatches: recent.slice(0, 8).map(m => toEntry(m)),
+      featuredMode: 'recent' as const,
+    }
   })()
 
-  return { startggMatches, cc12Matches, cc12LastUpdated, mergedPhases, upNextMatches, featuredMode }
+  return { startggMatches, startggStandings, cc12Matches, cc12LastUpdated, mergedPhases, upNextMatches, featuredMode }
 }

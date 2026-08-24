@@ -24,9 +24,11 @@ function isTournamentEnded(endDate: string | undefined): boolean {
 export function usePoolsDashboard(
   dbTournamentId: number | undefined,
   endDate?: string,
+  /** 指定するとフェーズ名による自動切替を行わず、このモードに固定する */
+  forceDisplayMode?: 'h2h' | 'pools',
 ): UsePoolsDashboardReturn {
   const [poolsData,            setPoolsData]           = useState<PoolsData | null>(null)
-  const [displayMode,          setDisplayMode]          = useState<'h2h' | 'pools'>('h2h')
+  const [displayMode,          setDisplayMode]          = useState<'h2h' | 'pools'>(forceDisplayMode ?? 'h2h')
   const [displayModeManual,    setDisplayModeManual]    = useState(false)
   const [streamToast,          setStreamToast]          = useState<ToastEvent | null>(null)
   const streamToastTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -38,13 +40,9 @@ export function usePoolsDashboard(
   useEffect(() => {
     if (!dbTournamentId) return
 
-    // 終了した大会: H2H固定でポーリングなし
-    if (isTournamentEnded(endDate)) {
-      setDisplayMode('h2h')
-      return
-    }
-
     const url = '/api/pools-dashboard?tournamentId=' + dbTournamentId
+    const endedByDate = isTournamentEnded(endDate)
+    let intervalId: ReturnType<typeof setInterval> | null = null
 
     const fetchData = async () => {
       console.log('[POOLS] fetching...', new Date().toISOString())
@@ -68,10 +66,32 @@ export function usePoolsDashboard(
           console.log('[POOLS] setState', feedCount, qualifiedCount)
           setPoolsData(data)
 
-          // 手動切替していない場合のみ自動判定
-          if (!displayModeManualRef.current) {
+          // endDate 超過でも直近24hにイベントがあればライブ扱い（延長・日程ズレ対応）
+          if (endedByDate) {
+            const newest = data.newestEventTs
+            const hasRecentActivity = !!newest && (Date.now() / 1000 - newest) < 24 * 3600
+            if (!hasRecentActivity) {
+              if (!displayModeManualRef.current) setDisplayMode('h2h')
+              if (intervalId) { clearInterval(intervalId); intervalId = null }
+              return
+            }
+          }
+
+          // 手動切替・モード固定のいずれもない場合のみ自動判定
+          if (!displayModeManualRef.current && !forceDisplayMode) {
             const phase = (data.currentPhase ?? '').toLowerCase()
-            const isPoolsPhase = phase.includes('winners') || phase.includes('losers') || phase.includes('round')
+            const isPoolsPhase = (() => {
+              // 0. 上位ブラケット（Top 24 / Top 8）= pool_identifier なし → H2H
+              if (phase === 'top bracket') return false
+              // 1. APIがプールデータを返しており、かつ未完了セットが残っている = Pools 進行中
+              const overallPools = data.overallProgress?.Pools
+              if (overallPools && data.pools?.length > 0 && overallPools.completed < overallPools.total) {
+                return true
+              }
+              // 2. フェーズ名による判定（フォールバック）
+              const poolKeywords = ['winners', 'losers', 'round', 'pools', 'unknown']
+              return poolKeywords.some(k => phase.includes(k))
+            })()
             setDisplayMode(isPoolsPhase ? 'pools' : 'h2h')
           }
         } else {
@@ -83,10 +103,10 @@ export function usePoolsDashboard(
     }
 
     fetchData()
-    const id = setInterval(fetchData, 15000)
-    return () => clearInterval(id)
+    intervalId = setInterval(fetchData, 15000)
+    return () => { if (intervalId) clearInterval(intervalId) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dbTournamentId, endDate])
+  }, [dbTournamentId, endDate, forceDisplayMode])
 
   return {
     poolsData,

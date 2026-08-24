@@ -71,13 +71,17 @@ async function getTournamentInfo() {
 
 // ── Step 2: Get event phases ──
 async function getEventPhases(eventId) {
+  // phaseGroups にページネーションを付けないと start.gg 側で 25件に切り詰められる。
+  // CEO2026 の Round1 (64グループ) で発生し、39プール・約1200セットが
+  // サイレントに欠落した（エラーは出ず、次のフェーズへ進んでしまうため気付きにくい）
   const data = await gql(
     `query ($eventId: ID!) {
       event(id: $eventId) {
         phases {
           id
           name
-          phaseGroups {
+          phaseGroups(query: { page: 1, perPage: 100 }) {
+            pageInfo { total totalPages }
             nodes {
               id
               displayIdentifier
@@ -88,7 +92,17 @@ async function getEventPhases(eventId) {
     }`,
     { eventId }
   );
-  return data?.event?.phases || [];
+  const phases = data?.event?.phases || [];
+  for (const phase of phases) {
+    const info = phase.phaseGroups?.pageInfo;
+    if (info && info.totalPages > 1) {
+      console.warn(
+        `   ⚠ Phase "${phase.name}": ${info.total} groups > perPage 100 (${info.totalPages} pages). ` +
+        `一部のプールが取得できていない可能性があります。`
+      );
+    }
+  }
+  return phases;
 }
 
 // ── Step 3: Get sets in a phase group ──
@@ -266,8 +280,32 @@ async function main() {
       .upsert(batch, { onConflict: 'tournament_id,startgg_set_id' });
     if (error) {
       console.error(`   ⚠️ Batch error: ${error.message}`);
+      // バッチ全体が落ちると大量欠落になるため、1件ずつ入れ直して被害を最小化する
+      let recovered = 0;
+      for (const row of batch) {
+        const { error: e1 } = await supabase
+          .from('tournament_sets')
+          .upsert([row], { onConflict: 'tournament_id,startgg_set_id' });
+        if (!e1) recovered++;
+        else console.error(`      ✗ set ${row.startgg_set_id}: ${e1.message}`);
+      }
+      console.error(`   → 個別リトライで ${recovered}/${batch.length} 件を回復`);
+      inserted += recovered;
     } else {
       inserted += batch.length;
+    }
+  }
+
+  // 投入後の実件数を検証（取りこぼしを黙って見逃さない）
+  {
+    const { count } = await supabase
+      .from('tournament_sets')
+      .select('*', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId);
+    if (count != null && count < allSets.length) {
+      console.error(
+        `   ⚠️ 検証: 取得 ${allSets.length} 件に対し DB は ${count} 件（${allSets.length - count} 件不足）`
+      );
     }
   }
 

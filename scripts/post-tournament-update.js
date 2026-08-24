@@ -93,15 +93,32 @@ function parseArgs() {
   return args
 }
 
+// Liquipedia は生HTMLの直接取得をブロックする（403）。
+// MediaWiki API 経由 + 規約準拠の User-Agent なら取得できるため、
+// liquipedia.net のページURLは API 呼び出しに変換する。
+// 返る HTML は同じレンダリング結果（brkts- クラス等）なので後段の解析はそのまま使える。
+const LIQUIPEDIA_UA = 'SF6Database/1.0 (https://sf6-database.vercel.app; sf6database@proton.me)'
+
+function toLiquipediaApiUrl(url) {
+  const m = url.match(/^https?:\/\/liquipedia\.net\/fighters\/(.+?)\/?$/)
+  if (!m) return null
+  const page = decodeURIComponent(m[1])
+  return `https://liquipedia.net/fighters/api.php?action=parse` +
+         `&page=${encodeURIComponent(page)}&prop=text&format=json`
+}
+
 // ── HTTP helper (gzip 対応) ──────────────────────────────────────────────────
 async function fetchText(url, retries = 3) {
+  const apiUrl = toLiquipediaApiUrl(url)
+  const target = apiUrl ?? url
+
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(target, {
         headers: {
           'Accept-Encoding': 'gzip, deflate',
-          'User-Agent': 'sf6-database/1.0 (https://github.com; data research)',
-          'Accept': 'text/html,application/xhtml+xml',
+          'User-Agent': LIQUIPEDIA_UA,
+          'Accept': apiUrl ? 'application/json' : 'text/html,application/xhtml+xml',
         },
       })
       if (res.status === 429 || res.status === 503) {
@@ -122,6 +139,16 @@ async function fetchText(url, retries = 3) {
         console.log(`  ⏳ Cloudflare rate limit page, waiting ${wait / 1000}s...`)
         await sleep(wait)
         continue
+      }
+      // API 経由の場合は JSON からレンダリング済み HTML を取り出す
+      if (apiUrl) {
+        let json
+        try { json = JSON.parse(text) } catch { return null }
+        if (json?.error) {
+          console.log(`  ⚠️  Liquipedia API: ${json.error.code} (${url})`)
+          return null
+        }
+        return json?.parse?.text?.['*'] ?? null
       }
       return text
     } catch (err) {

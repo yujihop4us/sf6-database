@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { use } from 'react'
 import { useRouter } from 'next/navigation'
 import SiteNavbar from '@/components/SiteNavbar'
@@ -10,6 +10,7 @@ import { usePoolsDashboard } from '@/hooks/usePoolsDashboard'
 import { useStartggPolling }  from '@/hooks/useStartggPolling'
 import { useAutoDetect }      from '@/hooks/useAutoDetect'
 import { V, type Player, type H2HData } from '@/components/live/tokens'
+import { StartCountdown } from '@/components/StartCountdown'
 import { PlayerBand } from '@/components/live/PlayerBand'
 import { LiveStandings } from '@/components/live/LiveStandings'
 import { SearchModal } from '@/components/live/SearchModal'
@@ -64,16 +65,16 @@ const DEMO_POOLS_DATA: PoolsData = {
     'Round Robin Pools': { completed: 15, total: 24, percent: 63 },
   },
   feed: [
-    { type: 'QUALIFIED_W', priority: 'HIGH',   timestamp: now() - 300,  pool: 'Pool A', phase: 'Round Robin Pools', round: 'Final Round',  message: 'XiaoHai が Pool A を首位通過 (5-0)',  players: [{ name: 'XiaoHai', handle: 'XiaoHai', seed: 2  }], score: '3-0' },
-    { type: 'UPSET',       priority: 'HIGH',   timestamp: now() - 900,  pool: 'Pool B', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Riddles が Higuchi を撃破',            players: [{ name: 'Riddles', handle: 'Riddles',  seed: 8  }, { name: 'Higuchi', handle: 'Higuchi', seed: 3 }], score: '3-2' },
-    { type: 'QUALIFIED_W', priority: 'MEDIUM', timestamp: now() - 1800, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 5',      message: 'Punk が Pool A 2位で通過 (4-1)',      players: [{ name: 'Punk',    handle: 'Punk',    seed: 1  }], score: '3-1' },
-    { type: 'ELIMINATED',  priority: 'MEDIUM', timestamp: now() - 2700, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Kobayan が敗退',                       players: [{ name: 'Kobayan', handle: 'Kobayan', seed: 24 }], score: '0-3' },
-    { type: 'MARQUEE_RESULT', priority: 'HIGH', timestamp: now() - 3600, pool: 'Pool A', phase: 'Round Robin Pools', round: 'Round 3',    message: 'Punk vs MenaRD — 激戦の末Punkが制す', players: [{ name: 'Punk', handle: 'Punk', seed: 1 }, { name: 'MenaRD', handle: 'MenaRD', seed: 5 }], score: '3-2' },
+    { type: 'QUALIFIED_W', priority: 'HIGH',   timestamp: now() - 300,  pool: 'A', phase: 'Round Robin Pools', round: 'Final Round',  message: 'XiaoHai が Pool A を首位通過 (5-0)',  players: [{ name: 'XiaoHai', handle: 'XiaoHai', seed: 2  }], score: '3-0' },
+    { type: 'UPSET',       priority: 'HIGH',   timestamp: now() - 900,  pool: 'B', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Riddles が Higuchi を撃破',            players: [{ name: 'Riddles', handle: 'Riddles',  seed: 8  }, { name: 'Higuchi', handle: 'Higuchi', seed: 3 }], score: '3-2' },
+    { type: 'QUALIFIED_W', priority: 'MEDIUM', timestamp: now() - 1800, pool: 'A', phase: 'Round Robin Pools', round: 'Round 5',      message: 'Punk が Pool A 2位で通過 (4-1)',      players: [{ name: 'Punk',    handle: 'Punk',    seed: 1  }], score: '3-1' },
+    { type: 'ELIMINATED',  priority: 'MEDIUM', timestamp: now() - 2700, pool: 'A', phase: 'Round Robin Pools', round: 'Round 4',      message: 'Kobayan が敗退',                       players: [{ name: 'Kobayan', handle: 'Kobayan', seed: 24 }], score: '0-3' },
+    { type: 'MARQUEE_RESULT', priority: 'HIGH', timestamp: now() - 3600, pool: 'A', phase: 'Round Robin Pools', round: 'Round 3',    message: 'Punk vs MenaRD — 激戦の末Punkが制す', players: [{ name: 'Punk', handle: 'Punk', seed: 1 }, { name: 'MenaRD', handle: 'MenaRD', seed: 5 }], score: '3-2' },
   ],
   qualified: [
-    { name: 'XiaoHai', handle: 'XiaoHai', seed: 2,  side: 'winners', pool: 'Pool A', phase: 'Round Robin Pools' },
-    { name: 'Punk',    handle: 'Punk',    seed: 1,  side: 'winners', pool: 'Pool A', phase: 'Round Robin Pools' },
-    { name: 'MenaRD',  handle: 'MenaRD',  seed: 5,  side: 'losers',  pool: 'Pool A', phase: 'Round Robin Pools' },
+    { name: 'XiaoHai', handle: 'XiaoHai', seed: 2,  side: 'winners', pool: 'A', phase: 'Round Robin Pools' },
+    { name: 'Punk',    handle: 'Punk',    seed: 1,  side: 'winners', pool: 'A', phase: 'Round Robin Pools' },
+    { name: 'MenaRD',  handle: 'MenaRD',  seed: 5,  side: 'losers',  pool: 'A', phase: 'Round Robin Pools' },
   ],
   pools: [
     { id: 'pool-a', phase: 'Round Robin Pools', completed: 10, total: 10, percent: 100 },
@@ -108,6 +109,13 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   const [isStreamLive, setIsStreamLive] = useState(false)
   const [streamInfo, setStreamInfo]     = useState({ title: '', viewerCount: 0, gameName: '' })
   const [centerTab, setCenterTab]       = useState<'stream' | 'bracket'>('stream')
+  const [mobileTab, setMobileTab]       = useState<'standings' | 'chat'>('standings')
+  // 順位表/チャットはファーストビューの下 — スクロールヒントから飛べるようにする
+  const secondaryRef = useRef<HTMLDivElement>(null)
+  // 配信が画面外に出そうになったらミニプレーヤー化（PCのみ）。
+  // Twitch はビューポート外に出ると再生を停止し自動再開しないため、
+  // スクロール中も必ず画面内に残す必要がある
+  const [miniPlayer, setMiniPlayer] = useState(false)
 
   // ── 大会設定 (tournamentConfig.ts から) ──────────────────────────────────
   // リダイレクト対象なら何も描画しない
@@ -130,13 +138,18 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
     poolsData, displayMode, setDisplayMode,
     displayModeManual, setDisplayModeManual,
     streamToast, setStreamToast, streamToastTimer,
-  } = usePoolsDashboard(isDemo ? undefined : config.dbTournamentId, isDemo ? undefined : config.endDate)
+  } = usePoolsDashboard(
+    isDemo ? undefined : config.dbTournamentId,
+    isDemo ? undefined : config.endDate,
+    isDemo ? undefined : config.forceDisplayMode,
+  )
 
   const {
-    startggMatches: realStartggMatches, cc12Matches, cc12LastUpdated,
+    startggMatches: realStartggMatches, startggStandings, cc12Matches, cc12LastUpdated,
     mergedPhases, upNextMatches: realUpNextMatches, featuredMode,
   } = useStartggPolling({
     startggEventId: isDemo ? undefined : config.startggEventId,
+    liquipediaTournament: isDemo ? undefined : config.liquipediaTournament,
     endDate: config.endDate,
     phases: config.phases,
     hasStream: isDemo ? false : hasStream,
@@ -237,15 +250,46 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
   // ── start.gg 自動検知 (デモ時は無効) ─────────────────────────────────────
   const { autoDetected, liveScore, setManualMode } = useAutoDetect(
     isDemo ? [] : startggMatches,
-    isDemo ? undefined : config.startggEventId,
+    // start.gg / Liquipedia どちらのソースでも自動検知を有効にする
+    isDemo ? false : !!(config.startggEventId || config.liquipediaTournament),
     (p1, p2, p1Id, p2Id) => { setScore({ p1: 0, p2: 0 }); handleMatchClick(p1, p2, p1Id, p2Id) },
+    // Liquipedia は完了時刻を持たないため予定時刻からの推定を許可する
+    !isDemo && !config.startggEventId && !!config.liquipediaTournament,
   )
+
+  // ── ミニプレーヤー切替 (PCのみ / モバイルは sticky で対応済み) ──────────
+  useEffect(() => {
+    const MOBILE_BP = 768
+    const update = () => {
+      if (window.innerWidth <= MOBILE_BP) { setMiniPlayer(false); return }
+      const wrapper = document.querySelector('.stream-and-h2h-sticky .stream-player-wrapper')
+      if (!wrapper) return
+      const r = wrapper.getBoundingClientRect()
+      if (r.height === 0) return
+      // 配信枠(ミニ化中はプレースホルダ)の可視率で判定する。
+      // 完全に画面外へ出てからでは Twitch 側が再生を止めてしまうため、
+      // まだ十分見えているうちにミニ化する。閾値に差を付けて振動を防ぐ
+      const visible = Math.max(0, Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0))
+      const ratio = visible / r.height
+      setMiniPlayer(prev => (prev ? ratio < 0.8 : ratio < 0.55))
+    }
+    update()
+    window.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
 
   // ── レンダー ──────────────────────────────────────────────────────────────
   return (
-    <div className="live-page" style={{
+    <div className={`live-page${miniPlayer ? ' mini-player' : ''}${centerTab === 'bracket' ? ' bracket-mini' : ''}`} style={{
       background: V.bg, color: V.text, fontFamily: V.FB,
-      height: '100dvh', overflow: 'hidden',
+      // 配信+H2H を sticky 固定し、順位表/チャットは下へスクロールして参照する。
+      // overflow を指定するとスクロールコンテナが生まれ、子の position:sticky が
+      // viewport 基準で効かなくなるため visible のままにする
+      minHeight: '100dvh', overflow: 'visible',
       display: 'flex', flexDirection: 'column',
     }}>
       <style>{`
@@ -290,16 +334,184 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           }
         }
 
-        /* h2h-secondary に最小高さを確保 */
+        /* 順位表 / チャット: ファーストビューの下に配置される。
+           以前は viewport 内に押し込むため 200px しか確保できずチャットが
+           極端に狭かった。ページスクロールを解禁したので実用的な高さを与える */
         .h2h-secondary {
-          min-height: 200px !important;
+          height: min(78vh, 760px);
+          min-height: 420px !important;
+          scroll-margin-top: 8px;
+        }
+
+        /* タブ用ラッパー div: 中身のパネルをセル全高に引き伸ばす */
+        .h2h-secondary > div {
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          min-width: 0;
+        }
+        .h2h-secondary > div > * {
+          flex: 1;
+          min-height: 0;
+        }
+
+        /* PC: 配信エリアの高さ上限。
+           配信 + H2H だけでファーストビューが成立するよう、secondary(順位表/チャット)
+           分の高さは差し引かない。secondary は下にスクロールして参照する。
+           実測内訳: navbar 36 + toggle 33 + ラウンドバー 48 + H2Hバー 114 + gap/padding 22 ≈ 253px */
+        /* PC: 配信エリアの高さ上限。順位表/チャット分は差し引かない
+           （それらはスクロールして参照する）。
+           内訳: navbar 36 + toggle 33 + ラウンドバー 48 + H2Hバー 114 + gap/padding 22 ≈ 253px */
+        .stream-and-h2h-sticky .stream-player-wrapper {
+          max-height: calc(100dvh - 265px);
+          min-height: 300px;
+        }
+
+        /* ── ミニプレーヤー ───────────────────────────────────────────────
+           スクロールで配信が画面外に出そうになったら、iframe だけを
+           右下に固定して再生を継続させる。
+           ポイント: iframe を DOM から移動させず CSS だけで fixed 化する。
+           DOM 移動や src 変更を行うと iframe が再読込され再生が止まる
+           （実測: CSS のみの fixed 化では reload 0回・同一ノード維持）。
+           また .stream-player-wrapper 自体は通常フローに残すことで
+           レイアウトが崩れず、スクロール位置の振動も起きない */
+        /* 配信 iframe の基準スタイル。
+           以前は StreamCenter 側のインラインスタイルだったが、インラインは
+           CSS クラスより優先されミニ化の上書きができないためクラス化した */
+        .stream-iframe {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          max-height: 100%;
+          border: none;
+        }
+
+        /* BRACKET タブ表示中は配信枠を畳んでミニプレーヤー化する。
+           iframe をアンマウントすると再生が止まり戻しても再開しないため、
+           DOM には残したまま CSS だけで退避させる */
+        .live-page.bracket-mini .stream-player-wrapper {
+          height: 0 !important;
+          min-height: 0 !important;
+          max-height: 0 !important;
+          /* モバイルは padding-bottom で 16:9 を作っているため合わせて潰す */
+          padding-bottom: 0 !important;
+          border: none !important;
+        }
+
+        .live-page.mini-player .stream-and-h2h-sticky .stream-player-wrapper .stream-iframe,
+        .live-page.bracket-mini .stream-player-wrapper .stream-iframe {
+          position: fixed;
+          inset: auto;
+          max-height: none;
+          right: 18px;
+          bottom: 18px;
+          width: 336px;
+          height: 189px;
+          z-index: 200;
+          border-radius: 10px;
+          box-shadow: 0 12px 34px rgba(0,0,0,0.65);
+          border: 1px solid ${V.border2};
+        }
+        /* ミニ化中、元の配信枠には代替表示を出す */
+        .live-page.mini-player .stream-and-h2h-sticky .stream-player-wrapper::after {
+          content: '▶ ミニプレーヤーで再生中';
+          position: absolute; inset: 0;
+          display: flex; align-items: center; justify-content: center;
+          background: ${V.surface};
+          border: 1px dashed ${V.border2};
+          border-radius: 8px;
+          font-family: ${V.FD}; font-size: 12px; font-weight: 700;
+          letter-spacing: 0.1em; color: ${V.dim};
+        }
+
+        /* PC: ファーストビューを配信+H2Hで埋める（配信は最大サイズを維持）。
+           下へスクロールすると配信はミニプレーヤー化して画面内に residual する。
+           Twitch は埋め込みが画面外に出ると再生を停止し、戻しても自動再開しない
+           （実測: 画面外で paused=true / time=0 にリセット）ため、
+           スクロール中も必ずビューポート内に残す必要がある */
+        .stream-and-h2h-sticky {
+          min-height: calc(100dvh - 105px);
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+        }
+
+        /* 下にコンテンツがあることを示すスクロールヒント */
+        .scroll-hint {
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          flex-shrink: 0;
+          margin-top: -2px;
+          padding: 6px 0 2px;
+          background: none; border: none; width: 100%;
+          cursor: pointer;
+          font-family: ${V.FD}; font-size: 10px; font-weight: 800;
+          letter-spacing: 0.16em; text-transform: uppercase;
+          color: ${V.dim};
+          transition: color 0.2s;
+        }
+        .scroll-hint:hover { color: ${V.accent}; }
+        .scroll-hint span:last-child {
+          animation: sf6live-bounce 1.8s ease-in-out infinite;
+        }
+        @keyframes sf6live-bounce {
+          0%, 100% { transform: translateY(0); opacity: 0.55; }
+          50%      { transform: translateY(3px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .scroll-hint span:last-child { animation: none; }
+        }
+
+        /* モバイルタブバー: PCでは非表示 */
+        .mobile-tab-bar {
+          display: none;
+        }
+
+        /* コンテンツ最大幅: 1440px中央配置（それ以上は左右に暗い帯） */
+        .live-content-wrapper {
+          max-width: 1440px;
+          margin: 0 auto;
+          width: 100%;
+        }
+
+        /* チャンネルセレクター: hover可能なデバイスのみホバー表示化
+           タッチ端末では常時表示（hoverが無いと操作不能になるため） */
+        @media (hover: hover) {
+          .channel-selector {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+          }
+          .stream-player-wrapper:hover .channel-selector,
+          .channel-selector:hover,
+          .channel-selector:focus-within {
+            opacity: 1;
+          }
+        }
+
+        /* Pools モード: PC デフォルトレイアウト */
+        .pools-layout {
+          flex: 1;
+          min-height: 0;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 380px;
+          gap: 12px;
+        }
+        .pools-layout .stream-container {
+          display: grid;
+          grid-template-rows: 1.8fr 1fr;
+          gap: 12px;
+          min-height: 0;
+          overflow: hidden;
         }
 
         @media (max-width: 768px) {
-          /* ===== ページ全体: 100dvh固定 + flex縦積み ===== */
+          /* ===== ページ全体 =====
+             以前は 100dvh 固定 + overflow:hidden で、配信・H2H・チャットを
+             すべて1画面に押し込んでいたためチャットが極端に狭かった。
+             ページ自体を下に伸ばしてスクロールできるようにする */
           .live-page {
-            height: 100dvh !important;
-            overflow: hidden !important;
+            min-height: 100dvh !important;
+            overflow: visible !important;
             padding: 0 !important;
             display: flex !important;
             flex-direction: column !important;
@@ -310,17 +522,29 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             flex-direction: column !important;
             flex: 1 !important;
             min-height: 0 !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             padding: 0 !important;
           }
 
-          /* ===== 固定エリア: 配信 + H2Hバー ===== */
+          /* モバイルは配信を大きく使う (縦画面なので 16:9 でも高さを食わない) */
+          .stream-and-h2h-sticky .stream-player-wrapper {
+            max-height: none !important;
+            min-height: 0 !important;
+          }
+          .scroll-hint { display: none !important; }
+
+          /* ===== 固定エリア: 配信 + H2Hバー =====
+             sticky で画面上部に固定し続ける。Twitch はビューポート外に出ると
+             再生を停止し、戻しても自動再開しないため必須 */
           .stream-and-h2h-sticky {
-            position: relative !important;
+            position: sticky !important;
+            top: 0 !important;
             flex-shrink: 0 !important;
             z-index: 50 !important;
             background: #0a0c14 !important;
             width: 100% !important;
+            min-height: 0 !important;
+            display: block !important;
           }
 
           /* 配信プレイヤー 16:9 フル幅 */
@@ -349,6 +573,25 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             height: 100% !important;
             border: none !important;
           }
+          /* BRACKET タブ表示中はモバイルでもミニプレーヤーで再生を継続する。
+             上の !important ルールを打ち消す必要があるため同じく !important */
+          .live-page.bracket-mini .stream-player-wrapper {
+            padding-bottom: 0 !important;
+            height: 0 !important;
+            min-height: 0 !important;
+          }
+          .live-page.bracket-mini .stream-player-wrapper .stream-iframe {
+            position: fixed !important;
+            top: auto !important;
+            left: auto !important;
+            right: 8px !important;
+            bottom: 8px !important;
+            width: 168px !important;
+            height: 95px !important;
+            z-index: 200 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.7) !important;
+          }
 
           /* ===== H2H スコアバー（VS レイアウト） ===== */
           .h2h-score-bar {
@@ -373,23 +616,43 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             display: none !important;
           }
 
-          /* ===== スクロールエリア: flex:1 + overflow-y:auto ===== */
+          /* ===== 順位表 / チャット =====
+             内側スクロールをやめ、ページのフローに乗せて下に伸ばす。
+             チャットが十分な高さを持てるよう viewport 基準で確保する */
           .h2h-secondary {
-            flex: 1 !important;
-            overflow-y: auto !important;
-            overflow-x: hidden !important;
-            -webkit-overflow-scrolling: touch !important;
+            flex: none !important;
+            overflow: visible !important;
             display: flex !important;
             flex-direction: column !important;
             grid-template-columns: unset !important;
             gap: 0 !important;
             padding: 8px !important;
+            min-height: 78dvh !important;
+          }
+
+          /* タブバー: 配信(sticky)と干渉するため固定はしない */
+          .mobile-tab-bar {
+            display: flex !important;
+            flex-shrink: 0;
+            background: #0f1923 !important;
+          }
+
+          /* タブ非アクティブ時は非表示 */
+          .mobile-panel-hidden {
+            display: none !important;
+          }
+
+          /* アクティブパネルのラッパーは残り全高を使う */
+          .h2h-secondary > div {
+            flex: 1 !important;
             min-height: 0 !important;
           }
 
-          /* チャットパネル非表示 */
-          .live-chat-panel {
-            display: none !important;
+          /* チャットパネル: タブで制御するため常に非表示上書きを解除 */
+          .h2h-secondary .live-chat-panel {
+            display: flex !important;
+            flex: 1 !important;
+            min-height: 0 !important;
           }
 
           /* 順位表フル幅 */
@@ -518,16 +781,20 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
       )}
 
       {/* メインコンテンツ: navbar の下に残り全高さを使う */}
-      <div style={{
-        flex: 1, minHeight: 0, overflow: 'hidden',
-        padding: '10px 16px 12px', maxWidth: 1600, margin: '0 auto', width: '100%',
+      <div className="live-content-wrapper" style={{
+        flex: 1, minHeight: 0, overflow: 'visible',
+        padding: '10px 16px 12px',
         display: 'flex', flexDirection: 'column', gap: 10,
         boxSizing: 'border-box' as const,
       }}>
 
-        {/* ── モード切替トグル ── */}
-        {(config.startggEventId || isDemo) && (
+        {/* ── モード切替トグル / カウントダウン ── */}
+        {(config.startggEventId || config.liquipediaTournament || isDemo) && (
           <div className="mode-toggle" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+            {/* 開始前は次の試合までのカウントダウンを表示 */}
+            {!isDemo && config.liquipediaTournament && (
+              <StartCountdown liquipediaTournament={config.liquipediaTournament} />
+            )}
             {/* モード切替: デモのみ手動切替可、本番はAUTOのみ */}
             {isDemo ? (
               <>
@@ -549,7 +816,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
               </>
             ) : (
               <span style={{ fontFamily: V.FD, fontSize: 10, color: V.dim, letterSpacing: '0.08em' }}>
-                {poolsData ? `Phase: ${poolsData.currentPhase}` : ''}
+                {/* Unknown は「まだデータが無い」だけなので出さない */}
+                {poolsData && poolsData.currentPhase && poolsData.currentPhase !== 'Unknown'
+                  ? `Phase: ${poolsData.currentPhase}`
+                  : ''}
               </span>
             )}
           </div>
@@ -561,20 +831,9 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
              POOLS モード: 2カラム (配信+チャット 左 / PoolsDashboard 右)
              PlayerBand・H2Hバーは非表示。右パネルが画面上から下まで全高さ
           ══════════════════════════════════════════════════════════ */
-          <div className="pools-layout" style={{
-            flex: 1, minHeight: 0,
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 380px',
-            gap: 12,
-          }}>
+          <div className="pools-layout">
             {/* 左カラム: 配信映像(上) + チャット(下) */}
-            <div className="stream-container" style={{
-              display: 'grid',
-              gridTemplateRows: '1.8fr 1fr',
-              gap: 12,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}>
+            <div className="stream-container">
               <StreamCenter
                 score={score}
                 centerTab={centerTab} setCenterTab={setCenterTab}
@@ -642,7 +901,9 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
                   color: V.accent,
                 }}>AUTO</span>
                 <span style={{ fontFamily: V.FB, fontSize: 11, color: V.muted }}>
-                  start.gg の進行中セットを自動検知中 — P1 / P2 を自動更新しています
+                  {config.startggEventId
+                    ? 'start.gg の進行中セットを自動検知中'
+                    : 'Liquipedia の試合スケジュールから自動検知中'} — P1 / P2 を自動更新しています
                 </span>
                 <button
                   onClick={() => setManualMode()}
@@ -710,25 +971,68 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             <H2HBars player1={player1} player2={player2} h2hData={h2hData} />
             </div>{/* /stream-and-h2h-sticky */}
 
-            {/* セカンダリ: H2H */}
-            <div className="h2h-secondary" style={{
-              flex: 1, minHeight: 0,
+            {/* 下に順位表/チャットがあることを示す (PCのみ) */}
+            <button
+              className="scroll-hint"
+              onClick={() => secondaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              aria-label="順位表とチャットへスクロール"
+            >
+              <span>STANDINGS ・ CHAT</span>
+              <span aria-hidden="true">▼</span>
+            </button>
+
+            {/* モバイルタブバー */}
+            <div className="mobile-tab-bar" style={{
+              display: 'none', // PC では非表示; mobile CSS で flex に上書き
+              background: '#0f1923',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              {(['standings', 'chat'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setMobileTab(tab)}
+                  style={{
+                    flex: 1, padding: '8px 0',
+                    background: mobileTab === tab ? 'rgba(0,212,170,0.1)' : 'transparent',
+                    border: 'none',
+                    borderBottom: mobileTab === tab ? '2px solid #00d4aa' : '2px solid transparent',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-barlow-condensed, "Barlow Condensed", sans-serif)',
+                    fontSize: 12, fontWeight: 700, letterSpacing: '0.1em',
+                    textTransform: 'uppercase' as const,
+                    color: mobileTab === tab ? '#00d4aa' : '#9ca3af',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {tab === 'standings' ? 'STANDINGS' : 'CHAT'}
+                </button>
+              ))}
+            </div>
+
+            {/* セカンダリ: 順位表 / チャット (ファーストビューの下) */}
+            <div className="h2h-secondary" ref={secondaryRef} style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
             }}>
 
-              <SidePanelLeft
-                player1={player1} player2={player2}
-                twitchChatChannels={config.twitchChatChannels}
-                isDemo={isDemo}
-              />
-              <LiveStandings
-                startggMatches={startggMatches}
-                upNextMatches={upNextMatches}
-                onMatchClick={(p1, p2, p1Id, p2Id) => {
-                  setManualMode()
-                  handleMatchClick(p1, p2, p1Id, p2Id)
-                }}
-              />
+              <div className={mobileTab !== 'chat' ? 'mobile-panel-hidden' : undefined}>
+                <SidePanelLeft
+                  player1={player1} player2={player2}
+                  twitchChatChannels={config.twitchChatChannels}
+                  isDemo={isDemo}
+                />
+              </div>
+              <div className={mobileTab !== 'standings' ? 'mobile-panel-hidden' : undefined}>
+                <LiveStandings
+                  startggMatches={startggMatches}
+                  startggStandings={startggStandings}
+                  upNextMatches={upNextMatches}
+                  onMatchClick={(p1, p2, p1Id, p2Id) => {
+                    setManualMode()
+                    handleMatchClick(p1, p2, p1Id, p2Id)
+                  }}
+                />
+              </div>
             </div>
           </>
 
