@@ -27,6 +27,11 @@ const supabase = createClient(
 )
 
 const DRY_RUN = process.argv.includes('--dry-run')
+/**
+ * 昇格の上限。--max-tier=B を渡すと Top 8 実績があっても B 止まりにする。
+ * A への昇格は影響が大きいため、ユーザーが個別に承認するまで抑えられるようにする。
+ */
+const MAX_TIER = process.argv.find(a => a.startsWith('--max-tier='))?.split('=')[1] ?? null
 
 const MAX_ENTRANTS_FOR_MAIN_EVENT = 64
 const TOP_N_FOR_A = 8
@@ -41,7 +46,7 @@ function promote(current, target) {
   return RANK[target] > cur ? target : null
 }
 
-export async function computeTierChanges() {
+export async function computeTierChanges({ maxTier = null } = {}) {
   // 対象大会を特定
   const { data: cands } = await supabase
     .from('tournaments')
@@ -95,7 +100,9 @@ export async function computeTierChanges() {
   for (const [pid, info] of best) {
     const p = players.get(pid)
     if (!p) continue
-    const want = info.placement <= TOP_N_FOR_A ? 'A' : 'B'
+    let want = info.placement <= TOP_N_FOR_A ? 'A' : 'B'
+    // 上限が指定されていれば切り下げる（A 昇格の保留用）
+    if (maxTier && RANK[want] > RANK[maxTier]) want = maxTier
     const next = promote(p.tier, want)
     if (next) {
       changes.push({
@@ -115,11 +122,13 @@ async function main() {
   console.log(`║  mode: ${DRY_RUN ? 'DRY-RUN (書き込みなし)      ' : 'LIVE                        '}                      ║`)
   console.log('╚══════════════════════════════════════════════════════════╝\n')
 
-  const { targets, changes, evaluated } = await computeTierChanges()
+  const { targets, changes, evaluated } = await computeTierChanges({ maxTier: MAX_TIER })
 
   console.log('対象大会:')
   targets.forEach(t => console.log(`  id=${String(t.id).padStart(3)} ${t.name.slice(0, 40).padEnd(40)} ${t.entrants}人`))
-  console.log(`\n評価した選手: ${evaluated} 名 / 昇格対象: ${changes.length} 名\n`)
+  console.log(`\n評価した選手: ${evaluated} 名 / 昇格対象: ${changes.length} 名`)
+  if (MAX_TIER) console.log(`（--max-tier=${MAX_TIER} のため ${MAX_TIER} 止まりに制限）`)
+  console.log('')
 
   const toA = changes.filter(c => c.to === 'A')
   const toB = changes.filter(c => c.to === 'B')

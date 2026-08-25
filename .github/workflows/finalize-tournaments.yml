@@ -21,6 +21,15 @@ on:
         required: false
         default: '14'
         type: string
+      since:
+        description: 'この日付以降に終了した大会をすべて対象にする（例: 2026-01-01）。指定時は days を無視'
+        required: false
+        type: string
+      with_tiers:
+        description: 'Tier 昇格も実行する（既定はオフ。影響が広いため）'
+        required: false
+        default: false
+        type: boolean
       dry_run:
         description: '検出のみ（DB書き込みなし）'
         required: false
@@ -56,8 +65,13 @@ jobs:
           ARGS=""
           if [ -n "${{ inputs.tournament_id }}" ]; then
             ARGS="$ARGS --tournament-id=${{ inputs.tournament_id }}"
+          elif [ -n "${{ inputs.since }}" ]; then
+            ARGS="$ARGS --all --since=${{ inputs.since }}"
           else
             ARGS="$ARGS --days=${{ inputs.days || '14' }}"
+          fi
+          if [ "${{ inputs.with_tiers }}" = "true" ]; then
+            ARGS="$ARGS --with-tiers"
           fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then
             ARGS="$ARGS --dry-run"

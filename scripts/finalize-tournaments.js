@@ -20,6 +20,8 @@
  *   node scripts/finalize-tournaments.js --days=30
  *   node scripts/finalize-tournaments.js --tournament-id=45
  *   node scripts/finalize-tournaments.js --dry-run       # 検出のみ（書き込みなし）
+ *   node scripts/finalize-tournaments.js --all --since=2026-01-01   # 今シーズンのみ
+ *   node scripts/finalize-tournaments.js --all --with-tiers         # Tier 昇格も行う
  */
 
 import dotenv from 'dotenv'
@@ -47,6 +49,8 @@ const DRY_RUN = !!args['dry-run']
 const DAYS = parseInt(args.days ?? '14', 10)
 const ONLY_ID = args['tournament-id'] ? parseInt(args['tournament-id'], 10) : null
 const ALL = !!args.all
+/** 対象期間の下限。--since=2026-01-01 のように指定する（今シーズンのみ処理したい場合など） */
+const SINCE = args.since ?? null
 /** Tier 更新は影響が広いため既定で行わない。明示的に --with-tiers を渡したときのみ */
 const WITH_TIERS = !!args['with-tiers']
 
@@ -215,6 +219,7 @@ async function main() {
   } else {
     // --all: 未開催の大会は対象外
     q = q.lte('end_date', new Date().toISOString().slice(0, 10))
+    if (SINCE) q = q.gte('end_date', SINCE)
   }
   const { data: targets, error } = await q.order('end_date', { ascending: false })
   if (error) { console.error('大会取得エラー:', error.message); process.exit(1) }
