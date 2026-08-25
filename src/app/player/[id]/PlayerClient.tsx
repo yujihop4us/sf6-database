@@ -373,6 +373,120 @@ function BioSection({ player }: { player: PlayerPageData['player'] }) {
   )
 }
 
+// ── サーキットポイント（CPT / EWC）─────────────────────────────────
+// CPT と EWC は別サーキットのため合算せず、枠を分けて表示する。
+
+function CircuitBlock({
+  title, accent, seasons,
+}: {
+  title: string
+  accent: string
+  seasons: PlayerPageData['circuitPoints']['cpt']
+}) {
+  const { lang } = useLocale()
+  const [active, setActive] = useState(0)
+  if (!seasons.length) return null
+  const season = seasons[Math.min(active, seasons.length - 1)]
+
+  return (
+    <div style={{
+      background: D.surface, border: `1px solid ${D.border}`,
+      borderRadius: 10, overflow: 'hidden', flex: '1 1 320px', minWidth: 0,
+    }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+        padding: '14px 18px', borderBottom: `1px solid ${D.border}`,
+        background: `${accent}0d`,
+      }}>
+        <span style={{
+          fontFamily: D.fDisplay, fontSize: 13, fontWeight: 800,
+          letterSpacing: '0.1em', textTransform: 'uppercase', color: accent,
+        }}>{title}</span>
+
+        {/* シーズン切替 */}
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          {seasons.map((s, i) => (
+            <button
+              key={s.circuit}
+              onClick={() => setActive(i)}
+              style={{
+                background: i === active ? `${accent}22` : 'transparent',
+                border: `1px solid ${i === active ? accent + '66' : D.border}`,
+                borderRadius: 5, padding: '3px 10px', cursor: 'pointer',
+                fontFamily: D.fDisplay, fontSize: 11, fontWeight: 700,
+                color: i === active ? accent : D.muted, whiteSpace: 'nowrap',
+              }}
+            >{s.label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding: '16px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 14 }}>
+          <span style={{
+            fontFamily: D.fDisplay, fontSize: 30, fontWeight: 900, color: accent,
+            fontVariantNumeric: 'tabular-nums',
+          }}>{season.total.toLocaleString()}</span>
+          <span style={{ fontFamily: D.fDisplay, fontSize: 12, color: D.muted }}>
+            {lang === 'ja' ? 'ポイント' : 'PTS'}
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {season.events.map((e, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              paddingBottom: 6,
+              borderBottom: i < season.events.length - 1 ? `1px solid ${D.border}` : 'none',
+            }}>
+              <span style={{
+                flex: 1, minWidth: 0, fontFamily: D.fBody, fontSize: 13, color: D.text,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{e.tournamentName}</span>
+              {e.placement != null && (
+                <span style={{
+                  flexShrink: 0, fontFamily: D.fDisplay, fontSize: 11, color: D.muted,
+                }}>{e.placement}{lang === 'ja' ? '位' : ''}</span>
+              )}
+              <span style={{
+                flexShrink: 0, minWidth: 46, textAlign: 'right',
+                fontFamily: D.fDisplay, fontSize: 14, fontWeight: 800, color: accent,
+                fontVariantNumeric: 'tabular-nums',
+              }}>{e.points.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CircuitPointsSection({ points }: { points: PlayerPageData['circuitPoints'] }) {
+  const { lang } = useLocale()
+  // どちらも無い選手にはセクション自体を出さない
+  if (!points.cpt.length && !points.ewc.length) return null
+
+  return (
+    <section>
+      <SectionHeading
+        id="sec-points"
+        label={lang === 'ja' ? 'サーキットポイント' : 'CIRCUIT POINTS'}
+      />
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <CircuitBlock title="Capcom Pro Tour" accent={D.accent} seasons={points.cpt} />
+        <CircuitBlock title="Esports World Cup" accent="#f5c842" seasons={points.ewc} />
+      </div>
+      <p style={{
+        marginTop: 10, fontFamily: D.fBody, fontSize: 11, color: D.muted, opacity: 0.75,
+      }}>
+        {lang === 'ja'
+          ? '※ 当サイト収載大会のみの集計です。CPT と EWC は別サーキットのため合算していません。'
+          : '* Aggregated from tournaments listed on this site only. CPT and EWC are separate circuits and are not combined.'}
+      </p>
+    </section>
+  )
+}
+
 // ── Tournament results ────────────────────────────────────────────
 
 function ResultsSection({ results }: { results: TournamentResult[] }) {
@@ -698,6 +812,7 @@ export function PlayerClient({ data }: { data: PlayerPageData | null }) {
         display: 'flex', flexDirection: 'column', gap: 56,
       }}>
         {hasBio && <BioSection player={player} />}
+        <CircuitPointsSection points={data.circuitPoints} />
         <ResultsSection results={data.results} />
         <H2HSection player={player} h2h={data.h2h} />
         <CharUsageSection charUsage={data.charUsage} />

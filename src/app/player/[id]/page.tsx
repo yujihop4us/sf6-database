@@ -49,12 +49,32 @@ export type Achievement = {
   champion: boolean
 }
 
+/** 1シーズン分のサーキットポイント */
+export type CircuitSeason = {
+  /** 'cpt2026' / 'ewc2026' 等 */
+  circuit: string
+  /** 表示用ラベル。例: 'CPT 2026' / 'EWC 2026' */
+  label: string
+  total: number
+  events: { tournamentId: number; tournamentName: string; placement: number | null; points: number }[]
+}
+
+/**
+ * CPT と EWC は別サーキットのため合算しない。
+ * それぞれ独立した配列として保持し、UI でも別枠に出す。
+ */
+export type CircuitPoints = {
+  cpt: CircuitSeason[]
+  ewc: CircuitSeason[]
+}
+
 export type PlayerPageData = {
   player: PlayerInfo
   results: TournamentResult[]
   h2h: H2HEntry[]
   charUsage: CharUsage[]
   achievements: Achievement[]
+  circuitPoints: CircuitPoints
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -244,7 +264,67 @@ async function fetchPlayerData(id: string): Promise<PlayerPageData | null> {
       champion: r.placement === 1,
     }))
 
-  return { player, results, h2h, charUsage, achievements }
+  // サーキットポイント（CPT / EWC）。テーブル未作成でも落ちないよう握る
+  const circuitPoints = await fetchCircuitPoints(numericId)
+
+  return { player, results, h2h, charUsage, achievements, circuitPoints }
+}
+
+/**
+ * cpt_points からサーキット別・シーズン別に集計する。
+ * circuit の接頭辞（cpt / ewc）で分け、合算はしない（別サーキットのため）。
+ */
+async function fetchCircuitPoints(playerId: number): Promise<CircuitPoints> {
+  const empty: CircuitPoints = { cpt: [], ewc: [] }
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  )
+
+  const { data, error } = await supabase
+    .from('cpt_points')
+    .select('circuit, points, placement, tournaments(id, name, start_date)')
+    .eq('player_id', playerId)
+
+  if (error || !data?.length) return empty
+
+  type Row = {
+    circuit: string
+    points: number
+    placement: number | null
+    tournaments: { id: number; name: string; start_date: string | null } | null
+  }
+
+  const bySeason = new Map<string, CircuitSeason>()
+  for (const r of data as unknown as Row[]) {
+    if (!r.circuit) continue
+    let s = bySeason.get(r.circuit)
+    if (!s) {
+      const year = r.circuit.match(/(\d{4})/)?.[1] ?? ''
+      const kind = r.circuit.startsWith('ewc') ? 'EWC' : 'CPT'
+      s = { circuit: r.circuit, label: `${kind} ${year}`.trim(), total: 0, events: [] }
+      bySeason.set(r.circuit, s)
+    }
+    s.total += r.points
+    s.events.push({
+      tournamentId: r.tournaments?.id ?? 0,
+      tournamentName: r.tournaments?.name ?? '—',
+      placement: r.placement,
+      points: r.points,
+    })
+  }
+
+  const seasons = [...bySeason.values()]
+  for (const s of seasons) {
+    s.events.sort((a, b) => b.points - a.points)
+  }
+  const byNewest = (a: CircuitSeason, b: CircuitSeason) => b.circuit.localeCompare(a.circuit)
+
+  return {
+    cpt: seasons.filter(s => s.circuit.startsWith('cpt')).sort(byNewest),
+    ewc: seasons.filter(s => s.circuit.startsWith('ewc')).sort(byNewest),
+  }
 }
 
 // ── Page component ────────────────────────────────────────────────
