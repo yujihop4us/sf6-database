@@ -618,6 +618,60 @@ CEO 2026 は 2225 セットで数十分かかるため Vercel では処理でき
   Git 未追跡のため元の内容は復元不可
 - CEO 2026 で `winner_id` 未解決 45件 / start.gg 側にのみ存在する entrant 2件（軽微）
 
+## 2026-08-24 — データパイプライン v2（ポイント・Tier・Bio連携）
+
+指示書: `docs/TASK_data-pipeline-v2.md`
+
+### 追加した仕組み
+- `cpt_points` テーブル（migration: `20260824_cpt_points.sql`）
+  circuit は日付から推測せず Liquipedia の `points=cpt2026` / infobox `|circuit=` を根拠にする。
+  **Capcom Cup 12 は2026年3月開催だが CPT2025 シーズン**のため暦年判定では誤る
+- `scripts/lib/player-aliases.mjs` — 名寄せの唯一の定義元（3箇所の重複を集約）
+- `scripts/lib/liquipedia-prizepool.mjs` — 賞金とポイントは同じ表にあるため一度に取得
+- `scripts/sync-prizes-points.js` / `scripts/update-player-tiers.js`
+- `finalize-tournaments.js` に stage 2〜5（賞金・ポイント・Tier・Bio候補）を統合
+- 選手ページに CPT / EWC 別枠のポイント表示（合算しない）
+
+### 適用結果（2026シーズン全11大会が ✅）
+| 項目 | 結果 |
+|---|---|
+| Combo Breaker 2026 順位 | 1448件全欠落 → 復旧 |
+| EVO Japan 2026 セット | 1,376 → **15,358**（start.gg と一致） |
+| Capcom Cup 12 順位 | 44/48 → 48/48 |
+| cpt_points | 88件（EWC 1位 Craime 1000pts 等、Liquipedia と一致） |
+| players.tier | 41名を B 昇格（S:13 / A:92 は不変） |
+
+### 発見・修正した「無警告の欠落」（本セッションで通算4件目）
+1. `phaseGroups` が既定25件で切り詰め（CEO 2026 で約1200セット欠落）
+2. `perPage:100` でも不足。**EVO Japan 2026 は Round1 が512グループ**（6ページ）
+   → 全ページ走査に修正
+3. **最後に一括 upsert する設計**のため、269プール取得後に start.gg が
+   HTML エラーを返して異常終了し、約7000セットが丸ごと消えた
+   → フェーズ単位の逐次保存＋非JSON応答のリトライに修正
+4. `.limit(100000)` が PostgREST の 1000行上限で無効（main_character 集計）
+
+### 発生した問題と解決方法
+- 問題: EWC 2026 の **LCQ(id=49) と本戦(id=11) が同じ liquipedia_url** を共有しており、
+  LCQ の選手に本戦の $1,000,000 が書き込まれる状態だった（dry-run で検知、実害なし）
+  - 解決: 賞金表の選手とエントラントの照合率が 50% 未満なら適用しない安全装置を追加。
+    あわせて id=49 を LCQ 専用ページに変更
+  - 副次効果: Blink Respawn 2026 でも「照合率0%」を検出し誤適用を阻止した
+- 問題: 全大会一括実行で Liquipedia が 429（恒久 ban のリスク）
+  - 原因: 1大会あたり wikitext / text / 親ページ探索で2〜3回リクエストしていた
+  - 解決: `prop=text|wikitext` で1回にまとめ、ページ単位でキャッシュ。間隔を 2.5s → 6s
+- 問題: Tier 昇格で Top8 実績者が A になる仕様だったが、ユーザー判断は「まず B まで」
+  - 解決: `--max-tier=B` を追加し、A 昇格を保留できるようにした
+
+### 未解決の課題
+- **昨年以前の大会は未処理**（ユーザー指示により後回し）。
+  Evo 2023/2024/2025 等でセット欠落が1万件超残っている
+- `Blink Respawn 2026`(id=43): エントラント0件 + liquipedia_url が別大会を指している
+- `Evo 2026`(id=10) / `BAM 16`(id=44): 賞金表が Liquipedia に無い / URL 未設定
+- 大規模大会で「勝者の名寄せ未解決」が多い（EVO Japan 2026 で5628件）。
+  選手マスタに存在しない参加者が大半で、順位・賞金には影響しない
+- **A / S 昇格は保留中**。S は自動昇格しない方針（ユーザー確定）
+- Bio 見直しは候補提示のみ。書き換えは人が行う
+
 ## 既知の問題
 - Vercel GitHub自動デプロイが切断中 → 手動で npx vercel --prod --yes が必要
 - 選手名フォントサイズ変更（16px）が反映されていない可能性 → デプロイ確認待ち
