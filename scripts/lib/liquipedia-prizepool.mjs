@@ -14,7 +14,13 @@
 
 const API = 'https://liquipedia.net/fighters/api.php'
 const UA = 'SF6Database/1.0 (https://sf6-database.vercel.app; sf6database@proton.me)'
-const REQUEST_DELAY_MS = 2500   // 1req/2s 規約に余裕を持たせる
+
+/**
+ * Liquipedia の規約は 1req/2s だが、全大会を一括処理した際に 2.5s でも
+ * 429 に達した（累積クォータがあると思われる）。恒久 ban のリスクを避けるため
+ * 大きく余裕を取る。1大会あたり 1 リクエストなので全30大会でも 5 分程度で収まる。
+ */
+const REQUEST_DELAY_MS = 6000
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
@@ -31,11 +37,17 @@ export function toPageTitle(urlOrTitle) {
  */
 const cache = new Map()
 
-async function apiParse(page, prop) {
-  const key = `${page}::${prop}`
-  if (cache.has(key)) return cache.get(key)
+/**
+ * ページを1回のリクエストで取得する。
+ * text と wikitext は prop=text|wikitext でまとめて取れるため、
+ * 別々に叩かない（リクエスト数が倍になりレート制限の原因になる）。
+ * @returns {{ text: string|null, wikitext: string|null }}
+ */
+async function fetchPage(page) {
+  if (cache.has(page)) return cache.get(page)
 
-  const url = `${API}?action=parse&page=${encodeURIComponent(page)}&prop=${prop}&format=json`
+  const url = `${API}?action=parse&page=${encodeURIComponent(page)}` +
+              `&prop=${encodeURIComponent('text|wikitext')}&format=json`
 
   // 429 は即中断せず待って再試行する。ただし繰り返すと恒久 ban の警告があるため
   // 試行回数を絞り、待ち時間は長めに取る
@@ -50,16 +62,20 @@ async function apiParse(page, prop) {
       await sleep(30_000 * (attempt + 1))   // 30s, 60s
       continue
     }
-    if (!res.ok) { cache.set(key, null); return null }
+    const empty = { text: null, wikitext: null }
+    if (!res.ok) { cache.set(page, empty); return empty }
 
     const json = await res.json()
-    if (json?.error) { cache.set(key, null); return null }
+    if (json?.error) { cache.set(page, empty); return empty }
 
-    const out = prop === 'text' ? json?.parse?.text?.['*'] : json?.parse?.wikitext?.['*']
-    cache.set(key, out ?? null)
-    return out ?? null
+    const out = {
+      text:     json?.parse?.text?.['*'] ?? null,
+      wikitext: json?.parse?.wikitext?.['*'] ?? null,
+    }
+    cache.set(page, out)
+    return out
   }
-  return null
+  return { text: null, wikitext: null }
 }
 
 const strip = s =>
@@ -98,20 +114,20 @@ export async function fetchPrizePool(urlOrTitle) {
 
   // liquipedia_url にはキャラ取得用にサブページ（/Bracket, /First_Phase 等）が
   // 入っていることがある。賞金表は本ページにしか無いので親へ遡って探す。
-  // 1req/2s 制限があるため遡りは2段までに留める。
-  for (let depth = 0; depth < 2; depth++) {
-    const probe = await apiParse(page, 'text')
-    if (probe && probe.includes('prizepooltable')) break
+  // 取得結果はキャッシュされるので遡っても追加リクエストは最小限。
+  let doc = await fetchPage(page)
+  for (let depth = 0; depth < 2 && !doc.text?.includes('prizepooltable'); depth++) {
     const parent = page.replace(/\/[^/]+$/, '')
     if (!parent || parent === page) break
     page = parent
+    doc = await fetchPage(page)
   }
 
   // circuit は日付から推測しない。
   // 第一根拠は賞金表テンプレートの `points=<circuit>`。
   // ポイント付与のない大会（Capcom Cup 等）はそこに無いため infobox の
   // `|circuit=` から補う。CC12 は 2026年3月開催だが circuit=Capcom Pro Tour 2025。
-  const wikitext = await apiParse(page, 'wikitext')
+  const wikitext = doc.wikitext
   let circuit = wikitext?.match(/\{\{SoloPrizePool[^}]*?\|points=([a-z0-9]+)/i)?.[1] ?? null
   if (!circuit && wikitext) {
     const raw = wikitext.match(/\|circuit=([^\n|]+)/)?.[1]?.trim()
@@ -122,7 +138,7 @@ export async function fetchPrizePool(urlOrTitle) {
     }
   }
 
-  const html = await apiParse(page, 'text')
+  const html = doc.text
   if (!html) return { circuit, entries: [], error: 'ページ取得失敗' }
 
   const start = html.indexOf('prizepooltable')
