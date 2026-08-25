@@ -33,7 +33,18 @@ async function gql(query, variables, retries = 3) {
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    const json = await res.json();
+    // start.gg は高負荷時に JSON ではなく HTML のエラーページを返すことがある。
+    // そのまま res.json() すると SyntaxError で異常終了し、
+    // それまでに取得した数千件が失われるため、リトライ対象として扱う
+    let json;
+    try {
+      json = await res.json();
+    } catch {
+      const wait = Math.pow(2, i + 1) * 2000;
+      console.log(`   ⏳ 非JSON応答 (HTTP ${res.status})、${wait / 1000}s 待機して再試行...`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
     if (json.errors) {
       console.error('GraphQL errors:', json.errors);
       if (json.errors[0]?.message?.includes('complexity')) {
@@ -181,6 +192,43 @@ async function loadPlayers() {
 }
 
 // ── Main ──
+
+/**
+ * セットを DB に投入する。
+ *
+ * 大規模大会では取得に数十分かかり、途中で start.gg が HTML エラーを返して
+ * 落ちることがある。最後にまとめて書くと取得済みの数千件が丸ごと失われるため、
+ * フェーズ単位で逐次呼び出して被害を局所化する。
+ */
+async function upsertSets(rows) {
+  if (!rows.length) return 0;
+  const batchSize = 200;
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const { error } = await supabase
+      .from('tournament_sets')
+      .upsert(batch, { onConflict: 'tournament_id,startgg_set_id' });
+    if (error) {
+      console.error(`   ⚠️ Batch error: ${error.message}`);
+      // バッチ全体が落ちると大量欠落になるため、1件ずつ入れ直して被害を最小化する
+      let recovered = 0;
+      for (const row of batch) {
+        const { error: e1 } = await supabase
+          .from('tournament_sets')
+          .upsert([row], { onConflict: 'tournament_id,startgg_set_id' });
+        if (!e1) recovered++;
+        else console.error(`      ✗ set ${row.startgg_set_id}: ${e1.message}`);
+      }
+      console.error(`   → 個別リトライで ${recovered}/${batch.length} 件を回復`);
+      inserted += recovered;
+    } else {
+      inserted += batch.length;
+    }
+  }
+  return inserted;
+}
+
 async function main() {
   console.log(`\n🔍 Fetching tournament: ${slug}`);
   const t = getTournamentInfo ? await getTournamentInfo() : null;
@@ -230,6 +278,7 @@ async function main() {
   console.log(`   Found ${phases.length} phases`);
 
   let allSets = [];
+  let savedCount = 0;   // 保存済み件数（フェーズ単位で逐次保存する）
 
   for (const phase of phases) {
     console.log(`\n📋 Phase: ${phase.name}`);
@@ -286,36 +335,22 @@ async function main() {
         await new Promise((r) => setTimeout(r, 1500)); // rate limit delay
       }
     }
+
+    // フェーズが終わるたびに保存する。
+    // 512プール規模だと全取得に数十分かかり、途中で落ちると
+    // 取得済みの数千件が丸ごと消えるため、こまめに確定させる
+    const pending = allSets.slice(savedCount);
+    if (pending.length) {
+      const n = await upsertSets(pending);
+      savedCount = allSets.length;
+      console.log(`   💾 Phase "${phase.name}" までを保存 (+${n} 件 / 累計 ${savedCount})`);
+    }
   }
 
   console.log(`\n✅ Total sets fetched: ${allSets.length}`);
 
-  // Batch upsert
-  const batchSize = 200;
-  let inserted = 0;
-  for (let i = 0; i < allSets.length; i += batchSize) {
-    const batch = allSets.slice(i, i + batchSize);
-    const { error } = await supabase
-      .from('tournament_sets')
-      .upsert(batch, { onConflict: 'tournament_id,startgg_set_id' });
-    if (error) {
-      console.error(`   ⚠️ Batch error: ${error.message}`);
-      // バッチ全体が落ちると大量欠落になるため、1件ずつ入れ直して被害を最小化する
-      let recovered = 0;
-      for (const row of batch) {
-        const { error: e1 } = await supabase
-          .from('tournament_sets')
-          .upsert([row], { onConflict: 'tournament_id,startgg_set_id' });
-        if (!e1) recovered++;
-        else console.error(`      ✗ set ${row.startgg_set_id}: ${e1.message}`);
-      }
-      console.error(`   → 個別リトライで ${recovered}/${batch.length} 件を回復`);
-      inserted += recovered;
-    } else {
-      inserted += batch.length;
-    }
-  }
-
+  // 残余（最終フェーズ以降）だけを保存する
+  const inserted = savedCount + await upsertSets(allSets.slice(savedCount));
   // 投入後の実件数を検証（取りこぼしを黙って見逃さない）
   {
     const { count } = await supabase
