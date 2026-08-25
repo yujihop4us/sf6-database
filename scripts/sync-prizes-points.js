@@ -39,7 +39,7 @@ const TID = args['tournament-id'] ? parseInt(args['tournament-id'], 10) : null
  */
 export async function syncPrizesAndPoints(tournament, { dryRun = false } = {}) {
   const result = {
-    prizeUpdated: 0, pointsUpserted: 0, totalPrize: 0,
+    prizeUpdated: 0, pointsUpserted: 0, placementUpdated: 0, totalPrize: 0,
     unmatched: [], circuit: null, skipped: null,
   }
 
@@ -98,6 +98,21 @@ export async function syncPrizesAndPoints(tournament, { dryRun = false } = {}) {
     const ent = byPlayer.get(player.id)
     // エントラント行が無い＝取り込み漏れ。賞金だけ入れる先が無いので記録して次へ
     if (!ent) { result.unmatched.push(`${e.name}(entrant無)`); continue }
+
+    // 順位。start.gg を持たない大会（Capcom Cup / EWC 本戦）は
+    // standings から順位を引けないため、賞金表の順位で補完する。
+    // 既に入っている順位は上書きしない（start.gg 由来のほうが精度が高い）
+    if (ent.placement == null && e.place != null) {
+      if (!dryRun) {
+        const { error } = await supabase
+          .from('tournament_entrants')
+          .update({ placement: e.place })
+          .eq('id', ent.id)
+        if (!error) result.placementUpdated++
+      } else {
+        result.placementUpdated++
+      }
+    }
 
     // 賞金
     if (e.usd != null && ent.prize_amount !== e.usd) {
@@ -163,6 +178,7 @@ async function main() {
   if (r.skipped) { console.log(`  ⏭ スキップ: ${r.skipped}`); return }
   console.log(`  circuit    : ${r.circuit ?? '—'}`)
   console.log(`  賞金更新   : ${r.prizeUpdated} 件`)
+  if (r.placementUpdated) console.log(`  順位補完   : ${r.placementUpdated} 件`)
   console.log(`  ポイント   : ${r.pointsUpserted} 件`)
   console.log(`  賞金合計   : $${r.totalPrize.toLocaleString()}`)
   if (r.unmatched.length) {

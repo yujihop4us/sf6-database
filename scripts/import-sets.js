@@ -73,7 +73,9 @@ async function getTournamentInfo() {
 async function getEventPhases(eventId) {
   // phaseGroups にページネーションを付けないと start.gg 側で 25件に切り詰められる。
   // CEO2026 の Round1 (64グループ) で発生し、39プール・約1200セットが
-  // サイレントに欠落した（エラーは出ず、次のフェーズへ進んでしまうため気付きにくい）
+  // サイレントに欠落した（エラーは出ず、次のフェーズへ進んでしまうため気付きにくい）。
+  // さらに EVO Japan 2026 は Round1 が 512 グループあり perPage:100 でも足りないため
+  // 全ページを走査する。
   const data = await gql(
     `query ($eventId: ID!) {
       event(id: $eventId) {
@@ -82,10 +84,7 @@ async function getEventPhases(eventId) {
           name
           phaseGroups(query: { page: 1, perPage: 100 }) {
             pageInfo { total totalPages }
-            nodes {
-              id
-              displayIdentifier
-            }
+            nodes { id displayIdentifier }
           }
         }
       }
@@ -93,12 +92,33 @@ async function getEventPhases(eventId) {
     { eventId }
   );
   const phases = data?.event?.phases || [];
+
   for (const phase of phases) {
     const info = phase.phaseGroups?.pageInfo;
-    if (info && info.totalPages > 1) {
+    if (!info || info.totalPages <= 1) continue;
+
+    // 2ページ目以降を取得して結合する
+    console.log(`   Phase "${phase.name}": ${info.total} groups (${info.totalPages} pages) を全取得中...`);
+    for (let page = 2; page <= info.totalPages; page++) {
+      const more = await gql(
+        `query ($phaseId: ID!, $page: Int!) {
+          phase(id: $phaseId) {
+            phaseGroups(query: { page: $page, perPage: 100 }) {
+              nodes { id displayIdentifier }
+            }
+          }
+        }`,
+        { phaseId: phase.id, page }
+      );
+      const nodes = more?.phase?.phaseGroups?.nodes || [];
+      phase.phaseGroups.nodes.push(...nodes);
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    if (phase.phaseGroups.nodes.length !== info.total) {
       console.warn(
-        `   ⚠ Phase "${phase.name}": ${info.total} groups > perPage 100 (${info.totalPages} pages). ` +
-        `一部のプールが取得できていない可能性があります。`
+        `   ⚠ Phase "${phase.name}": ${info.total} groups のうち ` +
+        `${phase.phaseGroups.nodes.length} 件しか取得できませんでした`
       );
     }
   }
