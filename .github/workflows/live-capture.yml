@@ -1,0 +1,58 @@
+name: ライブ取得（開催中の大会）
+
+# 開催中の大会の試合結果を定期的に取り込む。
+#
+# 従来は live-fetch-v2.js をローカルPCで常駐させていたが、無警告で停止し
+# EWC LCQ の52セットと全順位が欠落した。PC 非依存にして再発を防ぐ。
+#
+# 状態はプロセスに持たず tournament_sets から復元するため、
+# 実行が飛んでも次回に自然に追いつく（updatedAfter による差分取得）。
+#
+# 注意: ライブページの表示自体はブラウザから start.gg を直接見ているため、
+#       このジョブの間隔は「表示のリアルタイム性」ではなく
+#       「DBへの記録の粒度」を決めるもの。
+
+on:
+  schedule:
+    # 15分ごと。GitHub のスケジュールは遅延することがあるが、
+    # 差分取得なので間隔が空いても取りこぼさない
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '対象の検出のみ（取り込みなし）'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: live-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: 開催中の大会を取り込み
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STARTGG_API_TOKEN: ${{ secrets.STARTGG_API_TOKEN }}
+          STARTGG_TOKEN: ${{ secrets.STARTGG_API_TOKEN }}
+        run: |
+          ARGS=""
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="--dry-run"
+          fi
+          node scripts/live-capture.js $ARGS
