@@ -4,6 +4,16 @@ import Link from 'next/link'
 import SiteNavbar from '@/components/SiteNavbar'
 import { useLocale } from '@/lib/locale-context'
 import type { HomeData, HomeTournament, RecentResult, TournamentSeries } from './page'
+import { StartCountdown, useNextMatchCountdown } from '@/components/StartCountdown'
+import { TOURNAMENT_CONFIG } from './live/[tournamentId]/tournamentConfig'
+
+/** DBの大会IDから、Liquipedia を一次ソースにしている大会キーを引く */
+function liquipediaKeyFor(dbTournamentId: number | undefined): string | undefined {
+  if (!dbTournamentId) return undefined
+  return Object.values(TOURNAMENT_CONFIG)
+    .find(c => c.dbTournamentId === dbTournamentId && c.liquipediaTournament)
+    ?.liquipediaTournament
+}
 
 const D = {
   bg:       '#080c10',
@@ -83,6 +93,10 @@ function fmtPlacement(p: number, lang: string): string {
 
 function LiveBanner({ tournament }: { tournament: HomeTournament }) {
   const { t } = useLocale()
+  // 開催期間内でも初戦前は「LIVE」ではなく開始までのカウントダウンを出す
+  const lpKey = liquipediaKeyFor(tournament.id)
+  const { parts: pending } = useNextMatchCountdown(lpKey)
+  const notStartedYet = !!pending
   return (
     <div style={{
       background: `linear-gradient(135deg, rgba(255,77,106,0.15) 0%, rgba(0,212,170,0.1) 100%)`,
@@ -91,15 +105,21 @@ function LiveBanner({ tournament }: { tournament: HomeTournament }) {
       display: 'flex', alignItems: 'center', gap: 24,
       flexWrap: 'wrap', marginBottom: 48,
     }}>
-      {/* Live badge */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: D.red, display: 'inline-block' }}
-          className="sf6-pulse-dot" />
-        <span style={{
-          fontFamily: D.fDisplay, fontSize: 12, fontWeight: 700,
-          letterSpacing: '0.16em', textTransform: 'uppercase', color: D.red,
-        }}>{t.home_live}</span>
-      </div>
+      {/* Live badge / 開始前はカウントダウン */}
+      {notStartedYet ? (
+        <div style={{ flexShrink: 0 }}>
+          <StartCountdown liquipediaTournament={lpKey} />
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <span style={{ width: 10, height: 10, borderRadius: '50%', background: D.red, display: 'inline-block' }}
+            className="sf6-pulse-dot" />
+          <span style={{
+            fontFamily: D.fDisplay, fontSize: 12, fontWeight: 700,
+            letterSpacing: '0.16em', textTransform: 'uppercase', color: D.red,
+          }}>{t.home_live}</span>
+        </div>
+      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: D.fDisplay, fontSize: 22, fontWeight: 800,

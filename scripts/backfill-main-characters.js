@@ -36,14 +36,24 @@ async function main() {
   console.log('╚══════════════════════════════════════════════════════════════╝\n')
 
   // ── 1. 全セット（キャラあり）+ 大会の start_date を取得 ─────────────────────
+  // Supabase(PostgREST) の db-max-rows は 1000 のため .limit(100000) は効かず
+  // 黙って 1000 件で打ち切られる。ページネーションで全件取得する
   console.log('→ tournament_sets からキャラデータを取得中...')
-  const { data: setsRaw, error: sErr } = await supabase
-    .from('tournament_sets')
-    .select('winner_id, loser_id, winner_character, loser_character, tournament_id')
-    .or('winner_character.not.is.null,loser_character.not.is.null')
-    .limit(100000)
+  const PAGE_SIZE = 1000
+  let setsRaw = []
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data: page, error: sErr } = await supabase
+      .from('tournament_sets')
+      .select('winner_id, loser_id, winner_character, loser_character, tournament_id')
+      .or('winner_character.not.is.null,loser_character.not.is.null')
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
 
-  if (sErr) { console.error('sets 取得エラー:', sErr.message); process.exit(1) }
+    if (sErr) { console.error('sets 取得エラー:', sErr.message); process.exit(1) }
+    if (!page?.length) break
+    setsRaw = setsRaw.concat(page)
+    if (page.length < PAGE_SIZE) break
+  }
   console.log(`  → ${setsRaw.length} セット（キャラあり）`)
 
   // 大会 start_date マップを取得

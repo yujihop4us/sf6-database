@@ -33,7 +33,18 @@ async function gql(query, variables, retries = 3) {
       await new Promise((r) => setTimeout(r, wait));
       continue;
     }
-    const json = await res.json();
+    // start.gg は高負荷時に JSON ではなく HTML のエラーページを返すことがある。
+    // そのまま res.json() すると SyntaxError で異常終了し、
+    // それまでに取得した数千件が失われるため、リトライ対象として扱う
+    let json;
+    try {
+      json = await res.json();
+    } catch {
+      const wait = Math.pow(2, i + 1) * 2000;
+      console.log(`   ⏳ 非JSON応答 (HTTP ${res.status})、${wait / 1000}s 待機して再試行...`);
+      await new Promise((r) => setTimeout(r, wait));
+      continue;
+    }
     if (json.errors) {
       console.error('GraphQL errors:', json.errors);
       if (json.errors[0]?.message?.includes('complexity')) {
@@ -71,24 +82,58 @@ async function getTournamentInfo() {
 
 // ── Step 2: Get event phases ──
 async function getEventPhases(eventId) {
+  // phaseGroups にページネーションを付けないと start.gg 側で 25件に切り詰められる。
+  // CEO2026 の Round1 (64グループ) で発生し、39プール・約1200セットが
+  // サイレントに欠落した（エラーは出ず、次のフェーズへ進んでしまうため気付きにくい）。
+  // さらに EVO Japan 2026 は Round1 が 512 グループあり perPage:100 でも足りないため
+  // 全ページを走査する。
   const data = await gql(
     `query ($eventId: ID!) {
       event(id: $eventId) {
         phases {
           id
           name
-          phaseGroups {
-            nodes {
-              id
-              displayIdentifier
-            }
+          phaseGroups(query: { page: 1, perPage: 100 }) {
+            pageInfo { total totalPages }
+            nodes { id displayIdentifier }
           }
         }
       }
     }`,
     { eventId }
   );
-  return data?.event?.phases || [];
+  const phases = data?.event?.phases || [];
+
+  for (const phase of phases) {
+    const info = phase.phaseGroups?.pageInfo;
+    if (!info || info.totalPages <= 1) continue;
+
+    // 2ページ目以降を取得して結合する
+    console.log(`   Phase "${phase.name}": ${info.total} groups (${info.totalPages} pages) を全取得中...`);
+    for (let page = 2; page <= info.totalPages; page++) {
+      const more = await gql(
+        `query ($phaseId: ID!, $page: Int!) {
+          phase(id: $phaseId) {
+            phaseGroups(query: { page: $page, perPage: 100 }) {
+              nodes { id displayIdentifier }
+            }
+          }
+        }`,
+        { phaseId: phase.id, page }
+      );
+      const nodes = more?.phase?.phaseGroups?.nodes || [];
+      phase.phaseGroups.nodes.push(...nodes);
+      await new Promise((r) => setTimeout(r, 800));
+    }
+
+    if (phase.phaseGroups.nodes.length !== info.total) {
+      console.warn(
+        `   ⚠ Phase "${phase.name}": ${info.total} groups のうち ` +
+        `${phase.phaseGroups.nodes.length} 件しか取得できませんでした`
+      );
+    }
+  }
+  return phases;
 }
 
 // ── Step 3: Get sets in a phase group ──
@@ -147,6 +192,43 @@ async function loadPlayers() {
 }
 
 // ── Main ──
+
+/**
+ * セットを DB に投入する。
+ *
+ * 大規模大会では取得に数十分かかり、途中で start.gg が HTML エラーを返して
+ * 落ちることがある。最後にまとめて書くと取得済みの数千件が丸ごと失われるため、
+ * フェーズ単位で逐次呼び出して被害を局所化する。
+ */
+async function upsertSets(rows) {
+  if (!rows.length) return 0;
+  const batchSize = 200;
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const { error } = await supabase
+      .from('tournament_sets')
+      .upsert(batch, { onConflict: 'tournament_id,startgg_set_id' });
+    if (error) {
+      console.error(`   ⚠️ Batch error: ${error.message}`);
+      // バッチ全体が落ちると大量欠落になるため、1件ずつ入れ直して被害を最小化する
+      let recovered = 0;
+      for (const row of batch) {
+        const { error: e1 } = await supabase
+          .from('tournament_sets')
+          .upsert([row], { onConflict: 'tournament_id,startgg_set_id' });
+        if (!e1) recovered++;
+        else console.error(`      ✗ set ${row.startgg_set_id}: ${e1.message}`);
+      }
+      console.error(`   → 個別リトライで ${recovered}/${batch.length} 件を回復`);
+      inserted += recovered;
+    } else {
+      inserted += batch.length;
+    }
+  }
+  return inserted;
+}
+
 async function main() {
   console.log(`\n🔍 Fetching tournament: ${slug}`);
   const t = getTournamentInfo ? await getTournamentInfo() : null;
@@ -196,6 +278,7 @@ async function main() {
   console.log(`   Found ${phases.length} phases`);
 
   let allSets = [];
+  let savedCount = 0;   // 保存済み件数（フェーズ単位で逐次保存する）
 
   for (const phase of phases) {
     console.log(`\n📋 Phase: ${phase.name}`);
@@ -252,22 +335,32 @@ async function main() {
         await new Promise((r) => setTimeout(r, 1500)); // rate limit delay
       }
     }
+
+    // フェーズが終わるたびに保存する。
+    // 512プール規模だと全取得に数十分かかり、途中で落ちると
+    // 取得済みの数千件が丸ごと消えるため、こまめに確定させる
+    const pending = allSets.slice(savedCount);
+    if (pending.length) {
+      const n = await upsertSets(pending);
+      savedCount = allSets.length;
+      console.log(`   💾 Phase "${phase.name}" までを保存 (+${n} 件 / 累計 ${savedCount})`);
+    }
   }
 
   console.log(`\n✅ Total sets fetched: ${allSets.length}`);
 
-  // Batch upsert
-  const batchSize = 200;
-  let inserted = 0;
-  for (let i = 0; i < allSets.length; i += batchSize) {
-    const batch = allSets.slice(i, i + batchSize);
-    const { error } = await supabase
+  // 残余（最終フェーズ以降）だけを保存する
+  const inserted = savedCount + await upsertSets(allSets.slice(savedCount));
+  // 投入後の実件数を検証（取りこぼしを黙って見逃さない）
+  {
+    const { count } = await supabase
       .from('tournament_sets')
-      .upsert(batch, { onConflict: 'tournament_id,startgg_set_id' });
-    if (error) {
-      console.error(`   ⚠️ Batch error: ${error.message}`);
-    } else {
-      inserted += batch.length;
+      .select('*', { count: 'exact', head: true })
+      .eq('tournament_id', tournamentId);
+    if (count != null && count < allSets.length) {
+      console.error(
+        `   ⚠️ 検証: 取得 ${allSets.length} 件に対し DB は ${count} 件（${allSets.length - count} 件不足）`
+      );
     }
   }
 

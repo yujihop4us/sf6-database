@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { StreamToast, type ToastEvent } from './PoolsDashboard'
 import { V, type Player, type H2HData } from './tokens'
 import { LiveSetsTable } from './LiveSetsTable'
+import { GroupBracket } from './GroupBracket'
 import { CountdownDisplay } from './CountdownDisplay'
 
 export function StreamCenter({
@@ -198,7 +199,7 @@ export function StreamCenter({
         }}>
           {/* チャンネル選択バー */}
           {twitchChannels && twitchChannels.length > 1 && (
-            <div style={{
+            <div className="channel-selector" style={{
               position: 'absolute', top: 0, left: 0, right: 0, zIndex: 4,
               display: 'flex', gap: 4, flexWrap: 'wrap' as const,
               padding: '6px 10px',
@@ -230,7 +231,7 @@ export function StreamCenter({
                   ? `https://player.twitch.tv/?channel=${activeStreamChannel}&parent=sf6-database.vercel.app&parent=localhost`
                   : `https://www.youtube.com/embed/${activeStreamChannel}?autoplay=1`
               }
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', maxHeight: '100%', border: 'none' }}
+              className="stream-iframe"
               allowFullScreen
               allow="autoplay; encrypted-media"
             />
@@ -365,20 +366,32 @@ export function StreamCenter({
           aspectRatio: '16/9', overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
         }}>
-          <LiveSetsTable
-            tournamentId={tournamentId}
-            dbTournamentId={dbTournamentId}
-            onMatchClick={onMatchClick}
-            isDemo={isDemo}
-          />
+          {/* 組み合わせが確定しているブラケット（matchKey 付き = Liquipedia 由来）は
+              トーナメント表として描画する。それ以外は従来のセット一覧 */}
+          {startggMatches?.some((m: any) => m?.matchKey) ? (
+            <GroupBracket
+              matches={startggMatches}
+              onMatchClick={(p1, p2) => onMatchClick(p1, p2)}
+            />
+          ) : (
+            <LiveSetsTable
+              tournamentId={tournamentId}
+              dbTournamentId={dbTournamentId}
+              onMatchClick={onMatchClick}
+              isDemo={isDemo}
+            />
+          )}
         </div>
       )}
 
       {/* ストリームタブ */}
-      {centerTab === 'stream' && (
-        <>
+      {/* 配信ブロックは BRACKET タブでもアンマウントしない。
+          iframe を外すと Twitch の再生が止まり、戻しても自動再開しないため、
+          ブラケット表示中は CSS でミニプレーヤー化して再生を継続させる
+          （.live-page.bracket-mini 側で制御） */}
+      <>
           {/* ── チャンネル選択バー (複数チャンネル設定時) ── */}
-          {twitchChannels && twitchChannels.length > 1 && (
+          {centerTab === 'stream' && twitchChannels && twitchChannels.length > 1 && (
             <div style={{
               display: 'flex', gap: 4, flexWrap: 'wrap' as const,
               padding: '8px 14px',
@@ -424,7 +437,7 @@ export function StreamCenter({
                     ? `https://player.twitch.tv/?channel=${activeStreamChannel}&parent=sf6-database.vercel.app&parent=localhost`
                     : `https://www.youtube.com/embed/${activeStreamChannel}?autoplay=1`
                 }
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                className="stream-iframe"
                 allowFullScreen
                 allow="autoplay; encrypted-media"
               />
@@ -464,7 +477,6 @@ export function StreamCenter({
           </div>
 
         </>
-      )}
     </div>
   )
 }

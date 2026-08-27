@@ -16,6 +16,23 @@ function roundToPlacementLabel(round: string): string | null {
   return null
 }
 
+/** 試合の開始予定時刻（閲覧者のローカル時間） */
+function fmtMatchTime(ts: number): string {
+  return new Date(ts * 1000).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+}
+
+// 5 → "5th", 1 → "1st" (11/12/13 は th)
+function ordinal(n: number): string {
+  const rem100 = n % 100
+  if (rem100 >= 11 && rem100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1:  return `${n}st`
+    case 2:  return `${n}nd`
+    case 3:  return `${n}rd`
+    default: return `${n}th`
+  }
+}
+
 function placementStyle(label: string | null): { color: string; bg: string } {
   if (label === '1st') return { color: '#FFD700', bg: 'rgba(255,215,0,0.13)' }
   if (label === '2nd') return { color: '#C0C0C0', bg: 'rgba(192,192,192,0.10)' }
@@ -45,6 +62,8 @@ interface StandingEntry {
   round: string
   completedAt: number | null
   isChampion?: boolean
+  /** false = まだ試合が残っており順位が変動しうる暫定順位 */
+  isFinal?: boolean
 }
 
 const PLACEMENT_ORDER: Record<string, number> = {
@@ -52,14 +71,71 @@ const PLACEMENT_ORDER: Record<string, number> = {
   '5th': 5, '7th': 7, '9th': 9, '13th': 13,
 }
 
+// ── 順位1行 ──────────────────────────────────────────────────────────────────
+// 暫定順位(勝ち残り中)は「以上」表記＋点線ボーダー＋くすんだ色で確定順位と区別する
+function StandingRow({ entry, isLast }: { entry: StandingEntry; isLast: boolean }) {
+  const isProvisional = entry.isFinal === false
+  const { color: pColor, bg: pBg } = isProvisional
+    ? { color: V.accent, bg: 'rgba(0,212,170,0.06)' }
+    : placementStyle(entry.placement)
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '7px 14px',
+      background: pBg,
+      borderLeft: isProvisional ? `2px solid ${V.accent}` : '2px solid transparent',
+      borderBottom: isLast
+        ? 'none'
+        : `1px ${isProvisional ? 'dashed' : 'solid'} ${V.border}`,
+    }}>
+      {/* 順位バッジ */}
+      <div style={{
+        width: 36, flexShrink: 0,
+        fontFamily: V.FD, fontSize: 13, fontWeight: 900,
+        letterSpacing: '0.04em', textAlign: 'center' as const,
+        color: pColor,
+        opacity: isProvisional ? 0.9 : 1,
+      }}>
+        {entry.placement ?? '—'}
+      </div>
+
+      {/* 選手名 */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        fontFamily: V.FD, fontSize: 14, fontWeight: 700,
+        color: entry.isChampion ? V.accent : V.text,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+      }}>
+        {entry.isChampion && (
+          <span style={{ marginRight: 4, fontSize: 12 }}>🏆</span>
+        )}
+        {entry.player}
+      </div>
+
+      {/* 右端: 暫定は状態ラベル、確定は敗退ラウンド略称 */}
+      <div style={{
+        flexShrink: 0,
+        fontFamily: V.FD, fontSize: 11, fontWeight: 700,
+        letterSpacing: '0.06em',
+        color: isProvisional ? V.accent : V.dim,
+      }}>
+        {isProvisional ? '未確定' : shortenRound(entry.round)}
+      </div>
+    </div>
+  )
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function LiveStandings({
   startggMatches,
+  startggStandings = [],
   upNextMatches,
   onMatchClick,
 }: {
   startggMatches: any[]
+  startggStandings?: { placement: number; player: string; isFinal?: boolean }[]
   upNextMatches:  any[]
   onMatchClick: (
     p1: string, p2: string,
@@ -73,9 +149,20 @@ export function LiveStandings({
     .filter(m => m.status === 'upcoming' || m.status === 'live')
     .slice(0, 2)
 
+  // ── 直近の結果 ──────────────────────────────────────────────────────────────
+  // 進行順が動的な大会 (EWC) では「次の試合」だけだと状況が掴みにくいため、
+  // 直近で決着した試合も併せて出す
+  const recentResults = [...startggMatches]
+    .filter(m => m.status === 'completed' && m.score)
+    .sort((a, b) => (b.scheduledAt ?? b.completedAt ?? 0) - (a.scheduledAt ?? a.completedAt ?? 0))
+    .slice(0, 3)
+
   // ── STANDINGS: scan completed sets for confirmed placements ─────────────────
   const standings: StandingEntry[] = []
   const seenPlayers = new Set<string>()
+
+  // 各選手が敗退したラウンド名 (start.gg standings 使用時の表示用)
+  const eliminatedRound = new Map<string, { round: string; completedAt: number | null }>()
 
   const completedSorted = [...startggMatches]
     .filter(m => m.status === 'completed')
@@ -91,11 +178,20 @@ export function LiveStandings({
 
     const isGF     = round.includes('Grand Final')
     const isLosers = round.startsWith('Losers') || isGF
-    if (!isLosers) continue
 
     const ws       = winnerSide(m.winner || '', p1raw, p2raw)
     const winnerH  = ws === 'p1' ? p1h : ws === 'p2' ? p2h : null
     const loserH   = ws === 'p1' ? p2h : ws === 'p2' ? p1h : null
+
+    // 敗退ラウンドを記録 (completedSorted は新しい順なので初回=最後の敗戦)
+    if (loserH) {
+      const k = loserH.toLowerCase()
+      if (!eliminatedRound.has(k)) {
+        eliminatedRound.set(k, { round, completedAt: m.completedAt ?? null })
+      }
+    }
+
+    if (!isLosers) continue
 
     // GF winner → 1st (confirmed champion)
     if (isGF && winnerH && !seenPlayers.has(winnerH.toLowerCase())) {
@@ -129,8 +225,37 @@ export function LiveStandings({
     return pa - pb
   })
 
+  // start.gg 公式 standings があればそちらを正とする。
+  // 上のラウンド名ベースの推測は Pools / Top 64 / Top 16 / Top 8 のように
+  // 複数フェーズが同じラウンド名を持つ大会では誤った順位を出すため、
+  // start.gg 側で算出済みの placement を優先し、推測はフォールバックに留める。
+  const officialStandings: StandingEntry[] = startggStandings
+    .slice()
+    .sort((a, b) => a.placement - b.placement)
+    .map(s => {
+      const player = normalizePlayerName(s.player)
+      const elim   = eliminatedRound.get(player.toLowerCase())
+      return {
+        placement:   ordinal(s.placement),
+        player,
+        round:       elim?.round ?? '',
+        completedAt: elim?.completedAt ?? null,
+        isChampion:  s.placement === 1 && s.isFinal,
+        isFinal:     s.isFinal,
+      }
+    })
+
+  // ラウンド名フォールバック時は敗退済みの選手しか拾わないため全て確定扱い
+  const finalStandings = officialStandings.length > 0
+    ? officialStandings
+    : standings.map(s => ({ ...s, isFinal: true }))
+
+  // 暫定順位(=まだ勝ち残っている選手)と確定順位を分けて表示する
+  const provisional = finalStandings.filter(s => s.isFinal === false)
+  const confirmed   = finalStandings.filter(s => s.isFinal !== false)
+
   const hasUpNext    = upNext.length > 0
-  const hasStandings = standings.length > 0
+  const hasStandings = finalStandings.length > 0
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -209,6 +334,13 @@ export function LiveStandings({
                       letterSpacing: '0.08em', textTransform: 'uppercase' as const,
                       color: isLive ? V.accent : V.dim,
                     }}>{shortenRound(m.round_text || '')}</span>
+                    {/* 開始予定時刻。進行順が動的な大会でいつの試合か分かるようにする */}
+                    {!isLive && m.scheduledAt && (
+                      <span style={{
+                        marginLeft: 'auto', flexShrink: 0,
+                        fontFamily: V.FD, fontSize: 10, fontWeight: 700, color: V.dim,
+                      }}>{fmtMatchTime(m.scheduledAt)}</span>
+                    )}
                   </div>
                   {/* P1 vs P2 */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -242,59 +374,107 @@ export function LiveStandings({
           </>
         )}
 
-        {/* ── STANDINGS ───────────────────────────────────────────────────── */}
-        {hasStandings ? (
+        {/* ── 直近の結果 ──────────────────────────────────────────────────── */}
+        {recentResults.length > 0 && (
           <>
             <div style={{
               padding: '8px 14px 3px',
               fontFamily: V.FD, fontSize: 9, fontWeight: 800,
               letterSpacing: '0.16em', textTransform: 'uppercase' as const,
               color: V.dim,
-            }}>🏅 確定順位</div>
+            }}>✔ 直近の結果</div>
 
-            {standings.map((entry, i) => {
-              const { color: pColor, bg: pBg } = placementStyle(entry.placement)
+            {recentResults.map((m, i) => {
+              const p1 = normalizePlayerName(m.player1_handle || m.player1 || '')
+              const p2 = normalizePlayerName(m.player2_handle || m.player2 || '')
+              const w  = normalizePlayerName(m.winner || '')
+              const p1Won = w && w.toLowerCase() === p1.toLowerCase()
+              const canClick = p1 && p2 && p1 !== 'TBD' && p2 !== 'TBD'
+              const nameStyle = (won: boolean) => ({
+                flex: 1, minWidth: 0,
+                fontFamily: V.FD, fontSize: 13,
+                fontWeight: won ? 800 : 600,
+                color: won ? V.text : V.muted,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+              })
               return (
-                <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '7px 14px',
-                  background: pBg,
-                  borderBottom: i < standings.length - 1 ? `1px solid ${V.border}` : 'none',
-                }}>
-                  {/* 順位バッジ */}
+                <div
+                  key={`res-${i}`}
+                  onClick={() => canClick && onMatchClick(p1, p2)}
+                  style={{
+                    padding: '6px 14px',
+                    borderBottom: `1px solid ${V.border}`,
+                    cursor: canClick ? 'pointer' : 'default',
+                  }}
+                >
                   <div style={{
-                    width: 36, flexShrink: 0,
-                    fontFamily: V.FD, fontSize: 13, fontWeight: 900,
-                    letterSpacing: '0.04em', textAlign: 'center' as const,
-                    color: pColor,
-                  }}>
-                    {entry.placement ?? '—'}
-                  </div>
-
-                  {/* 選手名 */}
-                  <div style={{
-                    flex: 1, minWidth: 0,
-                    fontFamily: V.FD, fontSize: 14, fontWeight: 700,
-                    color: entry.isChampion ? V.accent : V.text,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
-                  }}>
-                    {entry.isChampion && (
-                      <span style={{ marginRight: 4, fontSize: 12 }}>🏆</span>
-                    )}
-                    {entry.player}
-                  </div>
-
-                  {/* ラウンド略称 */}
-                  <div style={{
-                    flexShrink: 0,
-                    fontFamily: V.FD, fontSize: 11, fontWeight: 700,
-                    letterSpacing: '0.06em', color: V.dim,
-                  }}>
-                    {shortenRound(entry.round)}
+                    fontFamily: V.FD, fontSize: 10, color: V.dim,
+                    letterSpacing: '0.08em', marginBottom: 3,
+                  }}>{shortenRound(m.round_text || m.round || '')}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ ...nameStyle(!!p1Won), textAlign: 'right' as const }}>{p1}</span>
+                    <span style={{
+                      flexShrink: 0, fontFamily: V.FD, fontSize: 12, fontWeight: 900,
+                      color: V.accent, padding: '1px 6px',
+                      background: V.surface2, borderRadius: 3, border: `1px solid ${V.border}`,
+                    }}>{m.score}</span>
+                    <span style={nameStyle(!p1Won)}>{p2}</span>
                   </div>
                 </div>
               )
             })}
+
+            {hasStandings && <div style={{ height: 4, background: V.surface2 }} />}
+          </>
+        )}
+
+        {/* ── STANDINGS ───────────────────────────────────────────────────── */}
+        {hasStandings ? (
+          <>
+            {/* 勝ち残り中 = 順位が今後変動する選手 */}
+            {provisional.length > 0 && (
+              <>
+                <div style={{
+                  padding: '8px 14px 3px',
+                  fontFamily: V.FD, fontSize: 9, fontWeight: 800,
+                  letterSpacing: '0.16em', textTransform: 'uppercase' as const,
+                  color: V.accent,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span className="sf6live-dot-green" style={{ width: 6, height: 6 }} />
+                  未確定 — 今後変動する可能性あり
+                </div>
+
+                {provisional.map((entry, i) => (
+                  <StandingRow
+                    key={`prov-${i}`}
+                    entry={entry}
+                    isLast={i === provisional.length - 1}
+                  />
+                ))}
+
+                <div style={{ height: 4, background: V.surface2 }} />
+              </>
+            )}
+
+            {confirmed.length > 0 && (
+              <>
+                <div style={{
+                  padding: '8px 14px 3px',
+                  fontFamily: V.FD, fontSize: 9, fontWeight: 800,
+                  letterSpacing: '0.16em', textTransform: 'uppercase' as const,
+                  color: V.dim,
+                }}>🏅 確定順位</div>
+
+                {confirmed.map((entry, i) => (
+                  <StandingRow
+                    key={`conf-${i}`}
+                    entry={entry}
+                    isLast={i === confirmed.length - 1}
+                  />
+                ))}
+              </>
+            )}
           </>
         ) : (
           /* データなし (UP NEXT もない場合のみ表示) */

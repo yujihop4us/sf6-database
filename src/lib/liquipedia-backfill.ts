@@ -59,8 +59,30 @@ function normalizeChar(name: string): string {
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
 
 /**
- * Liquipedia ページを取得。
+ * Liquipedia の規約準拠 User-Agent。
+ * 連絡先を含まない generic な UA で生 HTML を直接取得すると 403 で拒否される。
+ */
+const LIQUIPEDIA_UA =
+  'SF6Database/1.0 (https://sf6-database.vercel.app; sf6database@proton.me)'
+
+/**
+ * Liquipedia のページ URL を MediaWiki API 呼び出しに変換する。
+ * 生 HTML の直接取得はブロックされるため、必ず API 経由で取得すること。
+ */
+function toLiquipediaApiUrl(url: string): string | null {
+  const m = url.match(/^https?:\/\/liquipedia\.net\/fighters\/(.+?)\/?$/)
+  if (!m || m[1].startsWith('api.php')) return null
+  const page = decodeURIComponent(m[1])
+  return `${LIQUIPEDIA_BASE}/api.php?action=parse` +
+         `&page=${encodeURIComponent(page)}&prop=text&format=json`
+}
+
+/**
+ * Liquipedia ページのレンダリング済み HTML を取得。
  * レートリミット (429) は null を返し呼び出し元に伝搬させる。
+ *
+ * 生 HTML の直接取得は 403 になるため MediaWiki API 経由で取得する。
+ * 返る HTML はページと同じレンダリング結果なので解析ロジックはそのまま使える。
  */
 export async function fetchLiquipediaHtml(url: string): Promise<{
   html: string | null
@@ -68,28 +90,49 @@ export async function fetchLiquipediaHtml(url: string): Promise<{
 }> {
   await sleep(REQUEST_DELAY_MS)   // 常に待ってから送信
 
+  const apiUrl = toLiquipediaApiUrl(url)
+  const target = apiUrl ?? url
+
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
 
-    const res = await fetch(url, {
+    const res = await fetch(target, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'sf6-database/1.0 (https://github.com; data research)',
+        'User-Agent': LIQUIPEDIA_UA,
+        // API は gzip を要求する（未指定だと 406 になる）
         'Accept-Encoding': 'gzip, deflate',
-        'Accept': 'text/html',
+        'Accept': apiUrl ? 'application/json' : 'text/html',
       },
     })
     clearTimeout(timer)
 
     if (res.status === 429 || res.status === 503) return { html: null, rateLimited: true }
     if (res.status === 404) return { html: null, rateLimited: false }
-    if (!res.ok) return { html: null, rateLimited: false }
+    if (!res.ok) {
+      console.warn(`[liquipedia] HTTP ${res.status} for ${target}`)
+      return { html: null, rateLimited: false }
+    }
 
     const text = await res.text()
     if (text.includes('Rate Limited') && text.includes('cloudflare')) {
       return { html: null, rateLimited: true }
     }
+
+    if (apiUrl) {
+      let json: any
+      try { json = JSON.parse(text) } catch { return { html: null, rateLimited: false } }
+      if (json?.error) {
+        // missingtitle 等はページ不在なので静かに null
+        if (json.error.code !== 'missingtitle') {
+          console.warn(`[liquipedia] API error: ${json.error.code} for ${url}`)
+        }
+        return { html: null, rateLimited: false }
+      }
+      return { html: json?.parse?.text?.['*'] ?? null, rateLimited: false }
+    }
+
     return { html: text, rateLimited: false }
   } catch {
     return { html: null, rateLimited: false }

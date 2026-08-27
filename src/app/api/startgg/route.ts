@@ -63,6 +63,27 @@ query EventSetsLive($eventId: ID!, $perPage: Int!) {
   }
 }`
 
+// 確定順位 (start.gg 公式 standings)。
+// ラウンド名から順位を推測すると、Pools / Top 64 / Top 16 / Top 8 のように
+// 複数フェーズが同じラウンド名 ("Losers Quarter-Final" 等) を持つ大会で誤判定する。
+// start.gg 側で算出済みの placement を正とする。
+//
+// isFinal: 大会進行中、まだ敗退していない選手にも暫定 placement が付く
+// (例: Top 8 進出者が全員 5th/7th として掲載される)。isFinal=false は
+// 「今後変動しうる暫定順位」を意味するため、UI 側で確定順位と区別する。
+const Q_STANDINGS = `
+query EventStandings($eventId: ID!, $perPage: Int!) {
+  event(id: $eventId) {
+    standings(query: { page: 1, perPage: $perPage }) {
+      nodes {
+        placement
+        isFinal
+        entrant { id name participants { gamerTag player { id } } }
+      }
+    }
+  }
+}`
+
 // ── ヘルパー ───────────────────────────────────────────────────────────────────
 
 async function gqlFetch(query: string, variables: Record<string, unknown>) {
@@ -195,9 +216,32 @@ async function fetchFromStartGG(eventId: number) {
     merged.push(s)
   }
 
+  // 5. 確定順位 (取得失敗時は空配列 → UI 側は従来のラウンド名推測にフォールバック)
+  let standings: {
+    placement: number; isFinal: boolean; player: string
+    entrantId: number | null; startggId: number | null
+  }[] = []
+  try {
+    const sd = await gqlFetch(Q_STANDINGS, { eventId, perPage: 64 })
+    standings = (sd?.event?.standings?.nodes || [])
+      .filter((n: any) => n?.placement != null && n?.entrant)
+      .map((n: any) => ({
+        placement: n.placement,
+        // 大会自体が終了していれば全て確定扱いにする。
+        // start.gg は稀に終了後も一部エントラントの isFinal を false のまま残すため
+        // （実測: EWC LCQ 終了後も1名が false）、それに引きずられて
+        // 「未確定」表示が永久に残るのを防ぐ
+        isFinal:   event.state === 'COMPLETED' ? true : n.isFinal !== false,
+        player:    extractHandle(n.entrant.name, n.entrant.participants?.[0]?.gamerTag),
+        entrantId: n.entrant.id ?? null,
+        startggId: n.entrant.participants?.[0]?.player?.id ?? null,
+      }))
+  } catch { /* standings 取得失敗は無視 */ }
+
   return {
     event:       eventMeta,
     matches:     merged.map(mapSet),
+    standings,
     lastUpdated: new Date().toISOString(),
     source:      'start.gg',
   }

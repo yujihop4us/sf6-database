@@ -94,23 +94,33 @@ async function fetchTournamentData(id: string): Promise<TournamentData | null> {
   }
 
   // Sets with basic fields — join player data separately
-  // inferPlacements (Path A) には top-phase の GF セットが必要。
-  // id DESC で取得し上位2000件に加え、pool_identifier あり上位を優先取得。
-  // CB2026(4391セット)でも VVX15 GF(id~26576)はcutoff(23444)より大きいので含まれる。
-  const { data: setsRaw } = await supabase
-    .from('tournament_sets')
-    .select('id, round_text, phase_name, pool_identifier, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
-    .eq('tournament_id', numericId)
-    .order('id', { ascending: false })
-    .range(0, 2999)
-
-  // Collect all player IDs from sets and fetch them
-  const setList = (setsRaw ?? []) as {
+  // ページネーションで全件取得（Supabase の db-max-rows=1000 制限を回避）。
+  // CB2026(2900完了セット)・EVO2026(1518完了セット)など1000件超の大会に対応。
+  let setsRaw: {
     id: number; round_text: string | null; phase_name: string | null; pool_identifier: string | null
     display_score: string | null; winner_score: number | null; loser_score: number | null
     winner_id: number | null; loser_id: number | null
     winner_character: string | null; loser_character: string | null
-  }[]
+  }[] = []
+  {
+    let from = 0
+    while (true) {
+      const { data: page } = await supabase
+        .from('tournament_sets')
+        .select('id, round_text, phase_name, pool_identifier, display_score, winner_score, loser_score, winner_id, loser_id, winner_character, loser_character')
+        .eq('tournament_id', numericId)
+        .not('winner_id', 'is', null)
+        .order('id', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1)
+      if (!page?.length) break
+      setsRaw = setsRaw.concat(page)
+      if (page.length < PAGE_SIZE) break
+      from += PAGE_SIZE
+    }
+  }
+
+  // Collect all player IDs from sets and fetch them
+  const setList = setsRaw
 
   const playerIds = [...new Set([
     ...setList.map(s => s.winner_id).filter((x): x is number => x !== null),

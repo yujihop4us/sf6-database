@@ -22,6 +22,17 @@ export interface TournamentConfig {
   results: any[]
   /** デモモードフラグ: 実データAPIを一切呼ばずモックデータで動作 */
   isDemo?: boolean
+  /**
+   * 表示モードを固定する。指定するとフェーズ名による自動切替を行わない。
+   * 例: EWC本戦は予選もグループ総当たりではなくGSL形式のブラケットのため
+   *     最初から 'h2h' で表示したい
+   */
+  forceDisplayMode?: 'h2h' | 'pools'
+  /**
+   * start.gg を使わない大会で Liquipedia を一次ソースにする場合の大会キー。
+   * 実際のページ名は /api/liquipedia/results 側の allowlist で解決する
+   */
+  liquipediaTournament?: string
 }
 
 export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
@@ -236,12 +247,12 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
 
   'evo-2026': {
     name: 'EVO 2026',
-    streamPlatform: 'twitch', streamChannel: 'evo',
+    streamPlatform: 'twitch', streamChannel: 'capcomfighters',
     twitchChannels: [
-      { name: 'EVO (EN メイン)', channel: 'evo' },
-      { name: 'EVO (JP)',       channel: 'evojp' },
+      { name: 'EVO (EN メイン)', channel: 'capcomfighters' },
+      { name: 'EVO (JP)',       channel: 'capcomfighters_jp' },
     ],
-    twitchChatChannels: ['evo'],
+    twitchChatChannels: ['capcomfighters'],
     startDate: '2026-06-26', endDate: '2026-06-28',
     timezone: 'America/Los_Angeles', locationLabel: 'Las Vegas, NV',
     totalDays: 4,
@@ -253,6 +264,109 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
       { name: 'Pools',  format: 'Double Elimination',      groups: [{ name: 'Pools',  players: [], matches: [] }] },
       { name: 'Top 64', format: 'Double Elimination',      groups: [{ name: 'Top 64', players: [], matches: [] }] },
       { name: 'Top 8',  format: 'Double Elimination Ft5',  groups: [{ name: 'Top 8',  players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
+  'bam-16': {
+    name: 'Battle Arena Melbourne 16',
+    streamPlatform: 'twitch', streamChannel: 'capcomfighters',
+    twitchChannels: [
+      { name: 'BAM (メイン)',    channel: 'capcomfighters' },
+      { name: 'Couch Warriors', channel: 'couchwarriors' },
+    ],
+    twitchChatChannels: ['capcomfighters'],
+    startDate: '2026-07-10', endDate: '2026-07-12',
+    timezone: 'Australia/Melbourne', locationLabel: 'Melbourne, AU',
+    totalDays: 3,
+    startggEventId: 1540814,
+    dbTournamentId: 44,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    phases: [
+      { name: 'Pools',  format: 'Double Elimination',      groups: [{ name: 'Pools',  players: [], matches: [] }] },
+      { name: 'Top 64', format: 'Double Elimination',      groups: [{ name: 'Top 64', players: [], matches: [] }] },
+      { name: 'Top 8',  format: 'Double Elimination Ft5',  groups: [{ name: 'Top 8',  players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
+  'ewc-2026-lcq': {
+    name: 'Esports World Cup 2026: SF6 LCQ',
+    // start.gg 登録配信 (tournament.streams) より: EWC_Plus_EN のみ登録
+    streamPlatform: 'twitch', streamChannel: 'ewc_plus_en',
+    twitchChannels: [
+      { name: 'EWC EN (メイン)',  channel: 'ewc_plus_en' },
+    ],
+    twitchChatChannels: ['ewc_plus_en'],
+    startDate: '2026-07-24', endDate: '2026-07-26',
+    timezone: 'Europe/Paris', locationLabel: 'Paris, FR',
+    totalDays: 3,
+    startggEventId: 1640093,
+    dbTournamentId: 49,
+    cptPremier: false,
+    ewcQualifier: true, ewcSlots: 6,  // 上位6名がEWC本戦へ（5位が2名タイのため Lexx まで）
+    phases: [
+      { name: 'Pools',  format: 'Double Elimination',      groups: [{ name: 'Pools',  players: [], matches: [] }] },
+      { name: 'Top 64', format: 'Double Elimination',      groups: [{ name: 'Top 64', players: [], matches: [] }] },
+      { name: 'Top 16', format: 'Double Elimination',      groups: [{ name: 'Top 16', players: [], matches: [] }] },
+      { name: 'Top 8',  format: 'Double Elimination Ft5',  groups: [{ name: 'Top 8',  players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
+  'ceo-2026': {
+    name: 'CEO 2026',
+    streamPlatform: 'twitch', streamChannel: 'capcomfighters',
+    twitchChannels: [
+      { name: 'Capcom Fighters', channel: 'capcomfighters' },
+      { name: 'CEO Gaming',      channel: 'ceogaming' },
+      { name: 'VGBootCamp',      channel: 'vgbootcamp' },
+      { name: 'Tampa Never Sleeps', channel: 'tampaneversleeps' },
+    ],
+    twitchChatChannels: ['capcomfighters', 'ceogaming'],
+    startDate: '2026-08-14', endDate: '2026-08-17',
+    timezone: 'America/New_York', locationLabel: 'Orlando, FL',
+    totalDays: 4,
+    startggEventId: 1517778,
+    dbTournamentId: 45,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    phases: [
+      { name: 'Round 1', format: 'Double Elimination',     groups: [{ name: 'Round 1', players: [], matches: [] }] },
+      { name: 'Round 2', format: 'Double Elimination',     groups: [{ name: 'Round 2', players: [], matches: [] }] },
+      { name: 'Round 3', format: 'Double Elimination',     groups: [{ name: 'Round 3', players: [], matches: [] }] },
+      { name: 'Top 24',  format: 'Double Elimination',     groups: [{ name: 'Top 24',  players: [], matches: [] }] },
+      { name: 'Top 8',   format: 'Double Elimination Ft5', groups: [{ name: 'Top 8',   players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
+  // EWC本戦。start.gg を使わず Liquipedia が唯一の一次ソース
+  'ewc-2026': {
+    name: 'Esports World Cup 2026 (SF6)',
+    streamPlatform: 'twitch', streamChannel: 'capcomfighters',
+    twitchChannels: [
+      { name: 'Capcom (EN)',   channel: 'capcomfighters' },
+      { name: 'Capcom (JP)',   channel: 'capcomfighters_jp' },
+      { name: 'EWC Arena EN',  channel: 'ewc_amazonarena_en' },
+      { name: 'EWC Arena AR',  channel: 'ewc_amazonarena_ar' },
+    ],
+    twitchChatChannels: ['capcomfighters', 'capcomfighters_jp'],
+    startDate: '2026-07-29', endDate: '2026-08-01',
+    timezone: 'Europe/Paris', locationLabel: 'Paris, FR',
+    totalDays: 4,
+    // startggEventId なし — Liquipedia を一次ソースにする
+    liquipediaTournament: 'ewc-2026',
+    dbTournamentId: 11,
+    cptPremier: false,
+    ewcQualifier: false, ewcSlots: 0,
+    // 予選もGSL形式のブラケットのため最初から H2H 表示にする
+    forceDisplayMode: 'h2h',
+    phases: [
+      { name: 'Group Stage 1', format: 'GSL Double Elimination Ft3', groups: [{ name: 'Group Stage 1', players: [], matches: [] }] },
+      { name: 'Group Stage 2', format: 'GSL Double Elimination Ft3', groups: [{ name: 'Group Stage 2', players: [], matches: [] }] },
+      { name: 'Finals',        format: 'Single Elimination Ft5',     groups: [{ name: 'Finals',        players: [], matches: [] }] },
     ],
     results: [],
   },
@@ -286,6 +400,8 @@ export const SLUG_REDIRECTS: Record<string, string> = {
   '40': 'evo-japan-2026',
   '43': 'blink-respawn-2026',
   '48': 'combo-breaker-2026',
+  'bam-16-battle-arena-melbourne-16': 'bam-16',
+  'esports-world-cup-2026-street-fighter-6-lcq': 'ewc-2026-lcq',
 }
 
 /** tournamentId (slug or numeric string) から config を解決する */

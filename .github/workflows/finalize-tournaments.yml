@@ -1,0 +1,80 @@
+name: 大会データ確定処理
+
+# 大会終了後のデータ確定を自動化する。
+# Vercel は Hobby プランのため Cron が日1回・関数60秒上限で足りない
+# （CEO 2026 は 2225 セットあり数十分かかる）。時間制限のない Actions で実行する。
+#
+# 冪等なので何度走らせても安全。差分がある箇所だけ処理する。
+
+on:
+  schedule:
+    # 毎日 18:00 UTC (JST 翌03:00) — 主要大会の終了後に走る
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      tournament_id:
+        description: '特定の大会だけ処理する場合の DB tournament_id（空なら直近終了分すべて）'
+        required: false
+        type: string
+      days:
+        description: '何日前までに終了した大会を対象にするか'
+        required: false
+        default: '14'
+        type: string
+      since:
+        description: 'この日付以降に終了した大会をすべて対象にする（例: 2026-01-01）。指定時は days を無視'
+        required: false
+        type: string
+      with_tiers:
+        description: 'Tier 昇格も実行する（既定はオフ。影響が広いため）'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: '検出のみ（DB書き込みなし）'
+        required: false
+        default: false
+        type: boolean
+
+# 同時実行を防ぐ（DBへの二重書き込み・start.ggのレート制限対策）
+concurrency:
+  group: finalize-tournaments
+  cancel-in-progress: false
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: 大会データを確定・検証
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STARTGG_API_TOKEN: ${{ secrets.STARTGG_API_TOKEN }}
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.tournament_id }}" ]; then
+            ARGS="$ARGS --tournament-id=${{ inputs.tournament_id }}"
+          elif [ -n "${{ inputs.since }}" ]; then
+            ARGS="$ARGS --all --since=${{ inputs.since }}"
+          else
+            ARGS="$ARGS --days=${{ inputs.days || '14' }}"
+          fi
+          if [ "${{ inputs.with_tiers }}" = "true" ]; then
+            ARGS="$ARGS --with-tiers"
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "実行: node scripts/finalize-tournaments.js $ARGS"
+          node scripts/finalize-tournaments.js $ARGS

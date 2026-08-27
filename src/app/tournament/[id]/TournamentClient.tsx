@@ -260,6 +260,16 @@ function HeroSection({ data }: { data: TournamentData }) {
   const displayEntrants = tournament.numEntrantsOverride ?? entrants.length
   const displayMatches  = tournament.totalSetsOverride  ?? totalMatches
 
+  // 開催状況。以前は常に CONCLUDED を表示していたため、開催前・開催中の大会で
+  // 誤った表示になっていた（例: EWC本戦を開催初日に開いても CONCLUDED）
+  const tournamentStatus: 'upcoming' | 'live' | 'concluded' = (() => {
+    if (tournament.isLive) return 'live'
+    if (tournament.startDate && Date.now() < new Date(tournament.startDate + 'T00:00:00Z').getTime()) {
+      return 'upcoming'
+    }
+    return 'concluded'
+  })()
+
   // Split on first word for 2-line title: "COMBO" / "BREAKER 2026"
   // Then detect trailing year for outline treatment on 2nd line
   const words     = tournament.name.split(' ')
@@ -329,10 +339,14 @@ function HeroSection({ data }: { data: TournamentData }) {
             letterSpacing: '0.12em', textTransform: 'uppercase', color: T.accent,
           }}>
             <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: T.red,
-              display: 'inline-block', animation: 'sf6-pulse-dot 1.5s ease-in-out infinite',
+              width: 6, height: 6, borderRadius: '50%',
+              background: tournamentStatus === 'upcoming' ? T.border2 : T.red,
+              display: 'inline-block',
+              animation: tournamentStatus === 'upcoming' ? 'none' : 'sf6-pulse-dot 1.5s ease-in-out infinite',
             }} />
-            CONCLUDED
+            {tournamentStatus === 'live' ? 'LIVE'
+              : tournamentStatus === 'upcoming' ? 'UPCOMING'
+              : 'CONCLUDED'}
           </span>
           {/* cptEventType ベースのイベントバッジ */}
           {tournament.cptEventType === 'premier' && (

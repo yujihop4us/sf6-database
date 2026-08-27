@@ -88,6 +88,12 @@ const STREAM_INTERVAL       = Number(argv['stream-interval'] ?? 30) * 1000
 const SETS_INTERVAL         = Number(argv['sets-interval']   ?? 60) * 1000
 const DO_INITIAL_FETCH      = !!argv['initial-fetch']
 const WITH_CHARACTERS       = !!argv['with-characters']  // initial-fetch 後にキャラ補完
+/**
+ * 単発実行モード。1回だけポーリングして終了する。
+ * GitHub Actions から定期実行するために使う（常駐だとローカルPC依存になり、
+ * 実際に EWC LCQ で無警告停止して52セットと全順位が欠落した）。
+ */
+const RUN_ONCE              = !!argv['once']
 
 if (!STARTGG_TOURNAMENT_ID || !STARTGG_EVENT_ID || !TOURNAMENT_SLUG || !DB_TOURNAMENT_ID) {
   console.error('Usage: node scripts/live-fetch-v2.js --tournament-id=X --event-id=X --tournament-slug=X --db-tournament-id=X')
@@ -111,6 +117,55 @@ console.log(`
 
 let lastPollTimestamp = Math.floor(Date.now() / 1000) - 300  // 5分前から
 const knownSets = new Map()   // setId → { state, updatedAt }
+
+/**
+ * 単発実行（--once）で使う状態復元。
+ *
+ * 常駐時はメモリ上の lastPollTimestamp / knownSets を引き継げるが、
+ * GitHub Actions のような単発実行ではプロセスが毎回終了するため復元が必要。
+ * 専用の状態テーブルは作らず、既に保存している tournament_sets から導出する:
+ *   - lastPollTimestamp ← MAX(updated_at_sg)（前回どこまで見たか）
+ *   - knownSets         ← 既存セットの state（新規決着の判定に使う）
+ */
+async function restoreStateFromDb() {
+  const { data: latest } = await supabase
+    .from('tournament_sets')
+    .select('updated_at_sg')
+    .eq('tournament_id', DB_TOURNAMENT_ID)
+    .not('updated_at_sg', 'is', null)
+    .order('updated_at_sg', { ascending: false })
+    .limit(1)
+
+  const newest = latest?.[0]?.updated_at_sg
+  if (newest) {
+    // 取りこぼしを防ぐため少し巻き戻す（upsert なので重複取得は無害）
+    lastPollTimestamp = Math.floor(new Date(newest).getTime() / 1000) - 120
+  }
+
+  let rows = []
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase
+      .from('tournament_sets')
+      .select('startgg_set_id, state, updated_at_sg')
+      .eq('tournament_id', DB_TOURNAMENT_ID)
+      .not('startgg_set_id', 'is', null)
+      .range(from, from + 999)
+    if (!data?.length) break
+    rows = rows.concat(data)
+    if (data.length < 1000) break
+  }
+  for (const r of rows) {
+    knownSets.set(Number(r.startgg_set_id), {
+      state: r.state,
+      updatedAt: r.updated_at_sg ? Math.floor(new Date(r.updated_at_sg).getTime() / 1000) : null,
+    })
+  }
+
+  console.log(
+    `[STATE] DB から復元: known=${knownSets.size} 件 / ` +
+    `updatedAfter=${new Date(lastPollTimestamp * 1000).toISOString()}`
+  )
+}
 let playerCache = new Map()   // startgg_player_id → db player_id
 let v2MigrationApplied = true // 楽観的に true → 最初の失敗で false に切り替え
 let cycle = 0
@@ -742,6 +797,16 @@ async function main() {
 
   if (DO_INITIAL_FETCH) await initialFetch()
   if (DO_INITIAL_FETCH && WITH_CHARACTERS) await charBackfill()
+
+  // ── 単発実行: 1サイクルだけ回して終了 ──────────────────────────────
+  if (RUN_ONCE) {
+    if (!DO_INITIAL_FETCH) await restoreStateFromDb()
+    await pollStreamQueue()
+    const before = knownSets.size
+    await pollUpdatedSets()
+    console.log(`\n✅ 単発実行 完了（known: ${before} → ${knownSets.size}）`)
+    return
+  }
 
   // stream queue タイマー
   const streamTimer = setInterval(async () => {
