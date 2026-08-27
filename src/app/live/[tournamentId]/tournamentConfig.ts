@@ -315,6 +315,33 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
   },
 
+  'evo-france-2026': {
+    name: 'EVO France 2026',
+    streamPlatform: 'twitch', streamChannel: 'evo_france',
+    twitchChannels: [
+      { name: 'EVO France 1', channel: 'evo_france' },
+      { name: 'EVO France 2', channel: 'evo_france2' },
+      { name: 'EVO France 3', channel: 'evo_france3' },
+      { name: 'EVO (公式)',   channel: 'evo' },
+    ],
+    twitchChatChannels: ['evo_france'],
+    startDate: '2026-10-09', endDate: '2026-10-11',
+    timezone: 'Europe/Paris', locationLabel: 'Nice, FR',
+    totalDays: 3,
+    startggEventId: 1602225,
+    dbTournamentId: 46,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    // フェーズ構成は start.gg 側でブラケット生成後に確定するため暫定。
+    // 開催が近づいたら実際の phases に合わせて更新すること
+    phases: [
+      { name: 'Pools',  format: 'Double Elimination',     groups: [{ name: 'Pools',  players: [], matches: [] }] },
+      { name: 'Top 24', format: 'Double Elimination',     groups: [{ name: 'Top 24', players: [], matches: [] }] },
+      { name: 'Top 8',  format: 'Double Elimination Ft5', groups: [{ name: 'Top 8',  players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
   'ceo-2026': {
     name: 'CEO 2026',
     streamPlatform: 'twitch', streamChannel: 'capcomfighters',
