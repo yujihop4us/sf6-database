@@ -717,6 +717,41 @@ CEO 2026 は 2225 セットで数十分かかるため Vercel では処理でき
 - 大規模大会の「勝者の名寄せ未解決」は選手マスタ未登録の参加者が大半で、
   順位・賞金・ポイントには影響しない
 
+## 2026-09-12 — Ultimate Fighting Arena 2026（開催中）の緊急登録
+
+### 変更内容
+- **UFA 2026**(id=50) を登録 — 2026-09-11〜13 / Aubervilliers, FR / **CPT 2026 Premier**
+  start.gg tid=904086 eid=1609152 / **512エントラント** / Liquipedia URL 設定済み
+  - start.gg の slug は `ultimate-fighting-arena-2026-2`（`-2` なしは別の空エントリ）
+- `tournamentConfig.ts` に `'ufa-2026'` を追加（配信ch: Collision Series / Capcom Fighters /
+  ReversalGG / MisterMV / Ken Bogard、phases は start.gg の実構成に一致）
+- `scripts/import-sets.js` / `import-tournament.js` の DB 照合を
+  `slug` だけでなく `startgg_slug` でも引けるよう修正
+
+### 発生した問題と解決方法
+- 問題: `import-tournament.js` が既存行の `slug` を start.gg の slug で上書きし、
+  `ufa-2026` が `ultimate-fighting-arena-2026-2` に変わっていた
+- 原因: 更新時の payload に `slug` を含めていた。`slug` は公開URL兼
+  `tournamentConfig` のキーなので、上書きされると配信ページが解決できなくなる
+- 解決: 更新時は `slug` を除外し、start.gg 側の slug は `startgg_slug` に保存。
+  照合も `slug` / `startgg_slug` の両方を見るようにした
+
+- 問題: セット取り込みで「取得949件に対しDB898件（51件不足）」と警告が出た
+- 原因: start.gg がブラケット未生成の枠に `preview_xxx` という**文字列ID**を返すが、
+  `startgg_set_id` は bigint のため保存不可。実害はないのに毎回不足として報告されていた
+- 解決: 数値IDでないセットは取り込み前に除外
+
+- 問題: ライブ取得（差分方式）だけでは既に完了していた ROUND 1 が入らなかった
+- 原因: `live-fetch-v2 --once` は `MAX(updated_at_sg)` 以降しか取得しない設計
+- 解決: 開催中に新規登録した大会は `import-sets.js` で全件を先に入れてから
+  ライブ取得に引き継ぐ（登録手順として確立）
+
+### 未解決の課題
+- UFA の SF6 イベントには **AMATEUR ブラケット**(LR1/LR2) が同一イベント内の
+  フェーズとして含まれる。メイン本戦と混ざって H2H に入る点は要検討
+- `tier` / `prize_pool` / `total_prize_usd` 未設定 → 大会終了後に
+  `finalize-tournaments.js` が Liquipedia から充填する想定
+
 ## 既知の問題
 - Vercel GitHub自動デプロイが切断中 → 手動で npx vercel --prod --yes が必要
 - 選手名フォントサイズ変更（16px）が反映されていない可能性 → デプロイ確認待ち

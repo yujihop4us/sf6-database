@@ -102,6 +102,7 @@ console.log(`   SF6 Event: ${sf6Event.name} (${sf6Event.numEntrants} entrants)`)
       startgg_tournament_id: t.id,
       name: t.name,
       slug: slug,
+      startgg_slug: slug,
       start_date: t.startAt ? new Date(t.startAt * 1000).toISOString().split('T')[0] : null,
       end_date: t.endAt ? new Date(t.endAt * 1000).toISOString().split('T')[0] : null,
       location: t.city || null,
@@ -117,10 +118,14 @@ console.log(`   SF6 Event: ${sf6Event.name} (${sf6Event.numEntrants} entrants)`)
 // ---------- Step 2: Upsert tournament in DB ----------
 
 async function upsertTournament(info) {
+  // 既存行の slug はサイトの公開URL・tournamentConfig のキーになっているため、
+  // 更新時に start.gg の slug で上書きしてはいけない（配信ページが壊れる）。
+  const { slug: _incomingSlug, ...infoForUpdate } = info;
+
   const { data: existing } = await supabase
     .from('tournaments')
     .select('id')
-    .eq('slug', slug)
+    .or(`slug.eq.${slug},startgg_slug.eq.${slug}`)
     .maybeSingle();
 
   if (existing) {
@@ -128,7 +133,7 @@ async function upsertTournament(info) {
     await supabase
       .from('tournaments')
       .update({
-        ...info,
+        ...infoForUpdate,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id);
@@ -146,7 +151,7 @@ async function upsertTournament(info) {
     await supabase
       .from('tournaments')
       .update({
-        ...info,
+        ...infoForUpdate,
         updated_at: new Date().toISOString(),
       })
       .eq('id', existingById.id);

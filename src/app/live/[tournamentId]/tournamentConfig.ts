@@ -315,6 +315,35 @@ export const TOURNAMENT_CONFIG: Record<string, TournamentConfig> = {
     results: [],
   },
 
+  'ufa-2026': {
+    name: 'Ultimate Fighting Arena 2026',
+    // 開幕時点で配信中だったのは CollisionSeriesTV。
+    // 公式・フランス勢の配信も切り替えられるように併記する。
+    streamPlatform: 'twitch', streamChannel: 'collisionseriestv',
+    twitchChannels: [
+      { name: 'Collision Series', channel: 'collisionseriestv' },
+      { name: 'Capcom Fighters',  channel: 'capcomfighters' },
+      { name: 'ReversalGG',       channel: 'reversalgg' },
+      { name: 'MisterMV',         channel: 'mistermv' },
+      { name: 'Ken Bogard',       channel: 'kenbogard' },
+    ],
+    twitchChatChannels: ['collisionseriestv', 'capcomfighters'],
+    startDate: '2026-09-11', endDate: '2026-09-13',
+    timezone: 'Europe/Paris', locationLabel: 'Aubervilliers, FR',
+    totalDays: 3,
+    startggEventId: 1609152,
+    dbTournamentId: 50,
+    cptPremier: true,
+    ewcQualifier: false, ewcSlots: 0,
+    phases: [
+      { name: 'ROUND 1', format: 'Double Elimination',     groups: [{ name: 'ROUND 1', players: [], matches: [] }] },
+      { name: 'TOP 96',  format: 'Double Elimination',     groups: [{ name: 'TOP 96',  players: [], matches: [] }] },
+      { name: 'TOP 24',  format: 'Double Elimination',     groups: [{ name: 'TOP 24',  players: [], matches: [] }] },
+      { name: 'TOP 8',   format: 'Double Elimination Ft5', groups: [{ name: 'TOP 8',   players: [], matches: [] }] },
+    ],
+    results: [],
+  },
+
   'evo-france-2026': {
     name: 'EVO France 2026',
     streamPlatform: 'twitch', streamChannel: 'evo_france',

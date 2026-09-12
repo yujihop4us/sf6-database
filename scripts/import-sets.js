@@ -246,12 +246,14 @@ async function main() {
   if (!sf6Event) { console.error('❌ No SF6 event found'); process.exit(1); }
   console.log(`   SF6 Event: ${sf6Event.name} (${sf6Event.numEntrants} entrants)`);
 
-  // Get tournament_id from DB (column is 'slug', not 'startgg_slug')
+  // Get tournament_id from DB.
+  // サイト表示用の slug は start.gg の slug と一致しないことがある
+  // （例: ufa-2026 / ultimate-fighting-arena-2026-2）ため両方で照合する。
   const { data: dbTournament } = await supabase
     .from('tournaments')
     .select('id')
-    .eq('slug', slug)
-    .single();
+    .or(`slug.eq.${slug},startgg_slug.eq.${slug}`)
+    .maybeSingle();
 
   if (!dbTournament) {
     console.error('❌ Tournament not found in DB. Run import-tournament.js first.');
@@ -297,6 +299,11 @@ async function main() {
 
         for (const set of sets) {
           if (!set.winnerId || !set.slots || set.slots.length < 2) continue;
+
+          // start.gg はブラケット未生成の枠に "preview_xxx" という文字列IDを返す。
+          // startgg_set_id は bigint なので保存できず、
+          // 取り込んでも「取得件数 > DB件数」の誤検知になるだけなので除外する。
+          if (!/^\d+$/.test(String(set.id))) continue;
 
           const slot0 = set.slots[0];
           const slot1 = set.slots[1];
