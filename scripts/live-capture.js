@@ -38,15 +38,26 @@ async function main() {
     .toISOString().slice(0, 10)
 
   // 開催中（または終了直後）で start.gg を持つ大会
-  const { data: targets, error } = await supabase
-    .from('tournaments')
-    .select('id, name, slug, startgg_slug, startgg_tournament_id, startgg_event_id, start_date, end_date')
-    .not('startgg_event_id', 'is', null)
-    .not('startgg_tournament_id', 'is', null)
-    .lte('start_date', todayStr)
-    .gte('end_date', graceStr)
+  // Supabase は一時的に 504 Gateway Timeout を返すことがある。
+  // 1回の失敗で異常終了すると無用な通知が飛ぶため、数回リトライしてから諦める。
+  let targets = null
+  let lastError = null
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { data, error } = await supabase
+      .from('tournaments')
+      .select('id, name, slug, startgg_slug, startgg_tournament_id, startgg_event_id, start_date, end_date')
+      .not('startgg_event_id', 'is', null)
+      .not('startgg_tournament_id', 'is', null)
+      .lte('start_date', todayStr)
+      .gte('end_date', graceStr)
 
-  if (error) { console.error('大会取得エラー:', error.message); process.exit(1) }
+    if (!error) { targets = data; lastError = null; break }
+    lastError = error
+    console.warn(`  ⏳ 大会取得に失敗 (${attempt}/3): ${error.message}`)
+    if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 5000))
+  }
+
+  if (lastError) { console.error('大会取得エラー:', lastError.message); process.exit(1) }
 
   const lines = ['## ライブ取得', '']
 
