@@ -278,7 +278,10 @@ async function main() {
         console.log(`  ▸ セット不足 ${missing} 件 → import-sets`)
         r.actions.push(`sets: ${db.sets} → 同期実行 (不足${missing})`)
         if (!DRY_RUN) {
-          const slug = t.slug ?? t.startgg_slug
+          // import-sets.js は start.gg に slug で問い合わせるため、
+          // 必ず startgg_slug を優先する。サイト表示用の slug は
+          // start.gg と一致しないことがある（例: ufa-2026 / ultimate-fighting-arena-2026-2）
+          const slug = t.startgg_slug ?? t.slug
           const res = runScript('import-sets.js', [slug])
           if (!res.ok) console.log('    ⚠ import-sets 失敗')
         }
