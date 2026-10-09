@@ -327,13 +327,6 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           flex-shrink: 0 !important;
         }
 
-        /* 中画面 (769px〜1280px): PlayerBand をさらに縮小 */
-        @media (min-width: 769px) and (max-width: 1280px) {
-          .h2h-faceoff {
-            grid-template-columns: minmax(120px, 12vw) 1fr minmax(120px, 12vw) !important;
-          }
-        }
-
         /* 順位表 / チャット: ファーストビューの下に配置される。
            以前は viewport 内に押し込むため 200px しか確保できずチャットが
            極端に狭かった。ページスクロールを解禁したので実用的な高さを与える */
@@ -363,7 +356,7 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
            （それらはスクロールして参照する）。
            内訳: navbar 36 + toggle 33 + ラウンドバー 48 + H2Hバー 114 + gap/padding 22 ≈ 253px */
         .stream-and-h2h-sticky .stream-player-wrapper {
-          max-height: calc(100dvh - 265px);
+          max-height: calc(100dvh - var(--chrome));
           min-height: 300px;
         }
 
@@ -430,11 +423,12 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
            Twitch は埋め込みが画面外に出ると再生を停止し、戻しても自動再開しない
            （実測: 画面外で paused=true / time=0 にリセット）ため、
            スクロール中も必ずビューポート内に残す必要がある */
+        /* 以前は min-height: 100dvh + 上下中央寄せでファーストビューを埋めていたが、
+           配信が横幅で頭打ちになる大画面では上下に大きな空白ができていた。
+           配信の高さ自体を --chrome から決めるようにしたので、ここは上詰めでよい */
         .stream-and-h2h-sticky {
-          min-height: calc(100dvh - 105px);
           display: flex;
           flex-direction: column;
-          justify-content: center;
         }
 
         /* 下にコンテンツがあることを示すスクロールヒント */
@@ -467,11 +461,49 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
           display: none;
         }
 
-        /* コンテンツ最大幅: 1440px中央配置（それ以上は左右に暗い帯） */
+        /* PC: 配信サイズは「横の空き」と「縦の空き」の小さい方で決める。
+           以前は全体を max-width 1440px に固定し、選手パネルを 15vw で伸ばし、
+           配信は残り幅から 16:9 で高さを出していた。そのため大画面ほど
+           選手パネルだけが太り、配信は 640px 程度に留まって上下が空いていた。
+           --chrome は配信以外の縦の占有量（実測: ナビ〜AUTO帯 114 +
+           配信上のタブ 91 + H2Hバー 114 + スクロールヒント等 ≈ 352px） */
         .live-content-wrapper {
-          max-width: 1440px;
+          --side: clamp(160px, 12vw, 260px);
+          --chrome: 360px;
+          --stream-w: min(
+            calc(100vw - 2 * var(--side) - 48px),
+            calc((100dvh - var(--chrome)) * 16 / 9)
+          );
+          /* 左右パネル + 配信 + 枠線 1px×2 */
+          --hero-w: calc(2 * var(--side) + var(--stream-w) + 2px);
           margin: 0 auto;
           width: 100%;
+        }
+        /* 中画面 (769px〜1280px): PlayerBand をさらに縮小。
+           上の既定値より後に書かないと同じ詳細度で上書きされて効かない */
+        @media (min-width: 769px) and (max-width: 1280px) {
+          .live-content-wrapper {
+            --side: clamp(120px, 12vw, 160px);
+          }
+        }
+        .h2h-faceoff {
+          grid-template-columns: var(--side) var(--stream-w) var(--side);
+          box-sizing: border-box;
+        }
+        /* 配信の下の H2H バーや順位表も配信ブロックと同じ幅で揃える */
+        @media (min-width: 769px) {
+          .live-content-wrapper > :not(.pools-layout) {
+            width: 100%;
+            max-width: var(--hero-w);
+            margin-inline: auto;
+            box-sizing: border-box;
+          }
+          /* Pools モードは別レイアウトなので従来の幅を維持 */
+          .pools-layout {
+            width: 100%;
+            max-width: 1408px;
+            margin-inline: auto;
+          }
         }
 
         /* チャンネルセレクター: hover可能なデバイスのみホバー表示化
@@ -920,9 +952,10 @@ export default function LivePage({ params }: { params: Promise<{ tournamentId: s
             {/* 配信 + H2Hバー: モバイルで sticky 固定 */}
             <div className="stream-and-h2h-sticky">
             {/* 3カラム フェイスオフ */}
+            {/* 列幅は CSS (.h2h-faceoff) 側で配信サイズから決める。
+                インラインに書くとメディアクエリで上書きできない */}
             <div className="h2h-faceoff" style={{
               display: 'grid',
-              gridTemplateColumns: 'minmax(160px, 15vw) 1fr minmax(160px, 15vw)',
               gap: 0, borderRadius: '12px 12px 0 0', overflow: 'hidden',
               border: `1px solid ${V.border}`,
               flexShrink: 0,
