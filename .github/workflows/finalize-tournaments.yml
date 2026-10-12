@@ -61,6 +61,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STARTGG_API_TOKEN: ${{ secrets.STARTGG_API_TOKEN }}
+          # 子スクリプトの一部は STARTGG_TOKEN を参照するため同じ値を両方で渡す
+          # （live-capture.yml と揃える）
+          STARTGG_TOKEN: ${{ secrets.STARTGG_API_TOKEN }}
         run: |
           ARGS=""
           if [ -n "${{ inputs.tournament_id }}" ]; then

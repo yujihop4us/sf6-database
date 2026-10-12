@@ -3,7 +3,12 @@ require('dotenv').config({ path: '.env.local' });
 const { createClient } = require('@supabase/supabase-js');
 
 const STARTGG_API = 'https://api.start.gg/gql/alpha';
-const TOKEN = process.env.STARTGG_TOKEN;
+// ローカルは STARTGG_TOKEN、GitHub Actions は STARTGG_API_TOKEN で渡されるため両方を見る
+const TOKEN = process.env.STARTGG_TOKEN || process.env.STARTGG_API_TOKEN;
+if (!TOKEN) {
+  console.error('❌ STARTGG_TOKEN / STARTGG_API_TOKEN が未設定です');
+  process.exit(1);
+}
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY

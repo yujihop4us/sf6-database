@@ -72,13 +72,20 @@ export async function syncPrizesAndPoints(tournament, { dryRun = false } = {}) {
   }
   const byPlayer = new Map(ents.map(e => [e.player_id, e]))
 
+  // 同一人物が複数レコードに分かれている場合（PLAYER_ALT_HANDLES）は、
+  // この大会のエントラントである候補を優先する。該当が無ければ主レコード
+  const resolve = (name) => {
+    const cands = idx.findAll(name)
+    return cands.find(p => byPlayer.has(p.id)) ?? cands[0] ?? null
+  }
+
   // ── SAFETY: 賞金表がこの大会のものか検証 ────────────────────────────────
   // liquipedia_url は大会間で共有されていることがある。
   // 実例: EWC 2026 の LCQ(id=49) と本戦(id=11) が同じ URL を指しており、
   // 素朴に適用すると LCQ の選手に本戦の $1,000,000 が書き込まれる。
   // 賞金表の選手がこの大会のエントラントとほとんど一致しない場合は適用しない。
   const matched = pool.entries.filter(e => {
-    const p = idx.find(e.name)
+    const p = resolve(e.name)
     return p && byPlayer.has(p.id)
   }).length
   const matchRate = pool.entries.length ? matched / pool.entries.length : 0
@@ -92,7 +99,7 @@ export async function syncPrizesAndPoints(tournament, { dryRun = false } = {}) {
   const pointRows = []
 
   for (const e of pool.entries) {
-    const player = idx.find(e.name)
+    const player = resolve(e.name)
     if (!player) { result.unmatched.push(e.name); continue }
 
     const ent = byPlayer.get(player.id)

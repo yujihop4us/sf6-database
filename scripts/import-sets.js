@@ -8,7 +8,14 @@ const supabase = createClient(
 );
 
 const STARTGG_API = 'https://api.start.gg/gql/alpha';
-const STARTGG_TOKEN = process.env.STARTGG_TOKEN;
+// ローカル (.env.local) は STARTGG_TOKEN、GitHub Actions は STARTGG_API_TOKEN で渡される。
+// 片方しか見ていなかったため Actions 上では常にトークン無しで start.gg を叩き、
+// 認証エラーが「Tournament not found」として表に出ていた
+const STARTGG_TOKEN = process.env.STARTGG_TOKEN || process.env.STARTGG_API_TOKEN;
+if (!STARTGG_TOKEN) {
+  console.error('❌ STARTGG_TOKEN / STARTGG_API_TOKEN が未設定です');
+  process.exit(1);
+}
 
 const slug = process.argv[2];
 if (!slug) {

@@ -23,6 +23,23 @@ export const PLAYER_ALIASES = {
   'Enzo':           'EnzoTheHokage',
 }
 
+/**
+ * 同一人物が DB に別の handle で（別レコードとして）存在するケース。
+ * start.gg のアカウントが複数ある、チームタグ込みで登録されている等。
+ * PLAYER_ALIASES と違い1対多なので、呼び出し側は候補のうち
+ * 「その大会のエントラントである」ものを選ぶこと（findAll を使う）。
+ *
+ * 追加時は必ず順位の整合を確認すること（例: EVO France 2026 で
+ * Liquipedia "Hinao" 5位タイ ⇔ DB "REJECT ひなお" 5位 を照合済み）
+ */
+export const PLAYER_ALT_HANDLES = {
+  // Hinao は start.gg アカウントが2つあり DB も id=27 / id=25790 に分かれている
+  'Hinao':     ['REJECT ひなお'],
+  'tako':      ['tako956402'],
+  'Crossover': ['CrossoverRD'],
+  'Eita':      ['CAG/eita'],
+}
+
 /** 別名を適用（未知の名前はそのまま返す） */
 export function applyAlias(name) {
   const n = String(name ?? '').trim()
@@ -68,6 +85,21 @@ export async function buildPlayerIndex(supabase) {
     /** 名前から player を引く。別名適用 → 正規化キーで照合 */
     find(name) {
       return byKey.get(normalizeKey(applyAlias(name))) ?? null
+    },
+    /**
+     * 同一人物の候補をすべて返す（主レコード + PLAYER_ALT_HANDLES）。
+     * 複数レコードに分かれた選手を、大会ごとに正しい方へ寄せるために使う
+     */
+    findAll(name) {
+      const n = String(name ?? '').trim()
+      const keys = [applyAlias(n), ...(PLAYER_ALT_HANDLES[n] ?? [])].map(normalizeKey)
+      const seen = new Set()
+      const out = []
+      for (const k of keys) {
+        const p = byKey.get(k)
+        if (p && !seen.has(p.id)) { seen.add(p.id); out.push(p) }
+      }
+      return out
     },
   }
 }

@@ -253,7 +253,9 @@ async function main() {
       } else {
         console.log('  source  : Liquipedia のみ（start.gg 無し）')
       }
-      console.log(`  DB      : sets=${db.setsWithWin} entrants=${db.entrants} placement=${db.placements} chars=${db.chars} prize=${db.prizes}`)
+      // sets は行数。勝者名寄せ済みの件数を sets= と表示していたため
+      // 「行が消えた」ように見えて紛らわしかった（EVO France: 2141行 / 名寄せ済 2073）
+      console.log(`  DB      : sets=${db.sets} (勝者名寄せ済 ${db.setsWithWin}) entrants=${db.entrants} placement=${db.placements} chars=${db.chars} prize=${db.prizes}`)
 
       if (truth && truth.state !== 'COMPLETED') {
         console.log('  ⏭ まだ完了していないためスキップ')

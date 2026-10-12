@@ -786,6 +786,42 @@ CEO 2026 は 2225 セットで数十分かかるため Vercel では処理でき
 - 1100×760 のような低い画面では、H2Hバーまで1画面に収めるため配信が従来より小さくなる
   （従来は H2Hバーが画面下にはみ出していた）
 
+## 2026-10-12 — EVO France 2026 終了後のデータ確定 + 自動処理の根本バグ修正
+
+### 変更内容
+- `.github/workflows/finalize-tournaments.yml`: `STARTGG_TOKEN` も渡すよう追加
+- `scripts/import-sets.js` / `import-tournament.js`: `STARTGG_TOKEN || STARTGG_API_TOKEN` の両方を参照し、未設定なら明示的に失敗
+- `scripts/lib/player-aliases.mjs`: `PLAYER_ALT_HANDLES`（同一人物の別レコード）と `findAll()` を追加
+- `scripts/sync-prizes-points.js`: 候補のうち「その大会のエントラント」を優先して名寄せ
+- `scripts/finalize-tournaments.js`: ログの `sets=` を行数表示に修正（名寄せ済件数は別表記）
+
+### 発生した問題と解決方法
+- 問題: EVO France 終了後の確定処理が `Tournament not found` で失敗し、セットが 1482/2141 のまま
+- 原因: `import-sets.js` は `STARTGG_TOKEN` だけを参照するが、finalize のワークフローは
+  `STARTGG_API_TOKEN` しか渡していなかった。**Actions 上の import-sets は導入以来一度も成功していない**
+  （9/16〜の UFA 連続失敗も slug 問題と二重の原因だった。ローカル実行で埋めていたため気付けなかった）
+- 解決: スクリプト側で両方の変数名を受け付け、ワークフロー側でも両方渡す。
+  `STARTGG_TOKEN=""` で Actions と同じ条件を再現し 2141/2141 を確認
+
+- 問題: 5位 Hinao の賞金 $3,361.33 と CPT 150pt、13位 tako の 30pt が未反映
+- 原因: DB 上の EVO France 出場レコードが `REJECT ひなお`（id=25790）で、Liquipedia の `Hinao`
+  は別レコード id=27 に当たっていた。Hinao は start.gg アカウントが2つあり DB も分裂している
+- 解決: 1対多の別名表を追加し、候補のうち当該大会のエントラントを選ぶようにした。
+  4件とも Liquipedia の順位帯と DB の順位が一致することを確認してから登録
+
+### 結果
+| 項目 | 結果 |
+|---|---|
+| セット | 2141 / 2141 |
+| 順位 | 1070 / 1070 |
+| 賞金 | 8名（1〜8位、合計 $56,022.15） |
+| CPT2026 ポイント | 31件 |
+
+### 未解決の課題
+- **Hinao の DB レコードが2つに分裂**（id=27 Tier A / id=25790）。戦績・H2H が分散しているため統合が必要
+- UFA 2026 の賞金表未マッチ 3件（takepi / Hope / Ishak）は未調査
+- 勝者の名寄せ未解決 68件（選手マスタ未登録の参加者。順位・賞金・ポイントには影響なし）
+
 ## 既知の問題
 - Vercel GitHub自動デプロイが切断中 → 手動で npx vercel --prod --yes が必要
 - 選手名フォントサイズ変更（16px）が反映されていない可能性 → デプロイ確認待ち
