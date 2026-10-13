@@ -822,6 +822,29 @@ CEO 2026 は 2225 セットで数十分かかるため Vercel では処理でき
 - UFA 2026 の賞金表未マッチ 3件（takepi / Hope / Ishak）は未調査
 - 勝者の名寄せ未解決 68件（選手マスタ未登録の参加者。順位・賞金・ポイントには影響なし）
 
+## 2026-10-12 — Hinao の重複 players レコードを統合
+
+### 変更内容
+- `scripts/merge-players.js` を新規作成 — 重複 players を1つに統合する汎用スクリプト
+  - drop 側を参照する全列（FK のある15列 + FK 無しの `tournament_sets.p1/p2_player_id`・`h2h_records`）を keep 側へ付け替え
+  - `startgg_player_ids` を keep 側に集約 → 以後の取り込みはどちらのアカウントでも keep に名寄せされる
+  - 既定は dry-run。一意制約に衝突する行があれば中止。更新は1つの DO ブロックで実行（途中失敗で全体ロールバック）
+  - Management API 経由で SQL を実行（`SUPABASE_ACCESS_TOKEN`）。supabase-js ではトランザクションが張れないため
+- **DB**: `REJECT ひなお`(id=25790) → `Hinao`(id=27) に統合し、id=25790 を削除
+  - 付け替え: entrants 5 / tournament_sets 73（列単位）/ cpt_points 1 / h2h_records 108（列単位）
+  - id=27 の `startgg_player_ids` = `[4428950, 5091007]`
+- `scripts/lib/player-aliases.mjs`: `PLAYER_ALT_HANDLES` から Hinao を削除（統合で不要に）
+
+### 発生した問題と解決方法
+- 問題: Hinao の戦績が2レコードに分散（id=27 は CC12・EWC のみ、id=25790 は EVO Japan / Combo Breaker / Evo / BAM16 / EVO France）
+- 原因: start.gg アカウントが2つあり、2つ目（5091007）の初出時に既存選手と照合できず新規作成された
+- 解決: 上記スクリプトで統合。統合後 id=27 に7大会・CPT 150pt・EWC 500pt が揃い、id=25790 への参照が0件であることを確認。
+  `sync-prizes-points.js --tournament-id=46 --dry-run` で賞金差分0・ポイント31件と従来どおり解決されることも確認
+
+### 未解決の課題
+- `total_sf6_earnings_usd`(id=27: $8,448) は Liquipedia infobox 由来のため EVO France 分は次回 player-sync で反映される
+- `PLAYER_ALT_HANDLES` の残り（tako / Crossover / Eita）も同じ分裂の可能性あり → 確認のうえ `merge-players.js` で統合を検討
+
 ## 既知の問題
 - Vercel GitHub自動デプロイが切断中 → 手動で npx vercel --prod --yes が必要
 - 選手名フォントサイズ変更（16px）が反映されていない可能性 → デプロイ確認待ち

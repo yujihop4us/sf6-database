@@ -31,10 +31,11 @@ export const PLAYER_ALIASES = {
  *
  * 追加時は必ず順位の整合を確認すること（例: EVO France 2026 で
  * Liquipedia "Hinao" 5位タイ ⇔ DB "REJECT ひなお" 5位 を照合済み）
+ *
+ * 根本解決は scripts/merge-players.js でレコードを統合すること。統合したらここから外す
+ * （Hinao は 2026-10-12 に id=25790 → id=27 へ統合済み）
  */
 export const PLAYER_ALT_HANDLES = {
-  // Hinao は start.gg アカウントが2つあり DB も id=27 / id=25790 に分かれている
-  'Hinao':     ['REJECT ひなお'],
   'tako':      ['tako956402'],
   'Crossover': ['CrossoverRD'],
   'Eita':      ['CAG/eita'],
