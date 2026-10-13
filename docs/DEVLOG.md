@@ -843,7 +843,22 @@ CEO 2026 は 2225 セットで数十分かかるため Vercel では処理でき
 
 ### 未解決の課題
 - `total_sf6_earnings_usd`(id=27: $8,448) は Liquipedia infobox 由来のため EVO France 分は次回 player-sync で反映される
-- `PLAYER_ALT_HANDLES` の残り（tako / Crossover / Eita）も同じ分裂の可能性あり → 確認のうえ `merge-players.js` で統合を検討
+- ~~`PLAYER_ALT_HANDLES` の残り（tako / Crossover / Eita）も同じ分裂の可能性あり~~ → 下記で確認、分裂なし
+
+## 2026-10-12 — tako / Crossover / Eita の重複レコード調査（統合不要）
+
+### 変更内容
+- コード・DB の変更なし。`PLAYER_ALT_HANDLES` の残り3名に重複レコードがあるか調査した
+
+### 発生した問題と解決方法
+- 結果: 3名とも DB 上のレコードは1件のみで、統合は不要
+  - Crossover → `CrossoverRD`(id=9885)、Eita → `CAG/eita`(id=986): 同名の別レコードなし。Liquipedia 名と handle が違うだけ
+  - tako → `tako956402`(id=6068)。似た handle の `TAKO`(id=2145) は UFA 2026 に、`takokasu`(id=4504) は
+    EVO Japan 2025 / Evo 2026 に tako956402 と**同時出場**しているため別人
+- 補足: この3件は実質1対1の別名なので `PLAYER_ALIASES` 側が本来の置き場所だが、`findAll` の挙動は同じため現状維持
+
+### 未解決の課題
+- Hinao のような分裂は別名表に載っていない選手にも潜在している可能性がある（未調査）
 
 ## 既知の問題
 - Vercel GitHub自動デプロイが切断中 → 手動で npx vercel --prod --yes が必要
